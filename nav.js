@@ -1,4 +1,4 @@
-/* Knight Forestry — shared by every page.
+/* Shared by every page.
    1) Phone back button: goes back one level at a time (close pop-up → previous screen → page menu →
       Quote home page). On the home page it does nothing, so the app never closes by accident.
       Each page defines window.kfBack(): return true if it closed something / went up a level.
@@ -70,6 +70,11 @@
     valid: function (u) { return !u || /^https:\/\/script\.google(usercontent)?\.com\//.test(u); },
     // Draws a "Sheet links" card into `box` for the given keys.
     card: function (box, keys, onSaved) {
+      if (kfCo.unified()) {
+        box.innerHTML = '<h2 style="margin-top:0">Sheet link</h2><div style="font-size:.9rem">This device uses the single company link for everything:</div><div style="word-break:break-all;font-size:.85rem;margin:6px 0;padding:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px">' +
+          kfCo.base().replace(/[&<>"]/g, '') + '</div><div style="font-size:.85rem;color:var(--muted,#64748b)">To connect to a different company, use Quote → Settings → Switch company.</div>';
+        return;
+      }
       var id = 'kfl' + Math.random().toString(36).slice(2, 7);
       var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
       box.innerHTML = '<h2 style="margin-top:0">Sheet links</h2>' + keys.map(function (k) {
@@ -87,6 +92,78 @@
     }
   };
   window.kfLinks = kfLinks;
+
+  /* ---------------- single company link (company-apps-script.gs) ----------------
+     A connected device stores the link (kfCompanyUrl) and the company key (kfKey). Every page's old
+     link setting is filled with "<link>?svc=<part>&k=<key>", so all pages work without other changes. */
+  var LS = { get: function (k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }, del: function (k) { try { localStorage.removeItem(k); } catch (e) {} } };
+  var kfCo = {
+    unified: function () { return !!(LS.get('kfCompanyUrl') && LS.get('kfKey')); },
+    base: function () { return LS.get('kfCompanyUrl'); },
+    url: function (svc, withKey) { var b = LS.get('kfCompanyUrl'); if (!b) return ''; return b + '?svc=' + svc + (withKey === false ? '' : '&k=' + encodeURIComponent(LS.get('kfKey'))); },
+    clean: function (u) { return String(u || '').trim().split('?')[0]; },
+    // Connect this device to a company: write every page's link.
+    apply: function (base, key, meta) {
+      base = kfCo.clean(base); var now = String(Date.now());
+      LS.set('kfCompanyUrl', base); LS.set('kfKey', key);
+      if (meta && meta.companyId) LS.set('kfCompanyId', meta.companyId);
+      if (meta && meta.companyName) LS.set('kfCompanyName', meta.companyName);
+      var s = readSettings(); s.syncUrl = kfCo.url('sync'); s.sheetsUrl = kfCo.url('loads'); s.sheetsUrlAt = Number(now);
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
+      [['scriptUrl', 'tickets'], ['yardUrl', 'yards'], ['driversUrl', 'drivers']].forEach(function (x) { LS.set(x[0], kfCo.url(x[1])); LS.set(x[0] + 'At', now); });
+      LS.del('kfDrvUrl'); LS.set('coLoggedIn', '1'); LS.set('loggedIn', 'true');
+    },
+    // Remove every trace of a company from this device (its data stays safe in that company's sheet).
+    wipe: function () {
+      var keep = { kf_theme: 1, kfSkipConnect: 0 }, ks = [];
+      try { for (var i = 0; i < localStorage.length; i++) ks.push(localStorage.key(i)); } catch (e) {}
+      ks.forEach(function (k) { if (!keep[k]) LS.del(k); });
+      try { sessionStorage.clear(); } catch (e) {}
+    },
+    // Does this device hold data for a company (used to protect against mixing two companies)?
+    hasData: function () {
+      var s = readSettings();
+      return !!((s.locations && s.locations.length) || s.syncUrl || s.sheetsUrl || LS.get('scriptUrl') || LS.get('yardUrl') || LS.get('kfCompany') || LS.get('kfDrvSession') || LS.get('kfDrvShift'));
+    },
+    sameCompany: function (meta) { var id = LS.get('kfCompanyId'); return !!(id && meta && meta.companyId === id); },
+    post: function (svc, body) {
+      return fetch(kfCo.url(svc), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' }).then(function (r) { return r.json(); });
+    }
+  };
+  window.kfCo = kfCo;
+
+  /* ---------------- company name + logo in every page header ---------------- */
+  function company() { try { return JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch (e) { return {}; } }
+  window.kfBrand = function () {
+    var co = company(), s = readSettings(), name = co.name || s.companyName || LS.get('kfCompanyName') || '';
+    var logo = co.logo || (!kfCo.unified() && kfCo.hasData() ? 'logo.jpg' : '');   // bundled logo only for a device on the original separate scripts
+    var n = document.getElementById('companyNameBanner'); if (n) n.textContent = name || 'Set up your company';
+    var img = document.getElementById('companyLogo');
+    if (img) { if (logo) { if (img.getAttribute('src') !== logo) img.src = logo; img.style.visibility = 'visible'; } else { img.removeAttribute('src'); img.style.visibility = 'hidden'; } }
+    return { name: name, logo: logo };
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    window.kfBrand();
+    // keep company info (Billing details, name, logo) current on every device
+    if (kfCo.unified() && navigator.onLine !== false) {
+      fetch(kfCo.url('sync') + '&profile=1&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.status === 'ok' && j.profile) {
+          var cur = company(), pr = j.profile, next = { name: pr.name || '', gst: pr.gst || '', wcb: pr.wcb || '', email: pr.email || '', phone: pr.phone || '', addr: pr.addr || '', mail: pr.mail || '', etNote: pr.etNote || '', logo: pr.logo || '' };
+          if (JSON.stringify(cur) !== JSON.stringify(next)) { try { localStorage.setItem('kfCompany', JSON.stringify(next)); } catch (e) {} window.kfBrand(); if (window.kfOnProfile) window.kfOnProfile(next); }
+        } else if (j && j.status === 'nokey') {
+          hint('This device is no longer connected to the company (the password was changed). Open Quote → Settings to connect again.');
+        }
+      }).catch(function () {});
+    }
+  });
+  // shrink a picture to at most `max` px and return a data URL (logos are stored in the company sheet)
+  window.kfShrinkImage = function (file, max) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { var im = new Image(); im.onload = function () { var k = Math.min(1, (max || 256) / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/png')); }; im.onerror = rej; im.src = r.result; };
+      r.onerror = rej; r.readAsDataURL(file);
+    });
+  };
 
   /* ---------------- Android app (Capacitor) ----------------
      The app loads this same site. Inside it, the browser's share screen, downloads, print and

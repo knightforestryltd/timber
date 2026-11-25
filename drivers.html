@@ -95,7 +95,7 @@ table.ev { width: 100%; border-collapse: collapse; font-size: .88rem; } table.ev
   <div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <a href="#" onclick="showTab('settings');return false;" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
-      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
       <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
@@ -107,7 +107,7 @@ table.ev { width: 100%; border-collapse: collapse; font-size: .88rem; } table.ev
       <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
     </div>
   </div>
-  <img id="companyLogo" src="logo.jpg" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;">
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
 </header>
 <div class="container">
   <div class="tabs" id="tabs">
@@ -551,7 +551,10 @@ async function renderDrivers() {
       <button class="btn" id="urlSave" style="width:100%;margin-top:8px">Save</button></div>`;
     $('urlSave').onclick = async () => {
       const u = $('urlIn').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('urlErr').textContent = 'That does not look like a script link (it should end in /exec).'; return; }
-      URL_ = u; LS.set('kfDrvUrl', u); kfLinks.set('driversUrl', u); const g = await getJson('action=ping'); if (!g || g.app !== 'drivers') { $('urlErr').textContent = 'Saved, but could not reach the script. Check the link and your signal.'; } renderDrivers();
+      URL_ = u; let g = await getJson('action=ping');
+      if (g && g.app === 'company') { URL_ = u.split('?')[0] + '?svc=drivers'; g = await getJson('action=ping'); }
+      LS.set('kfDrvUrl', URL_); if (!/svc=drivers/.test(URL_)) kfLinks.set('driversUrl', URL_);
+      if (!g || g.app !== 'drivers') { $('urlErr').textContent = 'Saved, but could not reach the script. Check the link and your signal.'; } renderDrivers();
     };
     return;
   }
@@ -659,7 +662,7 @@ function renderShiftHome() {
     <button class="act" id="aHist"><span>My logs (last 14 days)</span><span class="tag">view</span></button>
     <button class="act" id="aPrint"><span>Print / share</span><span class="tag">today · 14 days</span></button>
     <button class="btn" id="aClose" style="width:100%;margin-top:6px;min-height:54px">Close shift &amp; submit</button>
-    ${window.kfNative ? `<details class="card" style="margin-top:12px"><summary><b>GPS during your shift</b></summary><div class="small" style="margin-top:8px;line-height:1.5">In the app, GPS keeps logging with the screen off until you submit (you will see a "Shift in progress" notification).<br>Samsung: Settings → Apps → Knight Forestry → Battery → <b>Unrestricted</b>, so the phone does not stop it.</div></details>` : ''}
+    ${window.kfNative ? `<details class="card" style="margin-top:12px"><summary><b>GPS during your shift</b></summary><div class="small" style="margin-top:8px;line-height:1.5">In the app, GPS keeps logging with the screen off until you submit (you will see a "Shift in progress" notification).<br>Samsung: Settings → Apps → (this app) → Battery → <b>Unrestricted</b>, so the phone does not stop it.</div></details>` : ''}
     <details class="card ${window.kfNative ? 'hidden' : ''}" style="margin-top:12px"><summary><b>Keep GPS on during your shift</b> (Samsung / Android)</summary><div class="small" style="margin-top:8px;line-height:1.5">
       Phones only allow web apps to use GPS while the app is open on the screen. This app keeps the screen on from shift start until you submit.<br>
       1. Plug the phone into the truck charger and leave this app open.<br>
@@ -1117,12 +1120,13 @@ async function adminApi(action, extra, ms) { return api(Object.assign({ action, 
 
 async function adminGate(container, title, then) {
   if (!URL_) { container.innerHTML = '<div class="card">Connect this phone first (Drivers tab).</div>'; return; }
+  if (!adminPw() && /[?&]k=/.test(URL_)) { const r0 = await api({ action: 'adminCheck', password: '' }); if (r0.status === 'ok') { SS.set('kfDrvAdmin', '(company device)'); return then(); } }
   if (adminPw()) { const r = await adminApi('adminCheck'); if (r.status === 'ok') return then(); if (r.status === 'offline') { container.innerHTML = '<div class="card"><div class="notice">No signal. Admin needs a connection.</div></div>'; return; } SS.del('kfDrvAdmin'); }
   const ping = await getJson('action=ping');
   if (!ping) { container.innerHTML = '<div class="card"><div class="notice">Could not reach the Drivers script. Check signal and the link.</div></div>'; return; }
   const create = !ping.hasAdmin;
   container.innerHTML = `<div class="card"><h2 style="margin-top:0">${title}</h2>${create ? '<p class="small">First time: create the admin password. It protects company info, driver passcodes and logs.</p>' : ''}
-    <label>${create ? 'Create admin password' : 'Admin password'}</label><input id="adPw" type="password" autocomplete="off">${create ? '<label>Confirm password</label><input id="adPw2" type="password" autocomplete="off">' : ''}
+    <label>${create ? 'Create admin password' : (/svc=drivers/.test(URL_) ? 'Company password' : 'Admin password')}</label><input id="adPw" type="password" autocomplete="off">${create ? '<label>Confirm password</label><input id="adPw2" type="password" autocomplete="off">' : ''}
     <div class="err" id="adErr"></div><button class="btn" id="adGo" style="width:100%;margin-top:8px">${create ? 'Create password' : 'Unlock'}</button></div>`;
   $('adGo').onclick = async () => {
     const p = $('adPw').value; if (!p) { $('adErr').textContent = 'Enter the password.'; return; }
@@ -1271,7 +1275,7 @@ function renderSettings() {
     const lim = (set, k) => `<input id="ru_${set}_${k}" type="number" min="0" step="0.5" value="${esc(ru[set][k])}" style="min-width:60px;padding:8px">`;
     const ROWS = [['maxDriving', 'Max driving (h)'], ['maxOnDuty', 'Max on duty (h)'], ['maxElapsed', 'Max elapsed (h, 0 = none)'], ['resetOffHours', 'Off-duty rest that resets (h)'], ['cycleHours', 'Cycle hours (0 = none)'], ['cycleDays', 'Cycle days'], ['offCount', 'Periods of consecutive hours off required (0 = none)'], ['offHours', '…each this many hours'], ['offDays', '…in every this many calendar days']];
     v.innerHTML = `${sv < 3 ? needV2('This version of the Drivers page') : ''}<div class="card"><h3 style="margin-top:0">Company information</h3>
-      <label>Company name</label><input id="coName" value="${esc(c.name)}"><label>Address (printed on the log as principal place of business)</label><input id="coAddr" value="${esc(c.address)}"><div class="row2"><div><label>Phone</label><input id="coPhone" value="${esc(c.phone)}"></div><div><label>Office email (logs are sent here)</label><input id="coMail" type="email" value="${esc(c.officeEmail)}"></div></div>
+      ${/svc=drivers/.test(URL_) ? '<div class="small">Company name, address and phone come from Billing → Settings (company info). Set the office email here.</div>' : ''}<label>Company name</label><input id="coName" value="${esc(c.name)}"><label>Address (printed on the log as principal place of business)</label><input id="coAddr" value="${esc(c.address)}"><div class="row2"><div><label>Phone</label><input id="coPhone" value="${esc(c.phone)}"></div><div><label>Office email (logs are sent here)</label><input id="coMail" type="email" value="${esc(c.officeEmail)}"></div></div>
       <h3>Hours of service</h3><label>Default rules for new shifts</label><select id="ruDef">${RULE_IDS.map(id => `<option value="${id}">${esc(SET_NAME[id])}</option>`).join('')}</select>
       <div style="overflow-x:auto"><table class="ev" style="margin-top:8px"><tr><th></th>${RULE_IDS.map(id => `<th>${esc(SET_NAME[id])}</th>`).join('')}</tr>
         ${ROWS.map(rw => `<tr><td>${rw[1]}</td>${RULE_IDS.map(id => `<td>${lim(id, rw[0])}</td>`).join('')}</tr>`).join('')}</table></div>
@@ -1280,7 +1284,7 @@ function renderSettings() {
       <div><label>Stopped (min) → Off Duty</label><input id="ruOM" type="number" value="${esc(ru.offMinutes)}"></div><div><label>"Stopped" means within (m)</label><input id="ruSD" type="number" value="${esc(ru.stillMeters)}"></div></div>
       <div class="btnrow" style="justify-content:flex-start"><button class="btn" id="coSave">Save company &amp; rules</button></div><div class="err" id="coMsg"></div></div>
     <div class="card"><h3 style="margin-top:0">Drivers</h3><div id="drvList"></div><div class="btnrow" style="justify-content:flex-start"><button class="btn" id="drvNew">Add driver</button></div></div>
-    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="small">Company Sync (Quote page) shares this link with every device.</div><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="plTest">Test village names</button><button class="btn btn-outline" id="pwChg">Change admin password</button></div><div class="err" id="stMsg"></div><div class="small">Drivers script version: ${esc(sv)}</div></div>`;
+    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="small">Company Sync (Quote page) shares this link with every device.</div><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="plTest">Test village names</button>${/svc=drivers/.test(URL_) ? '' : '<button class="btn btn-outline" id="pwChg">Change admin password</button>'}</div><div class="err" id="stMsg"></div><div class="small">Drivers script version: ${esc(sv)}</div></div>`;
     $('ruDef').value = RULE_IDS.includes(ru.defaultSet) ? ru.defaultSet : 'ab';
     $('coSave').onclick = async () => {
       const n = id => +$(id).value; const set = s => { const o = {}; RULE_KEYS.forEach(k => { o[k] = n(`ru_${s}_${k}`); }); return o; };
@@ -1314,7 +1318,7 @@ function renderSettings() {
       const name = await placeFor(p.lat, p.lon);
       $('stMsg').innerHTML = `<b>${esc(name)}</b><br>Source: ${esc(placeInfo.source)}${placeInfo.error ? '<br>Problem: ' + esc(placeInfo.error) : ''}`;
     };
-    $('pwChg').onclick = () => openSheet(`<h3>Change admin password</h3><label>Current password</label><input id="pcOld" type="password"><label>New password</label><input id="pcNew" type="password"><label>Confirm new password</label><input id="pcNew2" type="password"><div class="err" id="pcErr"></div><div class="btnrow"><button class="btn btn-outline" id="pcNo">Cancel</button><button class="btn" id="pcOk">Change</button></div>`, () => {
+    if ($('pwChg')) $('pwChg').onclick = () => openSheet(`<h3>Change admin password</h3><label>Current password</label><input id="pcOld" type="password"><label>New password</label><input id="pcNew" type="password"><label>Confirm new password</label><input id="pcNew2" type="password"><div class="err" id="pcErr"></div><div class="btnrow"><button class="btn btn-outline" id="pcNo">Cancel</button><button class="btn" id="pcOk">Change</button></div>`, () => {
       $('pcNo').onclick = closeSheet; $('pcOk').onclick = async () => { if ($('pcNew').value !== $('pcNew2').value) { $('pcErr').textContent = 'New passwords do not match.'; return; } const r = await api({ action: 'adminSetPassword', password: $('pcOld').value, newPassword: $('pcNew').value }); if (r.status === 'ok') { SS.set('kfDrvAdmin', $('pcNew').value); closeSheet(); $('stMsg').textContent = 'Admin password changed.'; } else $('pcErr').textContent = r.status === 'badpassword' ? 'Current password is wrong.' : (r.message || 'Could not change.'); };
     });
   });

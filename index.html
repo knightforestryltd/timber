@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Knight Forestry — Quote Tool</title>
+<title>Quote Tool</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -83,7 +83,7 @@ textarea { min-height: 90px; }
 .species-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; margin-bottom: 8px; align-items: center; }
 .species-edit .sp-name { grid-column: 1 / -1; }
 .species-edit input { max-width: none !important; }
-.login-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 12px; }
+.login-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: flex-start; overflow-y: auto; justify-content: center; padding: 12px; }
 .login-card { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 24px; border-radius: 12px; max-width: 360px; width: 100%; }
 .login-card h2 { margin: 0 0 16px; }
 .login-card input { margin-bottom: 12px; }
@@ -160,7 +160,7 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 </head>
 <body>
 <div id="loginOverlay" class="login-overlay hidden">
-  <div class="login-card">
+  <div class="login-card" style="margin:auto 0;">
     <h2>Connect this device</h2>
     <label for="coUrl">Company Sync URL</label>
     <input id="coUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -169,6 +169,18 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
       <input id="coPass" type="password" autocomplete="current-password">
     </div>
     <button class="btn" id="btnConnect">Connect</button>
+    <div id="setupBox" class="hidden" style="text-align:left;">
+      <h3 style="margin:14px 0 4px;">Set up your company</h3>
+      <p class="hint" style="margin:0 0 8px;">This link is new. Enter your company details once; every device you connect later gets them.</p>
+      <label for="suName">Company name</label><input id="suName" autocomplete="organization">
+      <label for="suPw">Create company password</label><input id="suPw" type="password" autocomplete="new-password">
+      <label for="suPw2">Confirm password</label><input id="suPw2" type="password" autocomplete="new-password">
+      <label for="suPhone">Phone (optional)</label><input id="suPhone" type="tel">
+      <label for="suEmail">Office email (optional, receives driver logs and invoice packages)</label><input id="suEmail" type="email">
+      <label for="suAddr">Address (optional)</label><input id="suAddr">
+      <label for="suLogo">Logo (optional)</label><input id="suLogo" type="file" accept="image/*">
+      <button class="btn" id="btnSetup" style="margin-top:10px;">Create company</button>
+    </div>
     <p id="coMsg"></p>
     <p><a href="#" id="coSkip">Skip - use this device on its own</a></p>
   </div>
@@ -177,7 +189,7 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
   <div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <a href="#" id="nav-settings" style="color:white;text-decoration:none;padding:10px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;cursor:pointer;z-index:101;position:relative;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
-      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
       <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
@@ -189,7 +201,7 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
       <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
     </div>
   </div>
-  <img id="companyLogo" src="logo.jpg" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;">
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
 </header>
 
 <div class="container">
@@ -245,6 +257,10 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
         <input type="url" id="setSyncUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
         <div class="hint">Enter this one link on a new device and tap <b>Sync to Company</b>. It loads pricing, locations, trucks, the Maps key and every sheet link.</div>
       </div>
+      <div id="unifiedBox" class="hidden" style="margin:-4px 0 12px;">
+        <div class="hint">This device is connected to <b id="unifiedName"></b> with the single company link. Every page uses it.</div>
+        <button class="btn btn-outline btn-sm" id="btnSwitchCo" style="margin-top:8px;">Switch company</button>
+      </div>
       <div id="syncStatus" class="sync-status"></div>
       <div id="dirtyBanner" class="api-key-banner hidden">This device has changes that are not saved to the company yet. Enter the company password and tap <b>Save to Company</b>, or tap <b>Sync to Company</b> to discard them.</div>
       <div id="pwCreateBox" class="hidden">
@@ -270,13 +286,22 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
         </div>
         <button class="btn btn-outline btn-sm" id="btnChangePw">Change Password</button>
       </details>
+      <details id="moveBox" class="hidden" style="margin-top:14px;">
+        <summary><b>Move to one company sheet</b> (replaces the separate scripts)</summary>
+        <div class="hint" style="margin:8px 0;">Set up <b>company-apps-script.gs</b> as a new Apps Script web app first (its own new link). This copies your loads, tickets, inventory, drivers, settings and company info into it. Your old scripts and sheets are not changed, and your other devices are asked to switch the next time they sync.</div>
+        <div class="form-group"><label for="mvUrl">New company script link</label><input type="url" id="mvUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div class="form-group"><label for="mvPw">Company password (stays the same)</label><input type="password" id="mvPw" autocomplete="current-password"></div>
+        <div class="form-group"><label for="mvDrvPw">Drivers admin password (optional: copies truck units and hours rules)</label><input type="password" id="mvDrvPw" autocomplete="off"></div>
+        <button class="btn" id="btnMove">Move my company</button>
+        <div id="mvMsg" class="hint" style="margin-top:8px;white-space:pre-line;"></div>
+      </details>
     </div>
 
     <div class="card">
       <h2>Global Settings</h2>
       <div class="form-group" style="margin-bottom:16px;">
         <label for="setCompanyName">Company Name (shown in top banner)</label>
-        <input type="text" id="setCompanyName" placeholder="Knight Forestry Ltd">
+        <input type="text" id="setCompanyName" placeholder="Your company name">
       </div>
       <div class="form-group" style="margin-bottom:16px;">
         <label>Theme</label>
@@ -407,18 +432,14 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 <script>
 const STORAGE_KEY = 'knightForestrySettings_v3';
 const defaultSettings = {
-  companyName: 'Knight Forestry Ltd',
+  companyName: '',
   apiKey: '',
   sheetsUrl: '',
   syncUrl: '',
   speed: 90,
   fuelPrice: 0.90,
   gst: 5,
-  units: [
-    { id: 1, name: 'Straight truck', hourly: 185, fuel: 50, tonnes: 16, hours: 1.5 },
-    { id: 2, name: 'Wagon', hourly: 210, fuel: 60, tonnes: 24, hours: 2 },
-    { id: 3, name: 'Full truck', hourly: 250, fuel: 70, tonnes: 40, hours: 2 }
-  ],
+  units: [],
   quoteShow: { cords: true, tonnes: true, perCord: false, perTonne: false, total: true },
   locations: [],
   yards: [],
@@ -603,9 +624,9 @@ $('locationsList').addEventListener('click', e => {
 function renderSettings() {
   $('apiKeyInput').value = settings.apiKey || '';
   const cn = $('setCompanyName');
-  if (cn) cn.value = settings.companyName || 'Knight Forestry Ltd';
+  if (cn) cn.value = settings.companyName || '';
   const banner = $('companyNameBanner');
-  if (banner) banner.textContent = settings.companyName || 'Knight Forestry Ltd';
+  if (banner && window.kfBrand) kfBrand();
   $('setSyncUrl').value = settings.syncUrl || '';
   $('setSheetsUrl').value = settings.sheetsUrl || '';
   $('setTrucksUrl').value = localStorage.getItem('trucksUrl') || '';
@@ -627,10 +648,10 @@ function renderSettings() {
 $('btnSaveKey').onclick = () => {
   settings.apiKey = $('apiKeyInput').value.trim();
   const cnInput = $('setCompanyName');
-  if (cnInput) settings.companyName = cnInput.value.trim() || 'Knight Forestry Ltd';
+  if (cnInput) settings.companyName = cnInput.value.trim();
   saveSettings(); markDirty();
   const banner = $('companyNameBanner');
-  if (banner) banner.textContent = settings.companyName || 'Knight Forestry Ltd';
+  if (banner && window.kfBrand) kfBrand();
   alert('API key saved. Reload the page to apply Maps.');
   location.reload();
 };
@@ -648,7 +669,7 @@ $('btnSaveSettings').onclick = () => {
   settings.sheetsUrl = newSheetsUrl;
   setUrlWithStamp('trucksUrl', $('setTrucksUrl').value.trim());
   const cn = $('setCompanyName');
-  if (cn) settings.companyName = cn.value.trim() || 'Knight Forestry Ltd';
+  if (cn) settings.companyName = cn.value.trim();
   settings.speed = +$('setSpeed').value || 90;
   settings.fuelPrice = numOr($('setFuelPrice').value, settings.fuelPrice);
   if ($('setCostFuelPrice').value === '') delete settings.costFuelPrice; else settings.costFuelPrice = +$('setCostFuelPrice').value;
@@ -659,7 +680,7 @@ $('btnSaveSettings').onclick = () => {
   };
   saveSettings(); markDirty();
   const banner = $('companyNameBanner');
-  if (banner) banner.textContent = settings.companyName || 'Knight Forestry Ltd';
+  if (banner && window.kfBrand) kfBrand();
   alert('Settings saved on this device. Tap Save to Company (top of this page) to share them with other devices.');
 };
 
@@ -1433,6 +1454,7 @@ async function companyPost(url, payload) {
   return res.json();
 }
 function readSyncUrlField() {
+  if (kfCo.unified()) return (settings.syncUrl || '').trim();
   const f = $('setSyncUrl');
   if (f && f.value.trim() !== (settings.syncUrl || '')) { settings.syncUrl = f.value.trim(); saveSettings(); }
   return (settings.syncUrl || '').trim();
@@ -1440,6 +1462,10 @@ function readSyncUrlField() {
 
 function updateSyncUi() {
   if (!$('syncCard')) return;
+  const uni = kfCo.unified();
+  $('unifiedBox').classList.toggle('hidden', !uni);
+  $('moveBox').classList.toggle('hidden', uni || !(settings.syncUrl || '').trim());
+  if (uni) { $('unifiedName').textContent = (companyMeta && companyMeta.companyName) || localStorage.getItem('kfCompanyName') || 'your company'; $('setSyncUrl').value = kfCo.base(); $('setSyncUrl').readOnly = true; }
   const hasUrl = !!(settings.syncUrl || '').trim();
   const known = !!companyMeta;
   $('pwCreateBox').classList.toggle('hidden', !(known && !companyMeta.hasPassword));
@@ -1454,6 +1480,7 @@ async function refreshMeta() {
   try {
     const data = await companyGet(url);
     companyMeta = data._meta || null;
+    if (kfCo.unified() && data.status === 'nokey') { setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); lostKey(); return; }
     if (!companyMeta) setStatus('The company script is the old version: password protection is OFF. Update it with quote-apps-script-v3.gs.', 'warn');
     else if (!$('syncStatus').textContent || $('syncStatus').classList.contains('warn')) setStatus(`Linked. Company revision ${companyMeta.rev}${companyMeta.hasPassword ? '' : '. No password yet: you will create one on first save.'}`, 'ok');
   } catch (e) { /* offline: leave UI as is */ }
@@ -1467,6 +1494,11 @@ function adoptUrl(serverVal, serverAt, force, getLocal, getLocalAt, setLocal) {
 }
 function applyCompanyData(data, force) {
   let keyChanged = false;
+  if (data.movedTo && !kfCo.unified()) { setTimeout(() => offerMove(data.movedTo), 50); }
+  if (data.profile && typeof data.profile === 'object') {
+    const pr = data.profile;
+    localStorage.setItem('kfCompany', JSON.stringify({ name: pr.name || '', gst: pr.gst || '', wcb: pr.wcb || '', email: pr.email || '', phone: pr.phone || '', addr: pr.addr || '', mail: pr.mail || '', etNote: pr.etNote || '', logo: pr.logo || '' }));
+  }
   if (Array.isArray(data.locations) && data.locations.length) settings.locations = data.locations;
   if (Array.isArray(data.units) && data.units.length) settings.units = data.units;
   if (data.companyName) settings.companyName = data.companyName;
@@ -1476,6 +1508,7 @@ function applyCompanyData(data, force) {
   if (data.gst != null && data.gst !== '') settings.gst = +data.gst;
   if (data.quoteShow && typeof data.quoteShow === 'object') settings.quoteShow = data.quoteShow;
   if (data.apiKey && data.apiKey !== settings.apiKey) { settings.apiKey = data.apiKey; keyChanged = true; }
+  if (kfCo.unified()) { saveSettings(); return { keyChanged }; }     // one company link: page links are fixed, not synced
   adoptUrl(data.sheetsUrl, data.sheetsUrlAt, force, () => settings.sheetsUrl, () => settings.sheetsUrlAt,
     (v, at) => { settings.sheetsUrl = v; settings.sheetsUrlAt = at; });
   adoptUrl(data.scriptUrl, data.scriptUrlAt, force, () => localStorage.getItem('scriptUrl'), () => localStorage.getItem('scriptUrlAt'),
@@ -1491,7 +1524,7 @@ function afterApply(res, rev) {
   clearDirty();
   if (rev != null) localStorage.setItem(REV_KEY, String(rev));
   const banner = $('companyNameBanner');
-  if (banner) banner.textContent = settings.companyName || 'Knight Forestry Ltd';
+  if (banner && window.kfBrand) kfBrand();
   renderSettings();
   if (res.keyChanged && !window.google && !sessionStorage.getItem('kfMapsReload')) {
     sessionStorage.setItem('kfMapsReload', '1');
@@ -1510,6 +1543,8 @@ async function pullCompany(manual) {
   try {
     const data = await companyGet(url);
     companyMeta = data._meta || null;
+    if (kfCo.unified() && data.status === 'nokey') { setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); lostKey(); return { ok: false }; }
+    if (companyMeta && companyMeta.unified && !kfCo.unified()) { askConnect(url); return { ok: false }; }
     const rev = companyMeta ? companyMeta.rev : null;
     if (!(Array.isArray(data.locations) || Array.isArray(data.units))) {
       if (manual) setStatus('Nothing is saved at the company yet. Set this device up, then tap Save to Company.', 'warn');
@@ -1562,6 +1597,11 @@ async function saveToCompany() {
     let remote;
     try { remote = await companyGet(url); } catch (e) { return setStatus('Could not reach the company sheet: ' + e.message, 'bad'); }
     companyMeta = remote._meta || null;
+    if (companyMeta && companyMeta.unified && !kfCo.unified()) { askConnect(url); return setStatus('That is a company link: connect to it first.', 'warn'); }
+    if (kfCo.unified()) {
+      if (remote.status === 'nokey') { lostKey(); return setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); }
+      if (companyMeta && localStorage.getItem('kfCompanyId') && companyMeta.companyId !== localStorage.getItem('kfCompanyId')) return setStatus('This device belongs to a different company than this link. Nothing was saved.', 'bad');
+    }
     const remoteHasLocations = Array.isArray(remote.locations) && remote.locations.length > 0;
     if (!settings.locations.length && remoteHasLocations) return setStatus('This device has no pickup locations, so saving would erase the company ones. Tap Sync to Company first.', 'bad');
 
@@ -1622,7 +1662,11 @@ $('btnChangePw').onclick = async () => {
   if (n1 !== n2) return setStatus('The new passwords do not match.', 'bad');
   try {
     const r = await companyPost(url, { action: 'setPassword', password: oldP, newPassword: n1 });
-    if (r.status === 'ok') { $('pwOld').value = $('pwNew3').value = $('pwNew3b').value = ''; setStatus('Company password changed. Everyone uses the new one from now on.', 'ok'); }
+    if (r.status === 'ok') {
+      $('pwOld').value = $('pwNew3').value = $('pwNew3b').value = '';
+      if (kfCo.unified() && r.key) { kfCo.apply(kfCo.base(), r.key, r.meta); settings = loadSettings(); setStatus('Company password changed. Other devices must connect again with the new password.', 'ok'); }
+      else setStatus('Company password changed. Everyone uses the new one from now on.', 'ok');
+    }
     else setStatus(SAVE_MSG[r.status] || r.message || 'Could not change the password.', 'bad');
   } catch (e) { setStatus('Could not change the password: ' + e.message, 'bad'); }
 };
@@ -1637,8 +1681,9 @@ $('btnConnect').onclick = async () => {
   if (!isScriptUrl(url)) return say('Paste the Company Sync URL (it starts with https://script.google.com/).', true);
   const b = $('btnConnect'); b.disabled = true; say('Connecting…');
   try {
-    const data = await companyGet(url);
+    const data = await companyGet(kfCo.clean(url));
     const meta = data._meta || null;
+    if (meta && meta.unified) return await connectUnified(kfCo.clean(url), meta, say);
     if (meta && meta.hasPassword) {
       $('coPassWrap').classList.remove('hidden');
       const pw = $('coPass').value;
@@ -1659,12 +1704,109 @@ $('btnConnect').onclick = async () => {
   finally { b.disabled = false; }
 };
 
+/* ---------- single company link: connect, set up, switch, move ---------- */
+let trustedMove = false;      // connecting because this company moved: same company, keep the data
+// a company link typed into the old Company Sync field: connect properly (with the company-mixing guard)
+function askConnect(url) { $('coUrl').value = kfCo.clean(url); $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'This is a company link. Enter its company password and tap Connect.'; showConnect(); }
+function lostKey() { localStorage.removeItem('kfKey'); $('coUrl').value = localStorage.getItem('kfCompanyUrl') || ''; $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'The company password was changed. Enter the new password to connect again.'; showConnect(); }
+async function connectUnified(base, meta, say) {
+  if (!trustedMove && kfCo.hasData() && !kfCo.sameCompany(meta)) {
+    const was = settings.companyName || (JSON.parse(localStorage.getItem('kfCompany') || '{}').name) || 'another company';
+    if (!confirm(`This device still holds data for ${was}.\n\nConnecting to ${meta.companyName || 'this company'} removes it from this device. It stays safe in ${was}'s own sheet.\n\nContinue?`)) return say('Cancelled. Nothing was changed.', true);
+    kfCo.wipe(); settings = structuredClone(defaultSettings);
+  }
+  if (!meta.hasPassword) { $('setupBox').classList.remove('hidden'); $('btnConnect').classList.add('hidden'); $('coPassWrap').classList.add('hidden'); $('setupBox').dataset.base = base; return say(''); }
+  $('coPassWrap').classList.remove('hidden');
+  const pw = $('coPass').value;
+  if (!pw) return say('Enter the company password.', true);
+  const c = await companyPost(base + '?svc=sync', { action: 'checkPassword', password: pw });
+  if (c.status !== 'ok' || !c.key) return say(SAVE_MSG[c.status] || c.message || 'Wrong password.', true);
+  kfCo.apply(base, c.key, c.meta || meta); settings = loadSettings();
+  const full = await companyGet(settings.syncUrl);
+  if (Array.isArray(full.locations) || full.profile) { const res = applyCompanyData(full, true); afterApply(res, full._meta ? full._meta.rev : null); }
+  trustedMove = false;
+  say('Connected.'); setTimeout(() => location.reload(), 300);
+}
+$('btnSetup').onclick = async () => {
+  const base = $('setupBox').dataset.base, msg = $('coMsg');
+  const say = (t, bad) => { msg.textContent = t; msg.style.color = bad ? 'var(--bad)' : 'var(--muted)'; };
+  const name = $('suName').value.trim(), p1 = $('suPw').value, p2 = $('suPw2').value;
+  if (!name) return say('Enter the company name.', true);
+  if (p1.length < 4) return say('The company password needs at least 4 characters.', true);
+  if (p1 !== p2) return say('The two passwords do not match.', true);
+  const b = $('btnSetup'); b.disabled = true; say('Creating your company…');
+  try {
+    let logo = '';
+    if ($('suLogo').files[0]) { try { logo = await kfShrinkImage($('suLogo').files[0], 256); } catch (e) {} }
+    const r = await companyPost(base + '?svc=sync', { action: 'setPassword', newPassword: p1 });
+    if (r.status !== 'ok' || !r.key) return say(r.message || 'Could not create the company.', true);
+    kfCo.apply(base, r.key, r.meta); settings = loadSettings(); settings.companyName = name;
+    const profile = { name, phone: $('suPhone').value.trim(), email: $('suEmail').value.trim(), addr: $('suAddr').value.trim(), logo };
+    await companyPost(settings.syncUrl, { action: 'saveProfile', password: p1, profile });
+    localStorage.setItem('kfCompany', JSON.stringify(profile));
+    const sv = await companyPost(settings.syncUrl, { action: 'saveSettings', password: p1, settings: companyPayload(), force: true });
+    if (sv.rev != null) localStorage.setItem(REV_KEY, String(sv.rev));
+    clearDirty(); saveSettings(); localStorage.setItem('kfCompanyName', name);
+    say('Company created. Next: add pickup locations and trucks in Settings, then tap Save to Company.');
+    setTimeout(() => { location.hash = '#settings'; location.reload(); }, 900);
+  } catch (e) { say('Could not create the company: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
+$('btnSwitchCo').onclick = () => {
+  if (isDirty() && !confirm('This device has changes that are not saved to the company. Switching removes them. Continue?')) return;
+  if (!confirm('Disconnect this device from ' + ($('unifiedName').textContent || 'this company') + '? Its data stays safe in the company sheet. You can then connect to another company.')) return;
+  kfCo.wipe(); location.reload();
+};
+function offerMove(newUrl) {
+  if (kfCo.unified() || sessionStorage.getItem('kfMoveOffered')) return;
+  sessionStorage.setItem('kfMoveOffered', '1');
+  trustedMove = true;
+  $('coUrl').value = newUrl; $('coPassWrap').classList.remove('hidden');
+  $('coMsg').textContent = 'Your company moved to one company sheet. Enter the company password and tap Connect to switch this device.';
+  showConnect();
+}
+$('btnMove').onclick = async () => {
+  const out = $('mvMsg'), say = (t, bad) => { out.textContent = t; out.style.color = bad ? 'var(--bad)' : ''; };
+  const base = kfCo.clean($('mvUrl').value), pw = $('mvPw').value;
+  if (!isScriptUrl(base)) return say('Paste the new company script link.', true);
+  if (!pw) return say('Enter the company password.', true);
+  if (isDirty()) return say('This device has unsaved company changes. Tap Save to Company first.', true);
+  const b = $('btnMove'); b.disabled = true;
+  try {
+    say('Checking the new link…');
+    const m = await companyGet(base); const meta = m._meta;
+    if (!meta || !meta.unified) return say('That link is not the company script (company-apps-script.gs).', true);
+    let key;
+    if (!meta.hasPassword) { const r = await companyPost(base + '?svc=sync', { action: 'setPassword', newPassword: pw }); if (r.status !== 'ok') return say(r.message || 'Could not set the password.', true); key = r.key; }
+    else { const c = await companyPost(base + '?svc=sync', { action: 'checkPassword', password: pw }); if (c.status !== 'ok') return say('The new link already has a different password.', true); key = c.key; }
+    say('Copying loads, tickets, inventory, drivers and settings… (this can take a minute)');
+    let drvUrl = localStorage.getItem('driversUrl') || ''; try { drvUrl = drvUrl || JSON.parse(localStorage.getItem('kfDrvUrl') || '""'); } catch (e) {}
+    const imp = await companyPost(base + '?svc=sync', { action: 'importOld', password: pw, oldSyncUrl: (settings.syncUrl || '').trim(), loadsUrl: settings.sheetsUrl || '', ticketsUrl: localStorage.getItem('scriptUrl') || '', yardsUrl: localStorage.getItem('yardUrl') || '', oldDriversUrl: drvUrl, oldDriversPassword: $('mvDrvPw').value });
+    if (imp.status !== 'ok') return say(SAVE_MSG[imp.status] || imp.message || 'The copy failed.', true);
+    say('Saving company info…');
+    const co = JSON.parse(localStorage.getItem('kfCompany') || '{}');
+    let logo = co.logo || '';
+    if (!logo) { try { const bl = await (await fetch('logo.jpg')).blob(); logo = await kfShrinkImage(bl, 256); } catch (e) {} }
+    await companyPost(base + '?svc=sync', { action: 'saveProfile', password: pw, profile: Object.assign({}, co, { name: co.name || settings.companyName || '', logo }) });
+    // tell the other devices (they read the old Company Sync) where the company went
+    let told = false;
+    try { const o = await companyPost(settings.syncUrl, { action: 'saveSettings', password: pw, settings: Object.assign(companyPayload(), { movedTo: base }), force: true }); told = o.status === 'saved'; } catch (e) {}
+    kfCo.apply(base, key, meta); settings = loadSettings();
+    const full = await companyGet(settings.syncUrl);
+    if (Array.isArray(full.locations)) { const res = applyCompanyData(full, true); afterApply(res, full._meta ? full._meta.rev : null); }
+    say(`Done. Copied: ${imp.loads} loads, ${imp.tickets} tickets, ${imp.yards} inventory entries, ${imp.drivers} drivers, ${imp.shifts} driver shifts${imp.settings ? ', company settings' : ''}${imp.driverConfig ? ', driver units and rules' : ''}.` +
+      (imp.notes && imp.notes.length ? '\nNotes: ' + imp.notes.join(' ') : '') + (told ? '\nYour other devices will be asked to switch the next time they open the app.' : '\nCould not update the old Company Sync: connect your other devices with the new link by hand.'));
+  } catch (e) { say('Could not move: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
+
 if (!settings.syncUrl && localStorage.getItem('coLoggedIn') !== '1' && !localStorage.getItem('kfSkipConnect')) {
   showConnect();
 } else if (settings.syncUrl) {
   setTimeout(() => pullCompany(false), 500);
 }
 renderSettings();
+if (location.hash === '#settings') { showView('settings'); try { history.replaceState(history.state, '', location.pathname); } catch (e) {} }
 
 </script>
 

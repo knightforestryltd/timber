@@ -26,7 +26,7 @@ textarea { min-height: 90px; }
   <div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
       <a href="#" onclick="showSettings();return false;" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
-      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
       <a href="index.html" onclick="location.replace('index.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
@@ -38,7 +38,7 @@ textarea { min-height: 90px; }
       <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
     </div>
   </div>
-  <img id="companyLogo" src="logo.jpg" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;">
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
 </header>
 <div class="container">
   <div id="menu">
@@ -194,7 +194,8 @@ textarea { min-height: 90px; }
     <div class="card" style="margin-top:12px;">
       <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
       <h2>Company Info</h2>
-      <label>Company Name</label><input id="coName" placeholder="Knight Forestry Ltd">
+      <div id="coSharedNote" class="hidden" style="font-size:.85rem;color:var(--muted);margin-bottom:8px;">Saved in the company sheet: every device gets these details.</div>
+      <label>Company Name</label><input id="coName" placeholder="Your company name">
       <label>GST#</label><input id="coGst" placeholder="123456789">
       <label>WCB#</label><input id="coWcb" placeholder="WCB number">
       <label>Office email (receives "Share to Office" packages)</label><input id="coEmail" type="email" placeholder="info@company.com">
@@ -203,6 +204,7 @@ textarea { min-height: 90px; }
       <label>Mailing Address</label><input id="coMail" placeholder="Mailing address (if different)">
       <label>E-transfer note (printed on invoice when Etrans is ticked)</label><input id="coEtNote" placeholder="e.g. Send to info@company.com, password: firewood">
       <label>Logo</label><input type="file" id="coLogo" accept="image/*">
+      <div id="coPwWrap" class="hidden"><label>Company password (to save for every device)</label><input type="password" id="coPw" autocomplete="current-password"></div>
       <button class="btn" onclick="saveCo()">Save</button>
     </div>
     <div class="card" style="margin-top:12px;" id="invLinks"></div>
@@ -259,8 +261,11 @@ function showSettings() {
   $('coName').value = co.name || ''; $('coGst').value = co.gst || ''; $('coWcb').value = co.wcb || '';
   $('coEmail').value = co.email || ''; $('coPhone').value = co.phone || ''; $('coAddr').value = co.addr || '';
   $('coMail').value = co.mail || ''; $('coEtNote').value = co.etNote || '';
+  const uni = window.kfCo && kfCo.unified();
+  $('coSharedNote').classList.toggle('hidden', !uni); $('coPwWrap').classList.toggle('hidden', !uni);
 }
-function saveCo() {
+window.kfOnProfile = () => { if (!$('settingsView').classList.contains('hidden')) showSettings(); };
+async function saveCo() {
   const old = getCo();
   const co = {
     name: $('coName').value.trim(), gst: $('coGst').value.trim(), wcb: $('coWcb').value.trim(),
@@ -268,11 +273,18 @@ function saveCo() {
     mail: $('coMail').value.trim(), etNote: $('coEtNote').value.trim(), logo: old.logo || ''
   };
   const file = $('coLogo').files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = () => { co.logo = reader.result; localStorage.setItem('kfCompany', JSON.stringify(co)); alert('Saved.'); };
-    reader.readAsDataURL(file);
-  } else { localStorage.setItem('kfCompany', JSON.stringify(co)); alert('Saved.'); }
+  if (file) { try { co.logo = await kfShrinkImage(file, 256); } catch (e) { alert('Could not read that picture.'); return; } }
+  if (window.kfCo && kfCo.unified()) {
+    const pw = $('coPw').value; if (!pw) { alert('Enter the company password to save these details for every device.'); return; }
+    busy('Saving…');
+    try {
+      const r = await kfCo.post('sync', { action: 'saveProfile', password: pw, profile: co });
+      busy();
+      if (r.status !== 'saved') { alert(r.status === 'badpassword' ? 'Wrong company password. Nothing was saved.' : (r.message || 'Could not save.')); return; }
+      $('coPw').value = '';
+    } catch (e) { busy(); alert('No signal: nothing was saved.'); return; }
+  }
+  localStorage.setItem('kfCompany', JSON.stringify(co)); if (window.kfBrand) kfBrand(); alert('Saved.');
 }
 function busy(msg) {
   const el = $('busy');
@@ -453,14 +465,16 @@ function fillTruckRate() {
   if (opt && opt.dataset.hourly && +opt.dataset.hourly) { $('newUnit').value = 'hour'; $('newPrice').value = opt.dataset.hourly; }
   calcNew();
 }
-function genNewInvNum(force) {
+async function genNewInvNum(force) {
   const co = getCo();
   const prefix = (co.name || 'KF').replace(/[^A-Za-z]/g, '').substring(0, 2).toUpperCase() || 'KF';
   const d = new Date();
   const ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
   const key = 'invNum_' + ymd;
-  const n = (parseInt(localStorage.getItem(key) || '0') || 0) + 1;
-  localStorage.setItem(key, String(n));
+  let n = 0;
+  if (window.kfCo && kfCo.unified()) { try { const r = await kfCo.post('sync', { action: 'nextInvoice', ymd }); if (r.status === 'ok') n = r.n; } catch (e) {} }
+  if (!n) { n = (parseInt(localStorage.getItem(key) || '0') || 0) + 1; if (window.kfCo && kfCo.unified()) alert('No signal: this invoice number came from this phone only. Check it is not used twice.'); }
+  localStorage.setItem(key, String(Math.max(n, parseInt(localStorage.getItem(key) || '0') || 0)));
   $('newInvNum').value = `${prefix}-${d.getFullYear()}-${ymd.slice(4)}-${String(n).padStart(2, '0')}`;
 }
 async function lookupNew() {
@@ -599,7 +613,7 @@ function invoiceHtml(m) {
   const etNote = (m.pays || []).includes('Etrans') && co.etNote ? `<br>${esc(co.etNote)}` : '';
   return `<div class="inv">
     <div class="head">
-      <div class="head-left">${logo}<span class="name">${esc(co.name || 'Knight Forestry Ltd')}</span></div>
+      <div class="head-left">${logo}<span class="name">${esc(co.name || getSettings().companyName || '')}</span></div>
       <div class="loadid">${esc(m.idLabel)} ${esc(m.idValue)}<br><span style="font-size:0.75rem;font-weight:400;">${esc(m.date)}</span></div>
     </div>
     <div class="meta"><span>GST# ${esc(co.gst)}</span><span>WCB# ${esc(co.wcb)}</span><span>${esc(co.email)}</span><span>${esc(co.phone)}</span></div>
@@ -664,7 +678,7 @@ function tm9Html(l, num) {
   const td = 'padding:4px;border:1px solid #000;';
   return `<div style="font-family:Arial;padding:16px;border:2px solid #000;max-width:520px;margin:0 auto;color:#000;">
     <div style="text-align:center;font-weight:bold;font-size:18px;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;">TM9 TRIP LOG</div>
-    <div style="text-align:center;font-size:12px;margin-bottom:12px;">${esc(co.name || 'Knight Forestry Ltd')}<br>${esc(co.addr)}</div>
+    <div style="text-align:center;font-size:12px;margin-bottom:12px;">${esc(co.name || getSettings().companyName || '')}<br>${esc(co.addr)}</div>
     <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><div><strong>Load ID:</strong> ${esc(l.loadId || num)}</div><div><strong>Date:</strong> ${new Date().toLocaleDateString('en-CA')}</div></div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
       <tr><td style="${td}width:50%;"><strong>Customer:</strong> ${esc(l.customerName)}</td><td style="${td}"><strong>Phone:</strong> ${esc(l.phone)}</td></tr>
