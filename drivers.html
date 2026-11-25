@@ -6,6 +6,7 @@
 <title>Drivers</title>
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
+<script src="nav.js"></script>
 <style>
 .container { max-width: 720px; margin: 0 auto; padding: 12px; }
 .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
@@ -93,7 +94,7 @@ table.ev { width: 100%; border-collapse: collapse; font-size: .88rem; } table.ev
 <header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
   <div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-      <a href="#" href="index.html#settings" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <a href="#" onclick="showTab('settings');return false;" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
       <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
@@ -164,7 +165,7 @@ const DEF_RULES = {
 };
 const SET_NAME = { c1: '70 h / 7 days', c2: '120 h / 14 days', ab: 'Alberta provincial', sk: 'Saskatchewan provincial' };
 
-let URL_ = LS.get('kfDrvUrl', '') || syncedDriversUrl();
+let URL_ = syncedDriversUrl() || LS.get('kfDrvUrl', '');
 let session = LS.get('kfDrvSession', null);     // {name, passcode}
 let ctx = LS.get('kfDrvCtx', null);             // cached login payload (company, units, rules, history, unitOdo, lastClose)
 let shift = LS.get('kfDrvShift', null);         // the active shift (local first)
@@ -517,7 +518,7 @@ async function getHistory(force) {
 function showTab(t) {
   tab = t; ['drivers', 'admin', 'settings'].forEach(x => { $('view-' + x).classList.toggle('hidden', x !== t); $('tab-' + x).classList.toggle('on', x === t); });
   if (t === 'drivers') renderDrivers(); if (t === 'admin') renderAdmin(); if (t === 'settings') renderSettings();
-  try { history.replaceState(null, '', '#' + t); } catch (e) {}
+  try { history.replaceState(history.state, '', '#' + t); } catch (e) {}
 }
 ['drivers', 'admin', 'settings'].forEach(x => $('tab-' + x).onclick = () => showTab(x));
 document.addEventListener('click', e => { const a = e.target.closest('[data-home]'); if (a) { e.preventDefault(); showTab('drivers'); } });
@@ -532,7 +533,7 @@ async function renderDrivers() {
       <button class="btn" id="urlSave" style="width:100%;margin-top:8px">Save</button></div>`;
     $('urlSave').onclick = async () => {
       const u = $('urlIn').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('urlErr').textContent = 'That does not look like a script link (it should end in /exec).'; return; }
-      URL_ = u; LS.set('kfDrvUrl', u); const g = await getJson('action=ping'); if (!g || g.app !== 'drivers') { $('urlErr').textContent = 'Saved, but could not reach the script. Check the link and your signal.'; } renderDrivers();
+      URL_ = u; LS.set('kfDrvUrl', u); kfLinks.set('driversUrl', u); const g = await getJson('action=ping'); if (!g || g.app !== 'drivers') { $('urlErr').textContent = 'Saved, but could not reach the script. Check the link and your signal.'; } renderDrivers();
     };
     return;
   }
@@ -1259,7 +1260,7 @@ function renderSettings() {
       <div><label>Stopped (min) → Off Duty</label><input id="ruOM" type="number" value="${esc(ru.offMinutes)}"></div><div><label>"Stopped" means within (m)</label><input id="ruSD" type="number" value="${esc(ru.stillMeters)}"></div></div>
       <div class="btnrow" style="justify-content:flex-start"><button class="btn" id="coSave">Save company &amp; rules</button></div><div class="err" id="coMsg"></div></div>
     <div class="card"><h3 style="margin-top:0">Drivers</h3><div id="drvList"></div><div class="btnrow" style="justify-content:flex-start"><button class="btn" id="drvNew">Add driver</button></div></div>
-    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="small">Company Sync on the Quote page can fill this in on every phone (Settings → Drivers Sheet URL).</div><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="plTest">Test village names</button><button class="btn btn-outline" id="pwChg">Change admin password</button></div><div class="err" id="stMsg"></div><div class="small">Drivers script version: ${esc(sv)}</div></div>`;
+    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="small">Company Sync (Quote page) shares this link with every device.</div><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="plTest">Test village names</button><button class="btn btn-outline" id="pwChg">Change admin password</button></div><div class="err" id="stMsg"></div><div class="small">Drivers script version: ${esc(sv)}</div></div>`;
     $('ruDef').value = RULE_IDS.includes(ru.defaultSet) ? ru.defaultSet : 'ab';
     $('coSave').onclick = async () => {
       const n = id => +$(id).value; const set = s => { const o = {}; RULE_KEYS.forEach(k => { o[k] = n(`ru_${s}_${k}`); }); return o; };
@@ -1285,7 +1286,7 @@ function renderSettings() {
         };
       });
     }
-    $('urlUpd').onclick = () => { const u = $('urlSet').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('stMsg').textContent = 'That is not a script link.'; return; } URL_ = u; LS.set('kfDrvUrl', u); $('stMsg').textContent = 'Saved on this phone.'; $('stMsg').style.color = 'var(--good)'; };
+    $('urlUpd').onclick = () => { const u = $('urlSet').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('stMsg').textContent = 'That is not a script link.'; return; } URL_ = u; LS.set('kfDrvUrl', u); kfLinks.set('driversUrl', u); $('stMsg').textContent = 'Saved on this phone. Quote → Settings → Save to Company shares it with every device.'; $('stMsg').style.color = 'var(--good)'; };
     $('plTest').onclick = async () => {
       $('stMsg').style.color = ''; $('stMsg').textContent = 'Getting GPS…'; const p = await getPosition();
       if (!p) { $('stMsg').textContent = 'No GPS position. Allow location for this site.'; return; }
@@ -1298,6 +1299,14 @@ function renderSettings() {
     });
   });
 }
+
+/* ---------- phone back button (nav.js): pop-up → Drivers tab → Quote home ---------- */
+window.kfBack = function () {
+  if ($('sheetOv').classList.contains('show')) { if (!$('sheetOv').dataset.lock) closeSheet(); return true; }
+  if ($('toast').classList.contains('show')) { hideToast(); return true; }
+  if (tab !== 'drivers') { showTab('drivers'); return true; }
+  return false;
+};
 
 /* ============================== boot ============================== */
 (function boot() {

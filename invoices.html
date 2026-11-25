@@ -7,6 +7,7 @@
 <script src="html2pdf.bundle.min.js"></script>
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
+<script src="nav.js"></script>
 <style>
 .container { max-width: 700px; margin: 0 auto; padding: 12px; }
 .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
@@ -84,10 +85,10 @@ textarea { min-height: 90px; }
       <div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0;">
         <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="ticket" checked onchange="calcInvoice()" style="width:auto;margin:0;"> From Ticket</label>
         <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="quote" onchange="calcInvoice()" style="width:auto;margin:0;"> Match Quote</label>
-        <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="cash" onchange="calcInvoice()" style="width:auto;margin:0;"> Cash Sale</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="adjust" onchange="calcInvoice()" style="width:auto;margin:0;"> Price Adjustment</label>
       </div>
       <div id="cashBox" style="display:none;margin:8px 0;">
-        <label>Deal amount (incl GST)</label>
+        <label>Adjusted price (incl GST)</label>
         <input type="number" id="cashAmount" step="0.01" oninput="calcInvoice()">
       </div>
       <div id="invLines" style="margin:8px 0;font-size:0.9rem;"></div>
@@ -137,7 +138,7 @@ textarea { min-height: 90px; }
           <select id="newUnit" onchange="calcNew()"><option value="tonne">tonne</option><option value="cord">cord</option><option value="hour">hour</option></select>
         </div>
         <div><label>Qty</label><input type="number" id="newQty" step="0.01" oninput="calcNew()"></div>
-        <div><label>$/unit</label><input type="number" id="newPrice" step="0.01" oninput="calcNew()"></div>
+        <div><label>$/unit</label><input type="number" id="newPrice" step="0.01" oninput="priceTyped()"></div>
       </div>
       <div class="row">
         <div><label>Truck</label><select id="newTruck" onchange="fillTruckRate()"><option value="">-- select --</option></select></div>
@@ -153,9 +154,9 @@ textarea { min-height: 90px; }
       <p><strong>Subtotal:</strong> $<span id="newSub">0.00</span></p>
       <p><strong>GST 5%:</strong> $<span id="newGst">0.00</span></p>
       <p><strong>Total:</strong> $<span id="newTotal">0.00</span></p>
-      <label style="display:flex;align-items:center;gap:8px;margin:12px 0;">
-        <input type="checkbox" id="newCashSale" style="width:auto;margin:0;"> Cash Sale
-      </label>
+      <label>Total incl GST — type a total to work the $/unit out backwards</label>
+      <input type="number" id="newTotalIn" step="0.01" inputmode="decimal" oninput="totalTyped()">
+      <div id="newBackNote" style="font-size:0.85rem;color:var(--muted);margin:-4px 0 8px;"></div>
       <label>Payment type</label>
       <div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0;">
         <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="newPay" value="Etrans" style="width:auto;margin:0;"> Etrans</label>
@@ -204,6 +205,7 @@ textarea { min-height: 90px; }
       <label>Logo</label><input type="file" id="coLogo" accept="image/*">
       <button class="btn" onclick="saveCo()">Save</button>
     </div>
+    <div class="card" style="margin-top:12px;" id="invLinks"></div>
   </div>
 </div>
 
@@ -236,6 +238,15 @@ let paidCurrent = null;
 
 /* ---------- navigation ---------- */
 const VIEWS = ['menu','pendingView','invoiceView','newView','settingsView','paidView'];
+// phone back button (nav.js): one level at a time
+window.kfBack = function () {
+  const sh = $('shareSheet').style.display;
+  if (sh && sh !== 'none') { closeShareSheet(); return true; }
+  if ($('busy').style.display === 'flex') return true;
+  if (!$('invoiceView').classList.contains('hidden')) { showPending(); return true; }
+  if (['pendingView', 'newView', 'settingsView', 'paidView'].some(id => !$(id).classList.contains('hidden'))) { showMenu(); return true; }
+  return false;
+};
 function hideAll() { VIEWS.forEach(id => $(id).classList.add('hidden')); }
 function show(id) { hideAll(); $(id).classList.remove('hidden'); window.scrollTo(0, 0); }
 function showMenu() { show('menu'); loadPaidHistory(); }
@@ -243,6 +254,7 @@ function showPending() { show('pendingView'); loadPending(); }
 function showNew() { show('newView'); loadTrucks(); if (!$('newInvNum').value) genNewInvNum(false); calcNew(); }
 function showSettings() {
   show('settingsView');
+  kfLinks.card($('invLinks'), ['sheetsUrl', 'scriptUrl']);
   const co = getCo();
   $('coName').value = co.name || ''; $('coGst').value = co.gst || ''; $('coWcb').value = co.wcb || '';
   $('coEmail').value = co.email || ''; $('coPhone').value = co.phone || ''; $('coAddr').value = co.addr || '';
@@ -270,7 +282,7 @@ function busy(msg) {
 /* ---------- server ---------- */
 async function post(payload) {
   const s = getSettings();
-  if (!s.sheetsUrl) throw new Error('Set the quote sheet URL in the Quote app settings first.');
+  if (!s.sheetsUrl) throw new Error('Set the Load Log sheet link in Settings first.');
   const res = await fetch(s.sheetsUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' });
   const data = await res.json();
   if (data.status === 'error') throw new Error(data.message || 'Sheet error');
@@ -305,7 +317,7 @@ async function loadPending() {
   list.innerHTML = '<p style="color:var(--muted);">Loading…</p>';
   try {
     const s = getSettings();
-    if (!s.sheetsUrl) { list.innerHTML = '<p>Set the quote sheet URL in the Quote app settings.</p>'; return; }
+    if (!s.sheetsUrl) { list.innerHTML = '<p>Set the Load Log sheet link in Settings.</p>'; return; }
     const data = await (await fetch(s.sheetsUrl)).json();
     const local = JSON.parse(localStorage.getItem('kfDispatch') || '{}');
     loads = (data.rows || []).filter(r => {
@@ -374,7 +386,7 @@ function calcInvoice() {
   const hours = +current.totalHours || 0;
   const display = $('invDisplay').value;
   const mode = (document.querySelector('input[name="invMode"]:checked') || {}).value || 'ticket';
-  $('cashBox').style.display = mode === 'cash' ? 'block' : 'none';
+  $('cashBox').style.display = mode === 'adjust' ? 'block' : 'none';
 
   const product = r2(tonnes * r.ppt);
   const trip = r2(hours * r.hourly);
@@ -388,10 +400,11 @@ function calcInvoice() {
     sub = r2(origT ? (origTotal / 1.05 / origT) * tonnes : 0);
     forceSingle = true;
   }
-  if (mode === 'cash') { total = r2(+$('cashAmount').value || 0); sub = r2(total / 1.05); gst = r2(total - sub); forceSingle = true; }
+  if (mode === 'adjust') { total = r2(+$('cashAmount').value || 0); sub = r2(total / 1.05); gst = r2(total - sub); forceSingle = true; }
   else if (mode === 'quote') { total = r2(+current.total || (sub * 1.05)); sub = r2(total / 1.05); gst = r2(total - sub); forceSingle = true; }
   else { gst = r2(sub * 0.05); total = r2(sub + gst); }
 
+  const pays = [...document.querySelectorAll('input.pay:checked')].map(c => c.value);
   const desc = [current.species, current.location ? 'from ' + current.location : ''].filter(Boolean).join(' ');
   let lines = [];
   const single = forceSingle || display !== 'detail';
@@ -418,8 +431,8 @@ function calcInvoice() {
     date: new Date().toLocaleDateString('en-CA'),
     customer: current.customerName || '', address: current.address || '', phone: current.phone || '',
     lines, sub, gst, total,
-    pays: [...document.querySelectorAll('input.pay:checked')].map(c => c.value),
-    notes: $('invNotes').value.trim(), cash: mode === 'cash', mode
+    pays,
+    notes: $('invNotes').value.trim(), cash: pays.includes('Cash'), mode
   };
 }
 function previewInvoice() { const m = calcInvoice(); if (m) openPreview([invoiceHtml(m)]); }
@@ -474,16 +487,32 @@ async function lookupNew() {
   out.textContent = msgs.join(' · ');
   calcNew();
 }
+/* A typed total stays fixed (qty, km, FSC changes re-work the price); typing a $/unit lets go of it. */
+let lockedTotal = null;
+function totalTyped() { const v = $('newTotalIn').value; lockedTotal = v === '' ? null : +v; calcNew(); }
+function priceTyped() { lockedTotal = null; calcNew(); }
 function calcNew() {
-  const qty = +$('newQty').value || 0, price = +$('newPrice').value || 0, km = +$('newKm').value || 0;
+  const qty = +$('newQty').value || 0, km = +$('newKm').value || 0;
+  let price = +$('newPrice').value || 0;
   const fscOn = $('newFsc').value === 'on';
   const S = getSettings();
   const unitCfg = (S.units || []).find(x => x.name === $('newTruck').value);
   const fuelL100 = unitCfg ? (+unitCfg.fuel || 0) : 0, fuelPrice = +S.fuelPrice || 0;
   const unit = $('newUnit').value;
-  const main = r2(qty * price);
   const fsc = fscOn ? r2((km * 2 / 100) * fuelL100 * fuelPrice) : 0;   // round trip, unit L/100 × fuel $/L (same as Quote)
-  const sub = r2(main + fsc), gst = r2(sub * 0.05), total = r2(sub + gst);
+  let main, sub, gst, total;
+  if (lockedTotal != null) {
+    // backwards: total ÷ 1.05 = subtotal (GST out) ; subtotal − FSC = product line ; ÷ qty = $/unit
+    total = r2(lockedTotal); sub = r2(total / 1.05); gst = r2(total - sub); main = r2(sub - fsc);
+    price = qty ? main / qty : 0;
+    $('newPrice').value = qty ? String(Math.round(price * 10000) / 10000) : '';
+    $('newBackNote').textContent = !qty ? 'Enter the Qty to work out the $/unit.' : main < 0 ? 'The FSC is more than the subtotal: check the total.' :
+      '$' + money(total) + ' ÷ 1.05 = $' + money(sub) + ' subtotal' + (fsc ? ' − $' + money(fsc) + ' FSC = $' + money(main) : '') + ' ÷ ' + qty + ' ' + unit + ' = $' + money(price) + '/' + unit;
+  } else {
+    main = r2(qty * price); sub = r2(main + fsc); gst = r2(sub * 0.05); total = r2(sub + gst);
+    if (document.activeElement !== $('newTotalIn')) $('newTotalIn').value = total ? money(total) : '';
+    $('newBackNote').textContent = '';
+  }
   const lines = [{ d: $('newDesc').value.trim() || 'Firewood', q: `${qty} ${unit} @ $${money(price)}`, a: main }];
   if (fsc) lines.push({ d: 'Fuel surcharge (FSC)', q: `${km * 2} km × ${fuelL100} L/100km × $${money(fuelPrice)}/L`, a: fsc });
   if (fscOn && (!unitCfg || !fuelL100 || !fuelPrice)) $('newTicketResult').textContent = 'FSC is $0: pick a truck with a fuel (L/100) value and set the fuel price in Quote settings.';
@@ -495,7 +524,7 @@ function calcNew() {
     customer: $('newCust').value.trim(), address: $('newAddr').value.trim(), phone: $('newPhone').value.trim(),
     lines, sub, gst, total,
     pays: [...document.querySelectorAll('input.newPay:checked')].map(c => c.value),
-    notes: $('newNotes').value.trim(), cash: $('newCashSale').checked, mode: 'manual'
+    notes: $('newNotes').value.trim(), cash: [...document.querySelectorAll('input.newPay:checked')].some(c => c.value === 'Cash'), mode: 'manual'
   };
 }
 function previewNew() { openPreview([invoiceHtml(calcNew())]); }
@@ -596,7 +625,7 @@ function invoiceHtml(m) {
       <div>Thank you for your business</div>
       <div>Due on delivery</div>
     </div>
-    ${m.cash ? '<div class="cash-banner">CASH SALE</div>' : ''}
+    ${(m.pays || []).includes('Cash') ? '<div class="cash-banner">CASH SALE</div>' : ''}
   </div>`;
 }
 
@@ -735,7 +764,7 @@ async function shareOffice(ctx) {
   if (!ctx || !ctx.model) return;
   const co = getCo(), s = getSettings();
   if (!co.email) { alert('Add the office email in Settings first.'); return; }
-  if (!s.sheetsUrl) { alert('Set the quote sheet URL in the Quote app settings first.'); return; }
+  if (!s.sheetsUrl) { alert('Set the Load Log sheet link in Settings first.'); return; }
   const m = ctx.model, ticket = (ctx.ticket || '').trim();
   busy('Collecting weight ticket and trip info…');
   try {

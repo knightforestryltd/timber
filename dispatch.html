@@ -6,6 +6,7 @@
 <title>Dispatch</title>
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
+<script src="nav.js"></script>
 <style>
 .container { max-width: 700px; margin: 0 auto; padding: 12px; }
 .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); cursor: pointer; }
@@ -23,7 +24,7 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
 <header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
   <div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-      <a href="#" href="index.html#settings" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <a href="#" onclick="showDispatchSettings();return false;" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
       <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
@@ -43,8 +44,12 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
     <h2>Pending Delivery</h2>
     <div id="loadList"></div>
   </div>
+  <div id="settingsView" class="hidden">
+    <button class="btn btn-outline" onclick="showList()">&larr; Back</button>
+    <div class="card" style="cursor:default; margin-top:12px;" id="dispLinks"></div>
+  </div>
   <div id="detailView" class="hidden">
-    
+    <button class="btn btn-outline" onclick="showList()">&larr; Back</button>
     <div class="card" style="cursor:default; margin-top:12px;">
       <h2 id="dName"></h2>
       <div id="dInfo"></div>
@@ -123,7 +128,7 @@ async function loadLoads() {
   try {
     const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
     QUOTE_URL = s.sheetsUrl || '';
-    if (!QUOTE_URL) { document.getElementById('loadList').innerHTML = '<p>Set the quote sheet URL in Settings.</p>'; return; }
+    if (!QUOTE_URL) { document.getElementById('loadList').innerHTML = '<p>Set the Load Log sheet link in Settings (gear, top left).</p>'; return; }
     const res = await fetch(QUOTE_URL);
     const data = await res.json();
     loads = (data.rows || []).filter(r => (r.status || '').toLowerCase() !== 'paid');
@@ -207,7 +212,20 @@ function showLoadNotes(l) {
   document.getElementById('notesPopupText').innerHTML = escHtml(n).replace(/\n/g, '<br>');
   document.getElementById('notesPopup').style.display = 'flex';
 }
+function showDispatchSettings() {
+  ['listView', 'detailView'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('settingsView').classList.remove('hidden');
+  kfLinks.card(document.getElementById('dispLinks'), ['sheetsUrl', 'scriptUrl'], () => { TICKET_URL = kfLinks.get('scriptUrl'); });
+}
+// phone back button (nav.js)
+window.kfBack = function () {
+  const np = document.getElementById('notesPopup');
+  if (np && np.style.display !== 'none') { np.style.display = 'none'; return true; }
+  if (!document.getElementById('detailView').classList.contains('hidden') || !document.getElementById('settingsView').classList.contains('hidden')) { showList(); return true; }
+  return false;
+};
 function showList() {
+  document.getElementById('settingsView').classList.add('hidden');
   document.getElementById('detailView').classList.add('hidden');
   document.getElementById('listView').classList.remove('hidden');
   loadLoads();
@@ -216,7 +234,7 @@ function showList() {
 async function checkTicket() {
   const num = document.getElementById('ticketInput').value.trim();
   if (!num) return;
-  if (!TICKET_URL) { document.getElementById('ticketResult').textContent = 'Set ticket sheet URL in Tickets → Settings.'; return; }
+  if (!TICKET_URL) { document.getElementById('ticketResult').textContent = 'Set the Tickets sheet link in Settings (gear, top left).'; return; }
   try {
     const res = await fetch(TICKET_URL);
     const data = await res.json();

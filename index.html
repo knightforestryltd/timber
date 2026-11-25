@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
+<script src="nav.js"></script>
 <style>
 /* colors/fields/buttons/header come from theme.css; this file = Quote page layout */
 .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
@@ -299,20 +300,7 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
         <input type="text" id="setSheetsUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <div class="hint">The Trip Log sheet for loads and invoices. Usually the same link as the Company Sync URL.</div>
       </div>
-      <div class="form-group" style="margin-bottom:16px;">
-        <label for="setTicketsUrl">Tickets Sheet URL</label>
-        <input type="text" id="setTicketsUrl" placeholder="https://script.google.com/macros/s/.../exec">
-        <div class="hint">Used by Dispatch and Billing to read scale tickets. Also settable in Tickets, either place works.</div>
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label for="setYardUrl">Inventory (Yards) Sheet URL</label>
-        <input type="text" id="setYardUrl" placeholder="https://script.google.com/macros/s/.../exec">
-      </div>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label for="setDriversUrl">Drivers Sheet URL</label>
-        <input type="text" id="setDriversUrl" placeholder="https://script.google.com/macros/s/.../exec">
-        <div class="hint">The Drivers script link (driver logs). Company Sync sends it to every device, so drivers do not have to paste it.</div>
-      </div>
+      <div class="hint" style="margin:-6px 0 16px;">The Tickets, Inventory and Drivers links are now in each page's own Settings. Company Sync still shares every link with every device.</div>
       <div class="form-group" style="margin-bottom:20px;">
         <label for="setTrucksUrl">Trucks Sheet URL</label>
         <input type="text" id="setTrucksUrl" placeholder="https://script.google.com/macros/s/.../exec">
@@ -571,6 +559,14 @@ function speciesMatches(sp, selectedSpecies) {
 // Navigation
 $('nav-quote').onclick = (e) => { e.preventDefault(); showView('quote'); };
 $('nav-settings').onclick = (e) => { e.preventDefault(); showView('settings'); };
+// phone back button (nav.js): close a pop-up, or leave Settings for the quote screen
+window.kfBack = function () {
+  if ($('notesModal').classList.contains('show')) { $('btnNotesCancel').click(); return true; }
+  const open = document.querySelector('.modal-overlay.show');
+  if (open) { open.classList.remove('show'); return true; }
+  if (!$('view-settings').classList.contains('hidden')) { showView('quote'); return true; }
+  return false;
+};
 function showView(name) {
   $('view-quote').classList.toggle('hidden', name !== 'quote');
   $('view-settings').classList.toggle('hidden', name !== 'settings');
@@ -612,9 +608,6 @@ function renderSettings() {
   if (banner) banner.textContent = settings.companyName || 'Knight Forestry Ltd';
   $('setSyncUrl').value = settings.syncUrl || '';
   $('setSheetsUrl').value = settings.sheetsUrl || '';
-  $('setTicketsUrl').value = localStorage.getItem('scriptUrl') || '';
-  $('setYardUrl').value = localStorage.getItem('yardUrl') || '';
-  $('setDriversUrl').value = localStorage.getItem('driversUrl') || '';
   $('setTrucksUrl').value = localStorage.getItem('trucksUrl') || '';
   $('setSpeed').value = settings.speed;
   $('setFuelPrice').value = settings.fuelPrice;
@@ -653,9 +646,6 @@ $('btnSaveSettings').onclick = () => {
   const newSheetsUrl = $('setSheetsUrl').value.trim();
   if (newSheetsUrl !== (settings.sheetsUrl || '') || (newSheetsUrl && !settings.sheetsUrlAt)) settings.sheetsUrlAt = Date.now();
   settings.sheetsUrl = newSheetsUrl;
-  setUrlWithStamp('scriptUrl', $('setTicketsUrl').value.trim());
-  setUrlWithStamp('yardUrl', $('setYardUrl').value.trim());
-  setUrlWithStamp('driversUrl', $('setDriversUrl').value.trim());
   setUrlWithStamp('trucksUrl', $('setTrucksUrl').value.trim());
   const cn = $('setCompanyName');
   if (cn) settings.companyName = cn.value.trim() || 'Knight Forestry Ltd';

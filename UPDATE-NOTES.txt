@@ -54,3 +54,14 @@ One rules list: 70/7 · 120/14 · Alberta provincial (13 driving, 15 on duty, 8 
 limit, 24 consecutive hours off in every 24 calendar days) · Saskatchewan provincial (same, without the
 24/24 check, no weekly cap). Every number is editable in Drivers -> Settings (0 = not enforced).
 Rule settings saved with the v2 page are replaced by these defaults once; re-enter any you had changed.
+
+--- Page settings, back button, invoices (v6) ---
+Upload ALL files (new: nav.js). No script changes.
+- Each page's gear/Settings now holds its own sheet links (Dispatch + Billing: Load Log and Tickets;
+  Tickets; Inventory; Drivers). Quote -> Settings keeps Company Sync, the Maps key, Load Log and Trucks.
+  A link changed on any page is shared with every device by Quote -> Settings -> Save to Company.
+- Phone back button goes back one level at a time (pop-up -> screen -> page menu -> Quote) and does
+  nothing on the Quote home screen instead of closing the app.
+- Billing: "Cash Sale" invoice mode is now "Price Adjustment". The CASH SALE banner prints only when
+  Cash is ticked as the payment type. Manual invoice: type a Total and the $/unit is worked out
+  (total / 1.05 = subtotal, minus FSC, / qty).
