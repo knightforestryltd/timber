@@ -19,7 +19,10 @@
   window.addEventListener('popstate', function () {
     if (leaving) return;
     var handled = false;
-    try { handled = typeof window.kfBack === 'function' && window.kfBack() === true; } catch (e) { handled = false; }
+    try {
+      if (window.kfPreviewClose) { window.kfPreviewClose(); handled = true; }
+      else handled = typeof window.kfBack === 'function' && window.kfBack() === true;
+    } catch (e) { handled = false; }
     if (!handled && !isHome()) { leaving = true; location.replace(HOME); return; }
     arm();
     if (!handled) hint('You are on the home page. Use the menu to switch pages.');
@@ -84,4 +87,37 @@
     }
   };
   window.kfLinks = kfLinks;
+
+  /* ---------------- Android app (Capacitor) ----------------
+     The app loads this same site. Inside it, the browser's share screen, downloads, print and
+     pop-up windows are not available, so files go through the phone's own share screen. */
+  var C = window.Capacitor;
+  window.kfNative = !!(C && C.isNativePlatform && C.isNativePlatform());
+  function plug(name) { return window.kfNative && C.Plugins && C.Plugins[name]; }
+  window.kfPlugin = plug;
+  function blobToB64(blob) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result).split('base64,')[1] || ''); }; r.onerror = rej; r.readAsDataURL(blob); }); }
+  // Share a File/Blob with the phone's share screen (Print, Gmail, Drive...). Resolves true when handled.
+  window.kfShareFile = function (file, title) {
+    var FS = plug('Filesystem'), SH = plug('Share');
+    if (!FS || !SH) return Promise.resolve(false);
+    var name = String(file.name || 'document.pdf').replace(/[\\/:*?"<>|]/g, '-');
+    return blobToB64(file).then(function (b64) {
+      return FS.writeFile({ path: name, data: b64, directory: 'CACHE' });
+    }).then(function (w) {
+      return SH.share({ title: title || name, files: [w.uri], dialogTitle: title || name });
+    }).then(function () { return true; }, function (e) {
+      if (e && /cancel/i.test(String(e.message || e))) return true;
+      alert('Could not share: ' + (e && e.message || e)); return true;
+    });
+  };
+  // Show a full HTML document (invoice preview) inside the app instead of a new window.
+  window.kfPreview = function (html) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:6000;background:#fff;display:flex;flex-direction:column';
+    ov.innerHTML = '<div style="padding:8px;background:#0f172a;text-align:right"><button style="background:#fff;color:#0f172a;border:0;border-radius:8px;padding:10px 16px;font-weight:800">Close</button></div>';
+    var fr = document.createElement('iframe'); fr.style.cssText = 'flex:1;border:0;width:100%;background:#fff'; fr.srcdoc = html;
+    ov.appendChild(fr); document.body.appendChild(ov);
+    var close = function () { ov.remove(); window.kfPreviewClose = null; };
+    ov.querySelector('button').onclick = close; window.kfPreviewClose = close;
+  };
 })();

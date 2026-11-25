@@ -689,6 +689,7 @@ function fullDoc(pages, title) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title || 'Invoice')}</title><style>body{margin:0;background:#fff;}${DOC_CSS}.pg{max-width:760px;margin:0 auto;page-break-after:always;}.pg:last-child{page-break-after:auto;}</style></head><body>${pages.map(p => `<div class="pg">${p}</div>`).join('')}</body></html>`;
 }
 function openPreview(pages) {
+  if (window.kfNative) { kfPreview(fullDoc(pages)); return; }
   const w = window.open('', '_blank');
   if (!w) { alert('Allow popups to preview.'); return; }
   w.document.write(fullDoc(pages)); w.document.close();
@@ -732,6 +733,7 @@ function closeShareSheet() { $('shareSheet').style.display = 'none'; }
 function showShareSheet(file, title) {
   $('shareSheetName').textContent = file.name + ' is ready';
   $('shareSheetShare').onclick = async () => {
+    if (await kfShareFile(file, title)) { closeShareSheet(); return; }
     try { await navigator.share({ title, files: [file] }); closeShareSheet(); }
     catch(e) { if (e.name !== 'AbortError') download(file); }
   };
@@ -740,6 +742,7 @@ function showShareSheet(file, title) {
 }
 async function deliverPdf(blob, name, title) {
   const file = new File([blob], name, { type: 'application/pdf' });
+  if (await kfShareFile(file, title)) return;          // Android app: phone's own share screen
   const canShare = navigator.share && navigator.canShare && navigator.canShare({ files: [file] });
   if (!canShare) { download(file); return; }
   try { await navigator.share({ title, files: [file] }); }

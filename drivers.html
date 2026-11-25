@@ -331,8 +331,23 @@ function getPosition() {
     navigator.geolocation.getCurrentPosition(p => { const o = fixFrom(p, lastPos); lastPos = o; LS.set('kfDrvLastPos', o); resolve(o); }, () => resolve(lastPos), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   });
 }
-let watchId = null, gpsOk = false, lastFixMs = 0;
+let watchId = null, gpsOk = false, lastFixMs = 0, bgWatch = null;
+// Android app: GPS keeps running with the screen off (a "Shift in progress" notification shows).
+function startNativeWatch() {
+  const BG = window.kfPlugin && kfPlugin('BackgroundGeolocation');
+  if (!BG || bgWatch || !shift || shift.submittedPending) return !!BG;
+  bgWatch = 'starting';
+  BG.addWatcher({ backgroundTitle: 'Shift in progress', backgroundMessage: 'Logging GPS for your driver log until you submit.', requestPermissions: true, stale: false, distanceFilter: 0 }, (loc, err) => {
+    if (err) { gpsOk = false; gpsBadge(); if (err.code === 'NOT_AUTHORIZED' && confirm('The driver log needs location access "all the time" or "while using the app". Open the settings now?')) BG.openSettings(); return; }
+    if (!loc) return;
+    const o = { lat: loc.latitude, lon: loc.longitude, at: new Date(loc.time || Date.now()).toISOString(), acc: Math.round(loc.accuracy || 0), kph: loc.speed != null && loc.speed >= 0 ? loc.speed * 3.6 : null };
+    if (o.kph == null && lastPos && lastPos.lat != null) { const dt = (tms(o.at) - tms(lastPos.at)) / 1000; if (dt >= 5 && dt <= 180) o.kph = hav(lastPos.lat, lastPos.lon, o.lat, o.lon) / dt * 3.6; }
+    lastPos = o; lastFixMs = Date.now(); LS.set('kfDrvLastPos', o); gpsOk = true; gpsBadge(); autoCheck(o); queuePoint(false);
+  }).then(id => { bgWatch = id; }, () => { bgWatch = null; });
+  return true;
+}
 function startWatch() {
+  if (startNativeWatch()) return;
   if (watchId != null || !navigator.geolocation) return;
   try {
     watchId = navigator.geolocation.watchPosition(p => {
@@ -340,17 +355,20 @@ function startWatch() {
     }, () => { gpsOk = false; gpsBadge(); }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 60000 });
   } catch (e) {}
 }
-function stopWatch() { if (watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId); watchId = null; anchor = null; }
+function stopWatch() {
+  if (watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId); watchId = null; anchor = null;
+  const BG = window.kfPlugin && kfPlugin('BackgroundGeolocation'); if (BG && bgWatch && bgWatch !== 'starting') BG.removeWatcher({ id: bgWatch }).catch(() => {}); bgWatch = null;
+}
 function gpsBadge() {
   const b = $('gpsBadge'); if (b) { const ok = gpsOk && Date.now() - lastFixMs < 180000; b.className = 'badge ' + (ok ? 'on' : 'off'); b.textContent = ok ? 'GPS on' : 'GPS off'; }
-  const w = $('wakeBadge'); if (w) { w.className = 'badge ' + (wakeLock ? 'on' : 'off'); w.textContent = wakeLock ? 'Screen kept on' : 'Screen may sleep'; }
+  const w = $('wakeBadge'); if (w) { if (bgWatch) { w.className = 'badge on'; w.textContent = 'GPS runs with screen off'; } else { w.className = 'badge ' + (wakeLock ? 'on' : 'off'); w.textContent = wakeLock ? 'Screen kept on' : 'Screen may sleep'; } }
 }
 
 /* ---- keep the screen (and GPS) on from shift start to submit ---- */
 let wakeLock = null;
 async function keepAwake() {
   if (!shift || shift.submittedPending) { if (wakeLock) { try { await wakeLock.release(); } catch (e) {} wakeLock = null; } return; }
-  if (!('wakeLock' in navigator) || wakeLock || document.visibilityState !== 'visible') return;
+  if (window.kfNative || !('wakeLock' in navigator) || wakeLock || document.visibilityState !== 'visible') return;
   try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; gpsBadge(); }); } catch (e) { wakeLock = null; }
   gpsBadge();
 }
@@ -359,7 +377,7 @@ document.addEventListener('visibilitychange', () => {
   const hid = LS.get('kfDrvHiddenAt', 0); LS.del('kfDrvHiddenAt');
   if (shift && !shift.submittedPending) {
     keepAwake(); startWatch();
-    if (hid && Date.now() - hid > 3 * 60000) {
+    if (hid && Date.now() - hid > 3 * 60000 && !bgWatch) {
       shift.gpsGaps = shift.gpsGaps || []; shift.gpsGaps.push({ from: new Date(hid).toISOString(), to: new Date().toISOString() }); saveShiftLocal();
       toast(`The app was closed or in the background for ${fmtH((Date.now() - hid) / 3600000)}. GPS was not recorded in that time. Keep this app open on the screen during your shift.`);
     }
@@ -641,7 +659,8 @@ function renderShiftHome() {
     <button class="act" id="aHist"><span>My logs (last 14 days)</span><span class="tag">view</span></button>
     <button class="act" id="aPrint"><span>Print / share</span><span class="tag">today · 14 days</span></button>
     <button class="btn" id="aClose" style="width:100%;margin-top:6px;min-height:54px">Close shift &amp; submit</button>
-    <details class="card" style="margin-top:12px"><summary><b>Keep GPS on during your shift</b> (Samsung / Android)</summary><div class="small" style="margin-top:8px;line-height:1.5">
+    ${window.kfNative ? `<details class="card" style="margin-top:12px"><summary><b>GPS during your shift</b></summary><div class="small" style="margin-top:8px;line-height:1.5">In the app, GPS keeps logging with the screen off until you submit (you will see a "Shift in progress" notification).<br>Samsung: Settings → Apps → Knight Forestry → Battery → <b>Unrestricted</b>, so the phone does not stop it.</div></details>` : ''}
+    <details class="card ${window.kfNative ? 'hidden' : ''}" style="margin-top:12px"><summary><b>Keep GPS on during your shift</b> (Samsung / Android)</summary><div class="small" style="margin-top:8px;line-height:1.5">
       Phones only allow web apps to use GPS while the app is open on the screen. This app keeps the screen on from shift start until you submit.<br>
       1. Plug the phone into the truck charger and leave this app open.<br>
       2. Samsung: Settings → Apps → Chrome → Battery → <b>Unrestricted</b>.<br>
@@ -1078,14 +1097,15 @@ async function printDays(keys, shifts, extra) {
   try { blob = await makePdf(keys, shifts, Date.now(), extra); } catch (e) { err = e && e.message || String(e); }
   delete $('sheetOv').dataset.lock;
   const file = blob ? new File([blob], name.replace(/[\\/:*?"<>|]/g, '-'), { type: 'application/pdf' }) : null;
-  const canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+  const canShare = !!(file && (window.kfNative || (navigator.canShare && navigator.canShare({ files: [file] }))));
   openSheet(`<h3>${blob ? 'PDF ready' : 'Could not make the PDF'}</h3>${err ? `<div class="notice bad">${esc(err)}. You can still print from the browser.</div>` : ''}
     <p class="small">${canShare ? 'Tap <b>Share / Print</b> and pick Print, Gmail, Drive or any app.' : blob ? 'This browser cannot open the share screen. Download the PDF or print from the browser.' : ''}</p>
     <div class="btnrow" style="justify-content:stretch;flex-direction:column">${canShare ? '<button class="btn" id="psShare" style="min-height:54px">Share / Print</button>' : ''}${blob ? '<button class="btn btn-outline" id="psDown">Download PDF</button>' : ''}<button class="btn btn-outline" id="psPrint">Print from the browser</button><button class="btn btn-outline" id="psNo">Close</button></div>`, () => {
     $('psNo').onclick = closeSheet;
-    if ($('psShare')) $('psShare').onclick = async () => { try { await navigator.share({ files: [file], title: file.name }); } catch (e) { if (e && e.name !== 'AbortError') alert('Share failed: ' + e.message); } };
+    if (window.kfNative) { if ($('psDown')) $('psDown').remove(); $('psPrint').remove(); }
+    if ($('psShare')) $('psShare').onclick = async () => { if (await kfShareFile(file, file.name)) return; try { await navigator.share({ files: [file], title: file.name }); } catch (e) { if (e && e.name !== 'AbortError') alert('Share failed: ' + e.message); } };
     if ($('psDown')) $('psDown').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
-    $('psPrint').onclick = () => { $('printArea').innerHTML = keys.map(k => dayPageHtml(buildDay(k, shifts, Date.now(), extra))).join(''); closeSheet(); setTimeout(() => { window.print(); }, 200); };
+    if ($('psPrint')) $('psPrint').onclick = () => { $('printArea').innerHTML = keys.map(k => dayPageHtml(buildDay(k, shifts, Date.now(), extra))).join(''); closeSheet(); setTimeout(() => { window.print(); }, 200); };
   });
 }
 window.addEventListener('afterprint', () => { $('printArea').innerHTML = ''; });

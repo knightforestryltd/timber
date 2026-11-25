@@ -1,0 +1,13 @@
+{
+  "appId": "ca.knightforestry.app",
+  "appName": "Knight Forestry",
+  "webDir": "www",
+  "server": {
+    "url": "https://REPLACE-WITH-YOUR-SITE",
+    "errorPath": "error.html",
+    "cleartext": false
+  },
+  "android": {
+    "useLegacyBridge": true
+  }
+}
