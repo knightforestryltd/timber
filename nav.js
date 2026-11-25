@@ -162,13 +162,34 @@
       }).catch(function () {});
     }
   });
-  // shrink a picture to at most `max` px and return a data URL (logos are stored in the company sheet)
+  // Shrink a picture for the company sheet: at most `max` px and small enough to store whole (about 60 KB).
+  // Simple logos stay PNG (keeps transparency); detailed ones become JPEG on white.
+  var LOGO_LIMIT = 60000;
   window.kfShrinkImage = function (file, max) {
     return new Promise(function (res, rej) {
       var r = new FileReader();
-      r.onload = function () { var im = new Image(); im.onload = function () { var k = Math.min(1, (max || 256) / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/png')); }; im.onerror = rej; im.src = r.result; };
+      r.onload = function () {
+        var im = new Image();
+        im.onload = function () {
+          var draw = function (px, bg) { var k = Math.min(1, px / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k)); var g = c.getContext('2d'); if (bg) { g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height); } g.drawImage(im, 0, 0, c.width, c.height); return c; };
+          var px = max || 256, out = draw(px).toDataURL('image/png');
+          if (out.length > LOGO_LIMIT) {
+            var tries = [[px, 0.85], [px, 0.7], [192, 0.75], [160, 0.7], [128, 0.7]];
+            for (var i = 0; i < tries.length; i++) { out = draw(tries[i][0], '#ffffff').toDataURL('image/jpeg', tries[i][1]); if (out.length <= LOGO_LIMIT) break; }
+          }
+          res(out);
+        };
+        im.onerror = rej; im.src = r.result;
+      };
       r.onerror = rej; r.readAsDataURL(file);
     });
+  };
+  // A logo saved before this fix may have been cut short (only the top of the picture shows).
+  window.kfLogoBroken = function (logo) {
+    if (!logo) return false;
+    if (/^data:image\/png;base64,/.test(logo)) { try { var b = logo.split(',')[1]; return atob(b.slice(b.length - 16)).indexOf('IEND') < 0; } catch (e) { return true; } }   // a whole PNG ends with IEND
+    if (/^data:image\/jpeg;base64,/.test(logo)) { try { var t = atob(logo.split(',')[1].slice(-8)); return t.charCodeAt(t.length - 2) !== 0xFF || t.charCodeAt(t.length - 1) !== 0xD9; } catch (e) { return true; } }
+    return false;
   };
 
   /* ---------------- Android app (Capacitor) ----------------

@@ -60,7 +60,7 @@ const U = id => 'https://script.google.com/macros/s/' + id + '/exec';
   ok(await p.evaluate(() => document.getElementById('loginOverlay').classList.contains('hidden')), 'connected');
   ok(await p.isVisible('#unifiedBox') && (await p.textContent('#unifiedName')).includes('Smith'), 'settings show the single company link');
   const brProfile = bro.get({ svc: 'sync', profile: '1', k: bro.props.companyKey }).profile;
-  ok(brProfile.name === 'Smith Hauling' && brProfile.email === 'office@smith.example' && brProfile.logo.startsWith('data:image/png'), 'profile saved in their sheet');
+  ok(brProfile.name === 'Smith Hauling' && brProfile.email === 'office@smith.example' && /^data:image\/(png|jpeg)/.test(brProfile.logo) && brProfile.logo.length <= 60000, 'profile saved in their sheet');
   // add a truck and save to company
   await p.evaluate(() => { settings.units.push({ id: 1, name: 'Smith Tri', hourly: 160, fuel: 45, tonnes: 30 }); saveSettings(); markDirty(); });
   await p.fill('#pwCurrent', 'smith1'); await p.click('#btnSaveCompany'); await p.waitForFunction(() => /Saved to company/.test(document.getElementById('syncStatus').textContent));

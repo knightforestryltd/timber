@@ -96,3 +96,10 @@ The Log tab records every change (for the statistics page later).
 --- v10: app download ---
 Quote -> Settings -> "Android app": Download the app / Share download link. The link opens app.html
 (download + install steps). The APK is app.apk on the site; to publish a new app version, replace app.apk.
+
+--- v11: logo fix ---
+Upload all files AND update the company script: paste company-apps-script.gs -> Deploy -> Manage deployments
+-> pencil -> New version -> Deploy (same link).
+Logos are now stored small and whole (a detailed logo was cut short by the old 120 KB limit, so only the top
+showed). To repair: Billing -> Settings -> "Use the logo from this website" (or choose the file) -> enter the
+company password -> Save. Every device picks it up.

@@ -203,7 +203,10 @@ textarea { min-height: 90px; }
       <label>Address</label><input id="coAddr" placeholder="Street address">
       <label>Mailing Address</label><input id="coMail" placeholder="Mailing address (if different)">
       <label>E-transfer note (printed on invoice when Etrans is ticked)</label><input id="coEtNote" placeholder="e.g. Send to info@company.com, password: firewood">
-      <label>Logo</label><input type="file" id="coLogo" accept="image/*">
+      <label>Logo</label>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;"><img id="coLogoPrev" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--border);"><div id="coLogoWarn" class="hidden" style="color:var(--bad);font-weight:600;font-size:.9rem;">This logo was not saved completely (only the top shows). Choose it again or use the website logo, then Save.</div></div>
+      <input type="file" id="coLogo" accept="image/*">
+      <button class="btn btn-outline btn-sm" id="coLogoSite" type="button" style="margin:0 0 10px;">Use the logo from this website</button>
       <div id="coPwWrap" class="hidden"><label>Company password (to save for every device)</label><input type="password" id="coPw" autocomplete="current-password"></div>
       <button class="btn" onclick="saveCo()">Save</button>
     </div>
@@ -261,10 +264,17 @@ function showSettings() {
   $('coName').value = co.name || ''; $('coGst').value = co.gst || ''; $('coWcb').value = co.wcb || '';
   $('coEmail').value = co.email || ''; $('coPhone').value = co.phone || ''; $('coAddr').value = co.addr || '';
   $('coMail').value = co.mail || ''; $('coEtNote').value = co.etNote || '';
+  pendingLogo = null; $('coLogo').value = '';
+  $('coLogoPrev').src = co.logo || ''; $('coLogoPrev').style.visibility = co.logo ? 'visible' : 'hidden';
+  $('coLogoWarn').classList.toggle('hidden', !(window.kfLogoBroken && kfLogoBroken(co.logo)));
   const uni = window.kfCo && kfCo.unified();
   $('coSharedNote').classList.toggle('hidden', !uni); $('coPwWrap').classList.toggle('hidden', !uni);
 }
 window.kfOnProfile = () => { if (!$('settingsView').classList.contains('hidden')) showSettings(); };
+let pendingLogo = null;
+function previewLogo(l) { pendingLogo = l; $('coLogoPrev').src = l; $('coLogoPrev').style.visibility = 'visible'; $('coLogoWarn').classList.add('hidden'); }
+$('coLogo').addEventListener('change', async () => { const f = $('coLogo').files[0]; if (f) { try { previewLogo(await kfShrinkImage(f, 256)); } catch (e) { alert('Could not read that picture.'); } } });
+$('coLogoSite').onclick = async () => { try { previewLogo(await kfShrinkImage(await (await fetch('logo.jpg')).blob(), 256)); } catch (e) { alert('This website has no logo.jpg.'); } };
 async function saveCo() {
   const old = getCo();
   const co = {
@@ -272,8 +282,7 @@ async function saveCo() {
     email: $('coEmail').value.trim(), phone: $('coPhone').value.trim(), addr: $('coAddr').value.trim(),
     mail: $('coMail').value.trim(), etNote: $('coEtNote').value.trim(), logo: old.logo || ''
   };
-  const file = $('coLogo').files[0];
-  if (file) { try { co.logo = await kfShrinkImage(file, 256); } catch (e) { alert('Could not read that picture.'); return; } }
+  if (pendingLogo) co.logo = pendingLogo;
   if (window.kfCo && kfCo.unified()) {
     const pw = $('coPw').value; if (!pw) { alert('Enter the company password to save these details for every device.'); return; }
     busy('Saving…');

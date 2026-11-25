@@ -234,8 +234,9 @@ function syncPost_(p, d) {
   if (a === 'saveProfile') {
     if (hasPassword_()) { var c4 = checkPw_(d.password); if (!c4.ok) return pwFail_(c4); }
     var pr = d.profile || {}, s = readSettings_();
+    if (pr.logo && String(pr.logo).length > 150000) return json_({ status: 'error', message: 'The logo picture is too large to store. Choose it again (the app shrinks it).' });
     s.profile = { name: cap_(pr.name, 120), gst: cap_(pr.gst, 40), wcb: cap_(pr.wcb, 40), email: cap_(pr.email, 120), phone: cap_(pr.phone, 40),
-      addr: cap_(pr.addr, 300), mail: cap_(pr.mail, 300), etNote: cap_(pr.etNote, 300), logo: cap_(pr.logo, 120000) };
+      addr: cap_(pr.addr, 300), mail: cap_(pr.mail, 300), etNote: cap_(pr.etNote, 300), logo: String(pr.logo || '') };
     if (pr.name) s.companyName = s.profile.name;
     if (!Array.isArray(s.locations)) s.locations = [];
     writeSettings_(s);

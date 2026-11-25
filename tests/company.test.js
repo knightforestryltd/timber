@@ -65,6 +65,8 @@ ok(g.post({ action: 'sendInvoice', to: 'x@example.com', pdfBase64: 'JVBERg==' },
 r = g.post({ action: 'saveProfile', password: 'knight1', profile: { name: 'Knight Forestry Ltd', gst: '123', logo: 'data:image/png;base64,AAA' } }, { svc: 'sync' });
 ok(r.status === 'saved' && r.profile.gst === '123', 'profile saved');
 ok(g.get({ svc: 'sync', profile: '1', k: K }).profile.logo.startsWith('data:image'), 'profile readable with the key');
+r = g.post({ action: 'saveProfile', password: 'knight1', profile: { name: 'Knight Forestry Ltd', gst: '123', logo: 'data:image/png;base64,' + 'A'.repeat(160000) } }, { svc: 'sync' });
+ok(r.status === 'error' && /too large/.test(r.message) && g.get({ svc: 'sync', profile: '1', k: K }).profile.logo === 'data:image/png;base64,AAA', 'oversized logo refused, never cut short');
 const n1 = g.post({ action: 'nextInvoice', ymd: '20261125' }, { svc: 'sync', k: K }).n, n2 = g.post({ action: 'nextInvoice', ymd: '20261125' }, { svc: 'sync', k: K }).n;
 ok(n1 === 1 && n2 === 2, 'invoice numbers never repeat');
 r = g.post({ action: 'saveSettings', password: 'knight1', settings: { locations: [{ name: 'Barmac' }], companyName: 'Knight Forestry Ltd' }, force: true }, { svc: 'sync' });
