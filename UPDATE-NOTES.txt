@@ -92,3 +92,7 @@ A NEW COMPANY (e.g. a brother), on a fresh phone or after Quote -> Settings -> S
 Every night the script saves a copy of the sheet in Drive ("Company Data backups", 14 kept) and removes GPS
 trail / driver logs older than 12 months. Loads, tickets and invoices are never removed automatically.
 The Log tab records every change (for the statistics page later).
+
+--- v10: app download ---
+Quote -> Settings -> "Android app": Download the app / Share download link. The link opens app.html
+(download + install steps). The APK is app.apk on the site; to publish a new app version, replace app.apk.

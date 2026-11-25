@@ -1,4 +1,4 @@
-const CACHE = 'kf-quotes-v6';
+const CACHE = 'kf-quotes-v7';
 // Pages and files kept on the phone so the app still opens without signal (Drivers especially).
 const FILES = ['/', '/index.html', '/drivers.html', '/dispatch.html', '/theme.css', '/theme.js', '/nav.js', '/logo.jpg', '/html2pdf.bundle.min.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
@@ -18,6 +18,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   const sameOrigin = new URL(req.url).origin === self.location.origin;
   if (req.method !== 'GET' || !sameOrigin) return;      // Google scripts, maps, tiles: straight to the network
+  if (/\.apk$/i.test(new URL(req.url).pathname)) return; // the app download is never stored on the phone
   e.respondWith(
     fetch(req).then(res => {
       if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); }

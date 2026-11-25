@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Get the app</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+body { margin: 0; background: var(--bg); color: var(--text); font-family: Arial, Helvetica, sans-serif; }
+.wrap { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+h1 { font-size: 1.4rem; margin: 6px 0 4px; } h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.btn { display: block; width: 100%; box-sizing: border-box; text-align: center; text-decoration: none; padding: 15px; border-radius: 12px; font-weight: 800; font-size: 1.05rem; margin-top: 10px; }
+.muted { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+ol { padding-left: 20px; line-height: 1.6; margin: 0; }
+#logo { width: 72px; height: 72px; border-radius: 14px; object-fit: contain; visibility: hidden; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="text-align:center"><img id="logo" alt=""><h1 id="title">Get the Android app</h1><div class="muted" id="sub">For Android phones and tablets.</div></div>
+  <div class="card">
+    <a class="btn" id="dl" href="app.apk" download>Download the app</a>
+    <div class="muted" style="margin-top:8px">About 4 MB. Updates to the pages arrive by themselves; you only download again if the office tells you to.</div>
+  </div>
+  <div class="card">
+    <h2>Install</h2>
+    <ol>
+      <li>Tap <b>Download the app</b>, then open the downloaded file (or find it in My Files → Downloads).</li>
+      <li>If asked, allow <b>Install unknown apps</b> for Chrome or My Files.</li>
+      <li>Samsung: if it is blocked, turn off <b>Auto Blocker</b> in Settings → Security and privacy until it is installed.</li>
+      <li>If Play Protect warns, tap <b>More details → Install anyway</b>.</li>
+      <li>Open the app. Allow <b>notifications</b> and <b>location</b> (choose "Allow all the time" if offered).</li>
+      <li>Settings → Apps → this app → Battery → <b>Unrestricted</b>, so GPS keeps working during shifts.</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2>Then connect</h2>
+    <div class="muted">Office and owners: enter the company link and company password on the first screen.<br>Drivers: open <b>Drivers</b>, paste the company link, then log in with your name and passcode.</div>
+  </div>
+  <div class="muted" style="text-align:center">iPhone: open this site in Safari → Share → Add to Home Screen.</div>
+</div>
+<script>
+(function () {
+  var co = {}; try { co = JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch (e) {}
+  if (co.name) { document.getElementById('title').textContent = 'Get the ' + co.name + ' app'; document.title = co.name + ' app'; }
+  if (co.logo) { var l = document.getElementById('logo'); l.src = co.logo; l.style.visibility = 'visible'; }
+  if (!/Android/i.test(navigator.userAgent)) document.getElementById('sub').textContent = 'For Android phones and tablets. Open this page on the phone to install.';
+})();
+</script>
+</body>
+</html>
