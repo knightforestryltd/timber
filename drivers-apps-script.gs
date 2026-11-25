@@ -9,13 +9,15 @@
 //   Deploy > Manage deployments > pencil > Version: "New version" > Deploy.
 //   The first time after this update Google asks you to authorize again (Maps, for village names).
 //
+// v3: four rule choices (70/7, 120/14, Alberta provincial, Saskatchewan provincial) and the
+//     Alberta "24 consecutive hours off in every 24 calendar days" check.
 // v2: Alberta provincial rules, duty-status edits (logged), 15-minute GPS trail, village names
 //     from Google Maps (no API key needed), 14-day history for drivers, admin map, admin edit /
 //     delete shift, driver phone numbers, PDF log attached to the office email, and automatic
 //     removal of records older than 12 months.
 // This script is separate from the quote / load log / sync scripts and does not touch them.
 // ============================================================================
-var SCRIPT_VERSION = 2;
+var SCRIPT_VERSION = 3;
 var SHEET_NAME = 'Driver Logs';
 var KEEP_DAYS = 365;            // records older than this are removed automatically
 var TABS = {
@@ -24,11 +26,16 @@ var TABS = {
   Pretrips: ['shiftId', 'driverName', 'unit', 'at', 'result', 'json', 'signature'],
   Positions: ['at', 'driverName', 'unit', 'lat', 'lon', 'place', 'status', 'shiftId', 'kph', 'driverId']
 };
+// Four rule choices. 0 means "not enforced". offCount = how many periods of offHours consecutive
+// hours off duty are needed in every offDays calendar days.
+var RULE_IDS = ['c1', 'c2', 'ab', 'sk'];
+var RULE_KEYS = ['maxDriving', 'maxOnDuty', 'maxElapsed', 'resetOffHours', 'cycleHours', 'cycleDays', 'offCount', 'offHours', 'offDays'];
 var DEFAULT_RULES = {
-  defaultSet: 'ab',
-  ab:  { maxDriving: 13, maxOnDuty: 15, maxElapsed: 16, resetOffHours: 8 },   // Alberta provincial (AR 317/2002)
-  fed: { maxDriving: 13, maxOnDuty: 14, maxElapsed: 16, resetOffHours: 8 },   // Canada federal (SOR/2005-313)
-  cycleHours: 70, cycleDays: 7,
+  v: 3, defaultSet: 'ab',
+  c1: { maxDriving: 13, maxOnDuty: 14, maxElapsed: 16, resetOffHours: 8, cycleHours: 70, cycleDays: 7, offCount: 0, offHours: 24, offDays: 24 },   // 70 h / 7 days
+  c2: { maxDriving: 13, maxOnDuty: 14, maxElapsed: 16, resetOffHours: 8, cycleHours: 120, cycleDays: 14, offCount: 0, offHours: 24, offDays: 24 }, // 120 h / 14 days
+  ab: { maxDriving: 13, maxOnDuty: 15, maxElapsed: 0, resetOffHours: 8, cycleHours: 0, cycleDays: 0, offCount: 1, offHours: 24, offDays: 24 },     // Alberta provincial
+  sk: { maxDriving: 13, maxOnDuty: 15, maxElapsed: 0, resetOffHours: 8, cycleHours: 0, cycleDays: 0, offCount: 0, offHours: 24, offDays: 24 },     // Saskatchewan provincial
   autoStatus: 1, stillMinutes: 15, offMinutes: 30, driveKph: 40, stillMeters: 100
 };
 var DEFAULT_CONFIG = {
@@ -126,10 +133,10 @@ function readConfig_() {
   if (c.company) for (var k in c.company) out.company[k] = c.company[k];
   if (c.units) out.units = c.units;
   var r = c.rules || {};
-  ['defaultSet', 'cycleHours', 'cycleDays', 'autoStatus', 'stillMinutes', 'offMinutes', 'driveKph', 'stillMeters'].forEach(function (x) { if (r[x] != null && r[x] !== '') out.rules[x] = r[x]; });
-  ['ab', 'fed'].forEach(function (set) { if (r[set]) for (var y in out.rules[set]) if (r[set][y] != null) out.rules[set][y] = r[set][y]; });
-  if (!r.fed && r.maxWindow) {             // v1 flat rules become the federal set
-    out.rules.fed = { maxDriving: r.maxDriving || 13, maxOnDuty: r.maxWindow || 14, maxElapsed: r.maxElapsed || 16, resetOffHours: r.resetOffHours || 8 };
+  ['autoStatus', 'stillMinutes', 'offMinutes', 'driveKph', 'stillMeters'].forEach(function (x) { if (r[x] != null && r[x] !== '') out.rules[x] = r[x]; });
+  if (r.v === 3) {                          // older saved rule layouts are replaced by the four choices
+    if (RULE_IDS.indexOf(r.defaultSet) > -1) out.rules.defaultSet = r.defaultSet;
+    RULE_IDS.forEach(function (id) { if (r[id]) RULE_KEYS.forEach(function (k) { if (r[id][k] != null && r[id][k] !== '') out.rules[id][k] = Number(r[id][k]); }); });
   }
   return out;
 }
@@ -299,12 +306,13 @@ function doPost(e) {
         }
         if (inc.rules) {
           var ir = inc.rules;
-          if (ir.defaultSet === 'ab' || ir.defaultSet === 'fed') cur.rules.defaultSet = ir.defaultSet;
-          ['cycleHours', 'cycleDays', 'stillMinutes', 'offMinutes', 'driveKph', 'stillMeters'].forEach(function (k) { var n = Number(ir[k]); if (isFinite(n) && n > 0) cur.rules[k] = n; });
+          cur.rules.v = 3;
+          if (RULE_IDS.indexOf(ir.defaultSet) > -1) cur.rules.defaultSet = ir.defaultSet;
+          ['stillMinutes', 'offMinutes', 'driveKph', 'stillMeters'].forEach(function (k) { var n = Number(ir[k]); if (isFinite(n) && n > 0) cur.rules[k] = n; });
           if (ir.autoStatus != null) cur.rules.autoStatus = ir.autoStatus ? 1 : 0;
-          ['ab', 'fed'].forEach(function (set) {
-            if (!ir[set]) return;
-            for (var k in DEFAULT_RULES[set]) { var n = Number(ir[set][k]); if (isFinite(n) && n > 0) cur.rules[set][k] = n; }
+          RULE_IDS.forEach(function (id) {
+            if (!ir[id]) return;
+            RULE_KEYS.forEach(function (k) { var n = Number(ir[id][k]); if (ir[id][k] !== '' && ir[id][k] != null && isFinite(n) && n >= 0) cur.rules[id][k] = n; });
           });
         }
         props_().setProperty('config', JSON.stringify(cur));
@@ -411,9 +419,11 @@ function doPost(e) {
           var t = ms_(s.submittedAt);
           if (!odoAt[s.unit] || t >= odoAt[s.unit]) { allOdo[s.unit] = s.endOdo; odoAt[s.unit] = t; }
         });
+        var ob = onBlocks_(mine, Date.now() - 40 * 86400000);
         return json_({
           status: 'ok', v: SCRIPT_VERSION, driver: driverPublic_(drv), company: cfg2.company, units: cfg2.units, rules: cfg2.rules,
-          history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? fullShift_(open) : null
+          history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? fullShift_(open) : null,
+          onBlocks: ob.blocks, knownSince: ob.knownSince
         });
       }
 
@@ -472,6 +482,31 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
+}
+
+// On-duty (driving + on duty) time from a driver's shifts since `since`, merged, for the
+// "24 consecutive hours off" check. knownSince = start of the driver's first shift on record.
+function onBlocks_(shiftRows, since) {
+  var list = [], known = 0;
+  shiftRows.forEach(function (s) {
+    var st = ms_(s.startedAt); if (st && (!known || st < known)) known = st;
+    if (s.status === 'Open') return;          // the phone adds its open shift itself, live
+    var end = ms_(s.submittedAt) || Date.now();
+    if (end < since) return;
+    var sj = parse_(s.json); if (!sj || !sj.events) return;
+    var ev = sj.events.slice().sort(function (a, b) { return ms_(a.t) - ms_(b.t); });
+    var close = sj.closedAt ? ms_(sj.closedAt) : end;
+    var first = ev.length ? ms_(ev[0].t) : 0; if (first && (!known || first < known)) known = first;
+    for (var i = 0; i < ev.length; i++) {
+      if (ev[i].s !== 'D' && ev[i].s !== 'ON') continue;
+      var a = ms_(ev[i].t), b = i + 1 < ev.length ? ms_(ev[i + 1].t) : close;
+      if (b > a && b >= since) list.push([a, b]);
+    }
+  });
+  list.sort(function (x, y) { return x[0] - y[0]; });
+  var out = [];
+  list.forEach(function (x) { var l = out[out.length - 1]; if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else out.push([x[0], x[1]]); });
+  return { blocks: out, knownSince: known ? new Date(known).toISOString() : '' };
 }
 
 function saveShiftRow_(found, sh, meta) {
