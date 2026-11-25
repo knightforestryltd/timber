@@ -10,4 +10,6 @@ node tests/page.test.js        # Drivers page (needs Leaflet 1.9.4 in tests/leaf
 node tests/nav.test.js         # back button, page settings, invoices
 node tests/native.test.js      # Android app features (fake app plugins)
 node tests/unified.test.js     # set-up, single link on every page, move, company-switch guard
+node tests/live.test.js        # two devices: live refresh, settings arrive, ticket edits, copies + receipt printer
+# DEVICE="Desktop Chrome" node tests/<name>.test.js runs a browser test as a laptop
 ```

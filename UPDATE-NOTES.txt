@@ -103,3 +103,15 @@ Upload all files AND update the company script: paste company-apps-script.gs -> 
 Logos are now stored small and whole (a detailed logo was cut short by the old 120 KB limit, so only the top
 showed). To repair: Billing -> Settings -> "Use the logo from this website" (or choose the file) -> enter the
 company password -> Save. Every device picks it up.
+
+--- v12: live refresh, settings everywhere, Tickets rework ---
+Upload all files AND update the company script (paste company-apps-script.gs -> Manage deployments -> pencil ->
+New version -> Deploy). Old separate Tickets script: paste tickets-apps-script.gs the same way if still used.
+- Dispatch, Billing, Tickets, Inventory and the Drivers admin list refresh by themselves (every 20-30 s and
+  as soon as you return to the app). The sheet is the truth: a phone only remembers changes not sent yet.
+- Settings: Save to Company still needs the company password. Every connected device applies new company
+  settings by itself within about a minute (never over its own unsaved changes).
+- Tickets: new look; edits update the same ticket (also when renumbered); a resent save never duplicates;
+  tickets saved without signal are sent automatically. Each ticket has Client / Supplier / Office with
+  Copy text, Share as PDF and Print (ESC/POS receipt printer over Bluetooth or USB: Tickets -> Settings ->
+  Receipt printer). Ticket numbers and columns are unchanged for Dispatch and Billing.
