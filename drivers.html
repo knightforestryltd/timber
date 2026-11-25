@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Drivers</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+.container { max-width: 720px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+.small { font-size: .82rem; color: var(--muted); }
+label { display: block; margin: 10px 0 4px; font-size: .9rem; }
+input, select, textarea { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 4px; font-size: 16px; }
+textarea { min-height: 80px; }
+.hidden { display: none !important; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.tabs button { padding: 12px 4px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: 1rem; cursor: pointer; }
+.tabs button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; border: 2px solid var(--primary-light); background: var(--card); }
+.stat .big { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+.stat .sub { color: var(--muted); font-size: .9rem; margin-top: 2px; }
+.stat.D { border-color: var(--good); } .stat.ON { border-color: var(--amber); } .stat.OFF, .stat.SB { border-color: var(--primary-light); }
+.sbtn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.sbtn { min-height: 74px; border-radius: 14px; border: 2px solid var(--border); background: var(--card); color: var(--text); font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+.sbtn small { display: block; font-weight: 500; font-size: .75rem; color: var(--muted); }
+.sbtn.cur { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); } .sbtn.cur small { color: #dbeafe; }
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.meter { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.meter .lab { font-size: .78rem; color: var(--muted); } .meter .val { font-weight: 800; font-size: 1.05rem; }
+.bar { height: 8px; border-radius: 4px; background: var(--surface-2); margin-top: 6px; overflow: hidden; } .bar > i { display: block; height: 100%; background: var(--good); }
+.meter.warn .bar > i { background: var(--amber); } .meter.over .bar > i { background: var(--bad); } .meter.over .val { color: var(--bad); }
+.act { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 14px 16px; min-height: 56px; margin-bottom: 8px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+.act .tag { font-size: .8rem; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text); }
+.act .tag.ok { background: #dcfce7; color: #14532d; } .act .tag.bad { background: var(--out-bg); color: #7f1d1d; } .act .tag.todo { background: var(--warn-bg); color: var(--warn-text); }
+.notice { padding: 10px 12px; border-radius: 10px; margin-bottom: 10px; background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); font-size: .92rem; }
+.notice.bad { background: var(--out-bg); color: #7f1d1d; border-color: var(--bad); } .notice.good { background: #dcfce7; color: #14532d; border-color: var(--good); }
+.badge { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text); margin-right: 4px; }
+.badge.on { background: #dcfce7; color: #14532d; } .badge.off { background: var(--out-bg); color: #7f1d1d; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: none; align-items: flex-start; justify-content: center; padding: 10px; overflow: auto; }
+.overlay.show { display: flex; }
+.sheet { background: var(--card); color: var(--text); border-radius: 16px; width: 100%; max-width: 680px; padding: 18px; margin: 10px 0; box-shadow: 0 20px 40px rgba(0,0,0,.3); }
+.sheet h3 { margin: 0 0 8px; }
+.btnrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; justify-content: flex-end; }
+.chk { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.chk .q { font-size: .95rem; } .chk button { min-width: 64px; min-height: 40px; border-radius: 8px; border: 2px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; cursor: pointer; }
+.chk button.ok.on { background: #16a34a; border-color: #16a34a; color: #fff; } .chk button.df.on { background: #dc2626; border-color: #dc2626; color: #fff; }
+.grp { font-weight: 800; margin-top: 14px; color: var(--heading); }
+canvas.sig { width: 100%; height: 130px; border: 2px dashed var(--field-border); border-radius: 10px; background: #fff; touch-action: none; display: block; }
+table.ev { width: 100%; border-collapse: collapse; font-size: .88rem; } table.ev th, table.ev td { border: 1px solid var(--border); padding: 5px 6px; text-align: left; vertical-align: top; }
+.logsheet svg { width: 100%; min-width: 640px; height: auto; display: block; } .logsheet .gw { overflow-x: auto; -webkit-overflow-scrolling: touch; } .logsheet .hdrgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: .9rem; margin-bottom: 8px; }
+.err { color: var(--bad); font-weight: 600; margin-top: 6px; min-height: 1em; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; } .seg button { flex: 1; min-width: 90px; padding: 10px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; cursor: pointer; } .seg button.on { background: var(--btn-bg); color: #fff; }
+.li { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--card); }
+@media print { header, .tabs, .btnrow, .noprint { display: none !important; } .overlay { position: static; background: none; display: block; } .sheet { box-shadow: none; } }
+</style>
+</head>
+<body>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <a href="#" href="index.html#settings" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" data-home="1" onclick="if(window.showTab){showTab('drivers');return false;}location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="#" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+    </div>
+  </div>
+  <img id="companyLogo" src="logo.jpg" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;">
+</header>
+<div class="container">
+  <div class="tabs" id="tabs">
+    <button id="tab-drivers" class="on">Drivers</button>
+    <button id="tab-admin">Admin</button>
+    <button id="tab-settings">Settings</button>
+  </div>
+  <div id="statusLine" class="small" style="margin:-4px 0 10px;"></div>
+
+  <div id="view-drivers"></div>
+  <div id="view-admin" class="hidden"></div>
+  <div id="view-settings" class="hidden"></div>
+</div>
+
+<div class="overlay" id="sheetOv"><div class="sheet" id="sheetBox"></div></div>
+
+<script>
+/* ============================== helpers ============================== */
+const $ = id => document.getElementById(id);
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+const SS = { get(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }, del(k) { try { sessionStorage.removeItem(k); } catch (e) {} } };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const hm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+const dkey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const r2 = n => Math.round(n * 100) / 100;
+const fmtH = h => { h = Math.max(0, h); const m = Math.round(h * 60); return Math.floor(m / 60) + 'h ' + pad(m % 60) + 'm'; };
+const STATUS = { OFF: 'Off Duty', SB: 'Sleeper', D: 'Driving', ON: 'On Duty' };
+const ROW = { OFF: 0, SB: 1, D: 2, ON: 3 };
+const HEARTBEAT_MS = () => window.__kfHeartbeatMs || 15 * 60000;
+
+let URL_ = LS.get('kfDrvUrl', '');
+let session = LS.get('kfDrvSession', null);     // {name, passcode}
+let ctx = LS.get('kfDrvCtx', null);             // cached login payload (company, units, rules, history, unitOdo)
+let shift = LS.get('kfDrvShift', null);         // the active shift (local first)
+let lastPos = LS.get('kfDrvLastPos', null);     // {lat, lon, at}
+let online = true, dirty = false, tab = 'drivers';
+
+function saveShiftLocal() { if (shift) LS.set('kfDrvShift', shift); else LS.del('kfDrvShift'); }
+
+async function api(body, timeoutMs) {
+  if (!URL_) return { status: 'nourl' };
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), timeoutMs || 20000);
+  try {
+    const r = await fetch(URL_, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow', signal: ctl.signal });
+    const j = await r.json(); online = true; return j;
+  } catch (e) { online = false; return { status: 'offline' }; } finally { clearTimeout(to); }
+}
+async function getJson(qs) {
+  if (!URL_) return null;
+  try { const r = await fetch(URL_ + (URL_.includes('?') ? '&' : '?') + qs); return await r.json(); } catch (e) { return null; }
+}
+function mainSettings() { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch (e) { return {}; } }
+
+/* ============================== sheet (pop-up) ============================== */
+function openSheet(html, mount) { $('sheetBox').innerHTML = html; $('sheetOv').classList.add('show'); if (mount) mount($('sheetBox')); $('sheetOv').scrollTop = 0; }
+function closeSheet() { $('sheetOv').classList.remove('show'); $('sheetBox').innerHTML = ''; }
+$('sheetOv').addEventListener('mousedown', e => { if (e.target === $('sheetOv') && !$('sheetOv').dataset.lock) closeSheet(); });
+
+/* ============================== GPS + place names ============================== */
+const TOWNS = [['Drayton Valley',53.223,-114.977],['Edmonton',53.546,-113.491],['Calgary',51.045,-114.057],['Red Deer',52.268,-113.811],['Rocky Mountain House',52.376,-114.919],['Sundre',51.797,-114.633],['Olds',51.792,-114.106],['Hinton',53.401,-117.585],['Edson',53.581,-116.436],['Whitecourt',54.143,-115.686],['Fox Creek',54.401,-116.809],['Grande Prairie',55.171,-118.795],['Lloydminster',53.278,-110.006],['Wetaskiwin',52.969,-113.377],['Camrose',53.017,-112.833],['Leduc',53.259,-113.549],['Stony Plain',53.527,-114.007],['Spruce Grove',53.545,-113.9],['Fort Saskatchewan',53.713,-113.213],['Drumheller',51.463,-112.709],['Lacombe',52.468,-113.737],['Stettler',52.322,-112.719],['Fort McMurray',56.727,-111.381],['Peace River',56.234,-117.289],['High Prairie',55.436,-116.486],['Slave Lake',55.28,-114.769],['Athabasca',54.72,-113.286],['Lac La Biche',54.77,-111.97],['Cold Lake',54.464,-110.182],['Vegreville',53.495,-112.05],['Vermilion',53.356,-110.858],['Wainwright',52.833,-110.856],['Hanna',51.638,-111.902],['Brooks',50.564,-111.899],['Medicine Hat',50.04,-110.677],['Lethbridge',49.694,-112.833],['Pincher Creek',49.486,-113.951],['Cochrane',51.189,-114.467],['Canmore',51.089,-115.359],['Banff',51.178,-115.571],['Jasper',52.873,-118.08],['Valleyview',55.07,-117.285],['Barrhead',54.122,-114.402],['Mayerthorpe',53.95,-115.133],['Evansburg',53.593,-115.071],['Rimbey',52.636,-114.227],['Ponoka',52.677,-113.584],['Bonnyville',54.267,-110.741],['St. Paul',53.99,-111.29],['Westlock',54.15,-113.863],['Swan Hills',54.716,-115.4],['Eckville',52.36,-114.36],['Breton',53.1,-114.47],['Rocky Rapids',53.14,-115.05],['Warburg',53.18,-114.29],['Saskatoon',52.134,-106.67],['Regina',50.445,-104.619],['North Battleford',52.78,-108.29]];
+function hav(a, b, c, d) { const R = 6371000, t = x => x * Math.PI / 180; const dLa = t(c - a), dLo = t(d - b); const h = Math.sin(dLa / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
+function bearingWord(a, b, c, d) { const t = x => x * Math.PI / 180; const y = Math.sin(t(d - b)) * Math.cos(t(c)); const x = Math.cos(t(a)) * Math.sin(t(c)) - Math.sin(t(a)) * Math.cos(t(c)) * Math.cos(t(d - b)); const deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8]; }
+function nearestTown(lat, lon) {
+  let best = null, bd = 1e12;
+  TOWNS.forEach(t => { const d = hav(lat, lon, t[1], t[2]); if (d < bd) { bd = d; best = t; } });
+  if (!best) return lat.toFixed(4) + ', ' + lon.toFixed(4);
+  const km = Math.round(bd / 1000);
+  return km < 8 ? 'near ' + best[0] : km + ' km ' + bearingWord(best[1], best[2], lat, lon) + ' of ' + best[0];
+}
+async function placeFor(lat, lon) {
+  const key = mainSettings().apiKey;
+  if (key && navigator.onLine !== false) {
+    try {
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch('https://maps.googleapis.com/maps/api/geocode/json?latlng=' + lat + ',' + lon + '&result_type=locality|sublocality|administrative_area_level_3&key=' + encodeURIComponent(key), { signal: ctl.signal });
+      clearTimeout(to); const j = await r.json();
+      const res = j && j.results && j.results[0];
+      if (res) { const comp = (res.address_components || []).find(c => (c.types || []).includes('locality')) || (res.address_components || [])[0]; if (comp && comp.long_name) return 'near ' + comp.long_name; }
+    } catch (e) {}
+  }
+  return nearestTown(lat, lon);
+}
+function getPosition() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) return resolve(lastPos);
+    navigator.geolocation.getCurrentPosition(p => { const o = { lat: p.coords.latitude, lon: p.coords.longitude, at: new Date().toISOString() }; lastPos = o; LS.set('kfDrvLastPos', o); resolve(o); }, () => resolve(lastPos), { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
+  });
+}
+let watchId = null, anchor = null, stillShown = false;
+function startWatch() {
+  if (watchId != null || !navigator.geolocation) return;
+  try {
+    watchId = navigator.geolocation.watchPosition(p => {
+      lastPos = { lat: p.coords.latitude, lon: p.coords.longitude, at: new Date().toISOString() }; LS.set('kfDrvLastPos', lastPos); gpsBadge(true); checkStill();
+    }, () => gpsBadge(false), { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 });
+  } catch (e) {}
+}
+function stopWatch() { if (watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId); watchId = null; anchor = null; }
+function gpsBadge(ok) { const b = $('gpsBadge'); if (b) { b.className = 'badge ' + (ok ? 'on' : 'off'); b.textContent = ok ? 'GPS on' : 'GPS off'; } }
+
+function checkStill() {
+  if (!shift || shift.submittedPending || !lastPos || curStatus() !== 'D' || stillShown) { if (curStatus() !== 'D') anchor = null; return; }
+  const rules = (ctx && ctx.rules) || {};
+  const meters = rules.stillMeters || 100, mins = rules.stillMinutes || 15;
+  const now = Date.now();
+  if (!anchor || hav(anchor.lat, anchor.lon, lastPos.lat, lastPos.lon) > meters) { anchor = { lat: lastPos.lat, lon: lastPos.lon, at: now }; return; }
+  if (now - anchor.at >= mins * 60000) showStill(mins, meters);
+}
+function showStill(mins, meters) {
+  stillShown = true; $('sheetOv').dataset.lock = '1';
+  openSheet(`<h3>Still driving?</h3><p>This phone has stayed within ${meters} m for ${mins} minutes while you are logged as <b>Driving</b>. Change your duty status?</p>
+    <div class="sbtn-grid"><button class="sbtn" data-s="ON">On Duty<small>not driving</small></button><button class="sbtn" data-s="OFF">Off Duty</button><button class="sbtn" data-s="SB">Sleeper</button><button class="sbtn cur" data-s="D">Still driving<small>keep Driving</small></button></div>`, box => {
+    box.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+      const s = b.dataset.s; delete $('sheetOv').dataset.lock; stillShown = false; anchor = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: Date.now() } : null; closeSheet();
+      if (s !== 'D') changeStatus(s);
+    });
+  });
+}
+
+/* ============================== shift model + hours ============================== */
+function curStatus() { if (!shift || !shift.events.length) return 'OFF'; return shift.events[shift.events.length - 1].s; }
+function segments(sh, nowMs) {
+  const ev = (sh.events || []).slice().sort((a, b) => new Date(a.t) - new Date(b.t)), out = [];
+  for (let i = 0; i < ev.length; i++) {
+    let s = new Date(ev[i].t).getTime(), e = i + 1 < ev.length ? new Date(ev[i + 1].t).getTime() : nowMs;
+    if (e <= s) continue;
+    let cur = s;
+    while (cur < e) {
+      const d = new Date(cur), mid = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime(), end = Math.min(e, mid);
+      const day0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      out.push({ day: dkey(d), s: ev[i].s, a: (cur - day0) / 60000, b: (end - day0) / 60000, ms: end - cur });
+      cur = end;
+    }
+  }
+  return out;
+}
+function dayTotals(segs) {
+  const m = {};
+  segs.forEach(g => { const o = m[g.day] = m[g.day] || { OFF: 0, SB: 0, D: 0, ON: 0 }; o[g.s] += g.ms / 3600000; });
+  return m;
+}
+function stamp(sh, nowMs) {
+  const t = dayTotals(segments(sh, nowMs)); let d = 0, on = 0; const days = [];
+  Object.keys(t).sort().forEach(k => { d += t[k].D; on += t[k].D + t[k].ON; days.push({ date: k, onDuty: r2(t[k].D + t[k].ON), driving: r2(t[k].D) }); });
+  sh.drivingHrs = r2(d); sh.onDutyHrs = r2(on); sh.days = days; return t;
+}
+function hos(nowMs) {
+  const rules = (ctx && ctx.rules) || { cycleHours: 70, cycleDays: 7, maxDriving: 13, maxWindow: 14, maxElapsed: 16, resetOffHours: 8 };
+  const cyc = shift.rule === 'c2' ? { h: 120, d: 14 } : { h: rules.cycleHours, d: rules.cycleDays };
+  const segs = segments(shift, nowMs), t = dayTotals(segs), today = dkey(new Date(nowMs));
+  let wStart = new Date(shift.events[0].t).getTime();
+  const evs = shift.events.slice().sort((a, b) => new Date(a.t) - new Date(b.t));
+  evs.forEach((e, i) => { if (e.s !== 'OFF' && e.s !== 'SB') return; const a = new Date(e.t).getTime(), b = i + 1 < evs.length ? new Date(evs[i + 1].t).getTime() : nowMs; if (b - a >= rules.resetOffHours * 3600000) wStart = Math.max(wStart, b); });
+  const elapsed = (nowMs - wStart) / 3600000;
+  const tt = t[today] || { D: 0, ON: 0 };
+  const hist = Object.assign({}, (ctx && ctx.history) || {}), per = {};
+  Object.keys(hist).forEach(k => { per[k] = (hist[k].onDuty || 0); });
+  Object.keys(t).forEach(k => { per[k] = (per[k] || 0) + t[k].D + t[k].ON; });
+  let used = 0; const base = new Date(nowMs);
+  for (let i = 0; i < cyc.d; i++) { const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i); used += per[dkey(d)] || 0; }
+  return [
+    { k: 'Driving today', used: tt.D, max: rules.maxDriving },
+    { k: 'On-duty window', used: elapsed, max: rules.maxWindow },
+    { k: 'Elapsed (16 h rule)', used: elapsed, max: rules.maxElapsed },
+    { k: 'Cycle ' + cyc.h + ' h / ' + cyc.d + ' d', used: used, max: cyc.h }
+  ];
+}
+
+/* ============================== tabs ============================== */
+function showTab(t) {
+  tab = t; ['drivers', 'admin', 'settings'].forEach(x => { $('view-' + x).classList.toggle('hidden', x !== t); $('tab-' + x).classList.toggle('on', x === t); });
+  if (t === 'drivers') renderDrivers(); if (t === 'admin') renderAdmin(); if (t === 'settings') renderSettings();
+  try { history.replaceState(null, '', '#' + t); } catch (e) {}
+}
+['drivers', 'admin', 'settings'].forEach(x => $('tab-' + x).onclick = () => showTab(x));
+document.addEventListener('click', e => { const a = e.target.closest('[data-home]'); if (a) { e.preventDefault(); showTab('drivers'); } });
+
+/* ============================== DRIVERS tab ============================== */
+async function renderDrivers() {
+  const v = $('view-drivers');
+  if (!URL_) {
+    v.innerHTML = `<div class="card"><h2 style="margin-top:0">Connect this phone</h2><p class="small">Paste the Drivers script link your office gave you. You only do this once per phone.</p>
+      <label>Drivers script link</label><input id="urlIn" placeholder="https://script.google.com/macros/s/.../exec" autocapitalize="off" autocorrect="off"><div class="err" id="urlErr"></div>
+      <button class="btn" id="urlSave" style="width:100%;margin-top:8px">Save</button></div>`;
+    $('urlSave').onclick = async () => {
+      const u = $('urlIn').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('urlErr').textContent = 'That does not look like a script link (it should end in /exec).'; return; }
+      URL_ = u; LS.set('kfDrvUrl', u); const g = await getJson('action=ping'); if (!g || g.app !== 'drivers') { $('urlErr').textContent = 'Saved, but could not reach the script. Check the link and your signal.'; } renderDrivers();
+    };
+    return;
+  }
+  if (!session) return renderLogin();
+  if (!shift) return renderStart();
+  renderShiftHome();
+}
+
+async function renderLogin(msg) {
+  const v = $('view-drivers');
+  let names = LS.get('kfDrvNames', []);
+  v.innerHTML = `<div class="card"><h2 style="margin-top:0">Driver log in</h2>${msg ? `<div class="notice bad">${esc(msg)}</div>` : ''}
+    <label>Driver</label><select id="lgName"></select><label>Passcode</label><input id="lgPass" type="password" inputmode="numeric" autocomplete="off" placeholder="Passcode from the office">
+    <div class="err" id="lgErr"></div><button class="btn" id="lgGo" style="width:100%;margin-top:8px">Log in</button></div>`;
+  const fill = list => { $('lgName').innerHTML = '<option value="">Select your name</option>' + list.map(n => `<option>${esc(n)}</option>`).join(''); };
+  fill(names);
+  getJson('action=drivers').then(g => { if (g && g.drivers) { LS.set('kfDrvNames', g.drivers); const cur = $('lgName') && $('lgName').value; fill(g.drivers); if (cur && $('lgName')) $('lgName').value = cur; } });
+  $('lgGo').onclick = async () => {
+    const name = $('lgName').value, pass = $('lgPass').value; if (!name || !pass) { $('lgErr').textContent = 'Select your name and enter your passcode.'; return; }
+    $('lgGo').disabled = true; $('lgErr').textContent = 'Logging in…';
+    const r = await api({ action: 'driverLogin', name, passcode: pass });
+    $('lgGo').disabled = false;
+    if (r.status === 'ok') { session = { name, passcode: pass }; LS.set('kfDrvSession', session); ctx = r; LS.set('kfDrvCtx', r); if (r.openShift && !shift) { shift = r.openShift; saveShiftLocal(); } if (r.unitOdo) { const lo = LS.get('kfDrvLastOdo', {}); Object.assign(lo, r.unitOdo); LS.set('kfDrvLastOdo', lo); } renderDrivers(); }
+    else $('lgErr').textContent = r.status === 'badpassword' ? 'Wrong name or passcode.' : r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal. You need signal to log in the first time.' : (r.message || 'Could not log in.');
+  };
+}
+
+function renderStart() {
+  const v = $('view-drivers'), units = (ctx && ctx.units) || [], lo = LS.get('kfDrvLastOdo', {});
+  v.innerHTML = `<div class="card"><h2 style="margin-top:0">Hi ${esc(session.name)}</h2><p class="small">Start your shift. You must submit this shift before you can start another.</p>
+    <label>Unit</label><select id="stUnit"><option value="">Select unit</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}${u.plate ? ' · ' + esc(u.plate) : ''}</option>`).join('')}</select>
+    <div class="row2"><div><label>Trailer plate A</label><input id="stTa"></div><div><label>Trailer plate B</label><input id="stTb"></div></div>
+    <label>Starting odometer (km)</label><input id="stOdo" type="number" inputmode="decimal" placeholder="loads from last log">
+    <label>Hours rule</label><select id="stRule"><option value="c1">Alberta / Canada Cycle 1 — 70 h / 7 days</option><option value="c2">Cycle 2 — 120 h / 14 days</option></select>
+    <div class="err" id="stErr"></div><button class="btn" id="stGo" style="width:100%;margin-top:8px">Start shift</button>
+    <button class="btn btn-outline" id="stOut" style="width:100%;margin-top:8px">Log out</button></div>`;
+  $('stUnit').onchange = () => { const u = units.find(x => x.name === $('stUnit').value); if (u) { $('stTa').value = u.trailerA || ''; $('stTb').value = u.trailerB || ''; } const o = lo[$('stUnit').value]; if (o !== undefined && o !== '') $('stOdo').value = o; };
+  $('stOut').onclick = logout;
+  $('stGo').onclick = async () => {
+    const un = $('stUnit').value, odo = $('stOdo').value;
+    if (!un) { $('stErr').textContent = 'Select your unit.'; return; }
+    if (odo === '' || isNaN(+odo)) { $('stErr').textContent = 'Enter the starting odometer.'; return; }
+    const u = units.find(x => x.name === un) || {}; const now = new Date();
+    shift = { id: 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: dkey(now), startedAt: now.toISOString(), driverName: session.name, unit: un, plate: u.plate || '', trailerA: $('stTa').value.trim(), trailerB: $('stTb').value.trim(), rule: $('stRule').value, startOdo: +odo, endOdo: '', events: [], trips: [], fuel: [], pretrip: null, remarks: '', signature: '' };
+    const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
+    shift.events.push({ t: now.toISOString(), hm: hm(now), s: 'ON', label: 'On Duty (start of shift)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place, note: '' });
+    stamp(shift, Date.now()); saveShiftLocal(); await pushShift(); renderDrivers();
+  };
+}
+
+async function logout() {
+  if (shift) { alert('Submit your open shift first.'); return; }
+  session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); stopWatch(); renderDrivers();
+}
+
+function pretripTag() { return !shift.pretrip ? ['todo', 'Required'] : shift.pretrip.defects ? ['bad', 'Defects'] : ['ok', 'Done']; }
+let tick = null;
+function renderShiftHome() {
+  const v = $('view-drivers'), now = Date.now(); stamp(shift, now);
+  const st = curStatus(), last = shift.events[shift.events.length - 1], since = fmtH((now - new Date(last.t).getTime()) / 3600000);
+  if (shift.submittedPending) {
+    v.innerHTML = `<div class="card"><h2 style="margin-top:0">Waiting for signal</h2><div class="notice">Your log is signed and saved on this phone. It will submit automatically as soon as you have signal. Do not clear the browser data.</div><button class="btn" id="retry" style="width:100%">Try again now</button></div>`;
+    $('retry').onclick = () => submitNow(); return;
+  }
+  const ms = hos(now), pt = pretripTag();
+  v.innerHTML = `<div class="small" style="margin-bottom:8px"><span class="badge ${online ? 'on' : 'off'}" id="netBadge">${online ? 'Online' : 'Offline'}</span><span class="badge" id="gpsBadge">GPS…</span>${dirty ? '<span class="badge off">Not yet synced</span>' : ''} ${esc(shift.driverName)} · ${esc(shift.unit)} ${shift.plate ? '· ' + esc(shift.plate) : ''}</div>
+    <div class="stat ${st}"><div class="small">Current duty status · since ${esc(last.hm)}</div><div class="big">${STATUS[st]}</div><div class="sub">${esc(last.place || 'location not recorded')} · ${since}</div></div>
+    <div class="sbtn-grid">${['D', 'ON', 'OFF', 'SB'].map(s => `<button class="sbtn ${s === st ? 'cur' : ''}" data-st="${s}">${STATUS[s]}${s === 'D' ? '<small>pre-trip first</small>' : ''}</button>`).join('')}</div>
+    <div class="meters">${ms.map(m => { const p = Math.min(100, m.used / m.max * 100), left = m.max - m.used, cls = left <= 0 ? 'over' : left <= 1 ? 'warn' : ''; return `<div class="meter ${cls}"><div class="lab">${m.k}</div><div class="val">${fmtH(Math.abs(left))} ${left < 0 ? 'over' : 'left'}</div><div class="bar"><i style="width:${p}%"></i></div></div>`; }).join('')}</div>
+    <button class="act" id="aPre"><span>Pre-trip inspection</span><span class="tag ${pt[0]}">${pt[1]}</span></button>
+    <button class="act" id="aTrips"><span>Trips from Dispatch</span><span class="tag">${shift.trips.length}</span></button>
+    <button class="act" id="aFuel"><span>Fuel</span><span class="tag">${shift.fuel.length}</span></button>
+    <button class="act" id="aLog"><span>View my log sheet</span><span class="tag">24 h</span></button>
+    <button class="btn" id="aClose" style="width:100%;margin-top:6px;min-height:54px">Close shift &amp; submit</button>`;
+  v.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st !== curStatus()) changeStatus(b.dataset.st); });
+  $('aPre').onclick = openPretrip; $('aTrips').onclick = openTrips; $('aFuel').onclick = openFuel; $('aLog').onclick = () => openSheet(logSheetHtml(shift, (ctx && ctx.company) || {}, Date.now()) + '<div class="btnrow"><button class="btn btn-outline" onclick="window.print()">Print</button><button class="btn" id="cls">Close</button></div>', b => b.querySelector('#cls').onclick = closeSheet);
+  $('aClose').onclick = openClose; gpsBadge(watchId != null && !!lastPos);
+  startWatch(); clearInterval(tick); tick = setInterval(() => { if (tab === 'drivers' && shift && !shift.submittedPending && !$('sheetOv').classList.contains('show')) renderShiftHome(); checkStill(); }, 60000);
+}
+
+async function changeStatus(s) {
+  if (s === 'D' && (!shift.pretrip || !shift.pretrip.done)) { alert('Complete the pre-trip inspection before you start driving.'); return openPretrip(); }
+  const pos = await getPosition(); const place0 = pos ? await placeFor(pos.lat, pos.lon) : '';
+  openSheet(`<h3>Change to ${STATUS[s]}</h3><label>Location (nearest town)</label><input id="csPlace" value="${esc(place0)}" placeholder="type a location if GPS is unavailable"><label>Note (optional)</label><input id="csNote" placeholder="e.g. loading at Barmac, fuel stop"><div class="btnrow"><button class="btn btn-outline" id="csNo">Cancel</button><button class="btn" id="csOk">Confirm</button></div>`, box => {
+    $('csNo').onclick = closeSheet;
+    $('csOk').onclick = async () => {
+      if (s === 'D' && shift.pretrip && shift.pretrip.defects && !confirm('The pre-trip reported defects. Drive anyway? The office will be told.')) return;
+      const now = new Date();
+      shift.events.push({ t: now.toISOString(), hm: hm(now), s, label: STATUS[s], lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: $('csPlace').value.trim(), note: $('csNote').value.trim() });
+      anchor = pos ? { lat: pos.lat, lon: pos.lon, at: Date.now() } : null; stamp(shift, Date.now()); saveShiftLocal(); closeSheet(); renderShiftHome(); await pushShift();
+    };
+  });
+}
+
+/* ---------- sync ---------- */
+function payloadShift() { const c = JSON.parse(JSON.stringify(shift)); stamp(c, Date.now()); return c; }
+async function pushShift(opts) {
+  if (!shift || !session) return; opts = opts || {};
+  const last = shift.events[shift.events.length - 1];
+  const pos = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: lastPos.at, place: (last && last.place) || '', status: curStatus() } : null;
+  const r = await api({ action: opts.submit ? 'submitShift' : 'saveShift', name: session.name, passcode: session.passcode, shift: payloadShift(), pos });
+  if (r.status === 'ok') { dirty = false; } else if (r.status === 'offline') { dirty = true; }
+  else if (r.status === 'blocked') { if (r.openShift && r.openShift.id !== shift.id) { alert('You already have an open shift (started on another phone). Opening it now. Submit it before starting a new one.'); shift = r.openShift; saveShiftLocal(); renderDrivers(); } }
+  else if (r.status === 'badpassword' || r.status === 'locked') { dirty = true; }
+  const b = $('netBadge'); if (b) { b.className = 'badge ' + (online ? 'on' : 'off'); b.textContent = online ? 'Online' : 'Offline'; }
+  return r;
+}
+window.addEventListener('online', () => { if (shift) { if (shift.submittedPending) submitNow(); else pushShift().then(() => { if (tab === 'drivers') renderDrivers(); }); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && shift && !shift.submittedPending && dirty) pushShift(); });
+setInterval(() => { if (shift && !shift.submittedPending && !document.hidden) pushShift(); }, HEARTBEAT_MS());
+setInterval(() => { if (shift && shift.submittedPending) submitNow(); }, 60000);
+
+/* ---------- pre-trip ---------- */
+const PRETRIP = [
+  ['Engine & fluids', ['Engine oil level', 'Coolant level', 'Belts and hoses', 'No fuel / oil / coolant leaks']],
+  ['Cab & controls', ['Steering (no excess play)', 'Service and parking brakes, air pressure builds', 'Gauges and warning lights', 'Horn', 'Windshield, wipers and washers', 'Mirrors and glass', 'Seat belt', 'Heater / defroster']],
+  ['Lights & reflectors', ['Headlights high / low', 'Brake, turn and hazard lights', 'Marker and clearance lights', 'Reflective tape']],
+  ['Wheels, tires & suspension', ['Tires (inflation, tread, damage)', 'Wheels, rims and wheel nuts', 'Suspension and springs']],
+  ['Coupling & trailer', ['Fifth wheel / pintle / kingpin locked', 'Air and electrical lines', 'Landing gear raised', 'Trailer brakes', 'Bunks, stakes and trailer structure']],
+  ['Load', ['Load secured (straps / chains)', 'Load within legal weight and height']],
+  ['Safety equipment & documents', ['Fire extinguisher', 'Warning triangles / flares', 'First aid kit', 'Registration, insurance and CVIP decal']]
+];
+function companyHeaderHtml(sh, company) {
+  return `<div class="hdrgrid"><div><b>${esc(company.name || '')}</b><br>${esc(company.address || '')}</div><div>Driver: <b>${esc(sh.driverName)}</b><br>Unit: <b>${esc(sh.unit)}</b> · Plate ${esc(sh.plate || '—')}<br>Trailer A: ${esc(sh.trailerA || '—')} · B: ${esc(sh.trailerB || '—')}</div></div>`;
+}
+function openPretrip() {
+  const company = (ctx && ctx.company) || {}; const p = shift.pretrip || { items: {}, defectNote: '', signature: '' };
+  const all = PRETRIP.flatMap(g => g[1]);
+  const html = `<h3>Pre-trip inspection</h3><div class="logsheet">${companyHeaderHtml(shift, company)}</div><div class="small">Odometer ${esc(shift.startOdo)} km · ${esc(shift.date)} ${esc(hm(new Date()))}</div>
+    <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="ptAll">Mark all OK</button></div>
+    ${PRETRIP.map((g, gi) => `<div class="grp">${esc(g[0])}</div>${g[1].map((q, qi) => { const k = gi + '.' + qi; return `<div class="chk" data-k="${k}"><div class="q">${esc(q)}</div><button class="ok ${p.items[k] === 'ok' ? 'on' : ''}" data-v="ok">OK</button><button class="df ${p.items[k] === 'df' ? 'on' : ''}" data-v="df">Defect</button></div>`; }).join('')}`).join('')}
+    <label>Defect notes (required if any defect)</label><textarea id="ptNote" placeholder="Describe the defect">${esc(p.defectNote)}</textarea>
+    <label>Driver signature</label><canvas class="sig" id="ptSig"></canvas><div class="btnrow" style="justify-content:flex-start;margin-top:4px"><button class="btn btn-sm btn-outline" id="ptClr">Clear signature</button></div>
+    <div class="err" id="ptErr"></div><div class="btnrow"><button class="btn btn-outline" id="ptCancel">Cancel</button><button class="btn" id="ptSave">Save pre-trip</button></div>`;
+  openSheet(html, box => {
+    const items = Object.assign({}, p.items), sig = makeSig($('ptSig'), p.signature);
+    const paint = () => box.querySelectorAll('.chk').forEach(r => { r.querySelector('.ok').classList.toggle('on', items[r.dataset.k] === 'ok'); r.querySelector('.df').classList.toggle('on', items[r.dataset.k] === 'df'); });
+    box.querySelectorAll('.chk button').forEach(b => b.onclick = () => { items[b.closest('.chk').dataset.k] = b.dataset.v; paint(); });
+    $('ptAll').onclick = () => { PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => { if (items[gi + '.' + qi] !== 'df') items[gi + '.' + qi] = 'ok'; })); paint(); };
+    $('ptClr').onclick = () => sig.clear(); $('ptCancel').onclick = closeSheet;
+    $('ptSave').onclick = async () => {
+      const keys = []; PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => keys.push(gi + '.' + qi)));
+      if (keys.some(k => !items[k])) { $('ptErr').textContent = 'Answer every line (use "Mark all OK" then flag any defects).'; return; }
+      const defects = keys.some(k => items[k] === 'df'), note = $('ptNote').value.trim();
+      if (defects && !note) { $('ptErr').textContent = 'Describe the defect.'; return; }
+      if (sig.blank()) { $('ptErr').textContent = 'Sign the pre-trip.'; return; }
+      const list = []; PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => { if (items[gi + '.' + qi] === 'df') list.push(q); }));
+      shift.pretrip = { done: true, at: new Date().toISOString(), items, defects, defectNote: note, defectList: list, signature: sig.data() };
+      saveShiftLocal(); closeSheet(); renderShiftHome(); await pushShift();
+    };
+  });
+}
+
+/* ---------- signature pad ---------- */
+function makeSig(cv, existing) {
+  const dpr = 1; cv.width = 600; cv.height = 200; const g = cv.getContext('2d'); g.lineWidth = 3; g.lineCap = 'round'; g.strokeStyle = '#0f172a'; let drawing = false, dirtyS = false;
+  const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+  if (existing) { const im = new Image(); im.onload = () => { g.drawImage(im, 0, 0, cv.width, cv.height); dirtyS = true; }; im.src = existing; }
+  cv.addEventListener('pointerdown', e => { drawing = true; dirtyS = true; const [x, y] = pt(e); g.beginPath(); g.moveTo(x, y); g.lineTo(x + .1, y + .1); g.stroke(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} e.preventDefault(); });
+  cv.addEventListener('pointermove', e => { if (!drawing) return; const [x, y] = pt(e); g.lineTo(x, y); g.stroke(); e.preventDefault(); });
+  const up = () => { drawing = false; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  return { clear() { g.clearRect(0, 0, cv.width, cv.height); dirtyS = false; }, blank() { return !dirtyS; }, data() { const o = document.createElement('canvas'); o.width = 300; o.height = 100; const c = o.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, 300, 100); c.drawImage(cv, 0, 0, 300, 100); return o.toDataURL('image/png'); } };
+}
+
+/* ---------- trips (from Dispatch) ---------- */
+async function openTrips() {
+  const s = mainSettings(), url = s.sheetsUrl;
+  openSheet(`<h3>Trips from Dispatch</h3><p class="small">Loads with a Load ID for today (0:00–24:00) appear here. Tick the ones you hauled on this log.</p><div id="tpList" class="small">Loading…</div>
+    <label>Add a trip ID by hand</label><div style="display:flex;gap:8px"><input id="tpMan" placeholder="e.g. KF-2026-1123-001"><button class="btn" id="tpAdd" style="min-width:80px">Add</button></div><div class="btnrow"><button class="btn" id="tpDone">Done</button></div>`, async box => {
+    $('tpDone').onclick = () => { saveShiftLocal(); closeSheet(); renderShiftHome(); pushShift(); };
+    $('tpAdd').onclick = () => { const v = $('tpMan').value.trim(); if (v && !shift.trips.some(t => t.loadId === v)) shift.trips.push({ loadId: v, customer: '', manual: true }); $('tpMan').value = ''; draw(); };
+    let rows = [];
+    if (url) { try { const r = await fetch(url); const j = await r.json(); rows = (j.rows || []).filter(x => x.loadId); } catch (e) { rows = null; } }
+    const dayTag = new Date(); const tag = dayTag.getFullYear() + '-' + pad(dayTag.getMonth() + 1) + pad(dayTag.getDate());
+    const shiftDays = (shift.days || []).map(d => d.date.slice(0, 4) + '-' + d.date.slice(5, 7) + d.date.slice(8, 10));
+    function draw() {
+      const chosen = new Set(shift.trips.map(t => t.loadId)); let html = '';
+      if (rows === null || !url) html += '<div class="notice">Could not load Dispatch (offline or no link). You can still add trip IDs by hand.</div>';
+      const today = (rows || []).filter(x => shiftDays.some(d => String(x.loadId).includes(d)) || String(x.loadId).includes(tag) || String(x.status).toLowerCase() === 'started');
+      html += today.map(x => `<label class="li" style="display:flex;gap:10px;align-items:center;margin:0 0 8px"><input type="checkbox" style="width:24px;min-height:24px;margin:0" data-id="${esc(x.loadId)}" data-c="${esc(x.customerName || '')}" data-l="${esc(x.location || '')}" data-sp="${esc(x.species || '')}" ${chosen.has(x.loadId) ? 'checked' : ''}><span><b>${esc(x.loadId)}</b> · ${esc(x.customerName || '')}<br><span class="small">${esc(x.species || '')} · ${esc(x.location || '')} · ${esc(x.status || '')}</span></span></label>`).join('');
+      if (rows && !today.length) html += '<div class="small">No started loads for today in Dispatch.</div>';
+      const manual = shift.trips.filter(t => t.manual); if (manual.length) html += '<div class="small" style="margin-top:8px">Added by hand:</div>' + manual.map(t => `<div class="li">${esc(t.loadId)} <button class="btn btn-sm btn-outline" data-rm="${esc(t.loadId)}" style="float:right">Remove</button></div>`).join('');
+      $('tpList').innerHTML = html;
+      $('tpList').querySelectorAll('input[type=checkbox]').forEach(c => c.onchange = () => { if (c.checked) { if (!shift.trips.some(t => t.loadId === c.dataset.id)) shift.trips.push({ loadId: c.dataset.id, customer: c.dataset.c, location: c.dataset.l, species: c.dataset.sp }); } else shift.trips = shift.trips.filter(t => t.loadId !== c.dataset.id); saveShiftLocal(); });
+      $('tpList').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { shift.trips = shift.trips.filter(t => t.loadId !== b.dataset.rm); draw(); });
+      saveShiftLocal();
+    }
+    draw();
+  });
+}
+
+/* ---------- fuel ---------- */
+async function openFuel() {
+  const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
+  const list = () => shift.fuel.map((f, i) => `<div class="li">${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.hm)}<br><span class="small">${esc(f.place || '')} ${esc(f.note || '')}</span> <button class="btn btn-sm btn-outline" data-rm="${i}" style="float:right">Remove</button></div>`).join('') || '<div class="small">No fuel entered yet.</div>';
+  openSheet(`<h3>Fuel</h3><div id="fuList">${list()}</div><div class="row2"><div><label>Litres</label><input id="fuL" type="number" inputmode="decimal"></div><div><label>Cost ($)</label><input id="fuC" type="number" inputmode="decimal"></div></div>
+    <label>Location</label><input id="fuP" value="${esc(place)}"><label>Note / receipt #</label><input id="fuN"><div class="small">Receipt photo upload is coming in the next release.</div><div class="err" id="fuE"></div>
+    <div class="btnrow"><button class="btn btn-outline" id="fuDone">Done</button><button class="btn" id="fuAdd">Add fuel</button></div>`, box => {
+    const bind = () => box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { shift.fuel.splice(+b.dataset.rm, 1); saveShiftLocal(); $('fuList').innerHTML = list(); bind(); });
+    bind(); $('fuDone').onclick = () => { closeSheet(); renderShiftHome(); pushShift(); };
+    $('fuAdd').onclick = () => { const l = +$('fuL').value, c = +$('fuC').value; if (!(l > 0)) { $('fuE').textContent = 'Enter the litres.'; return; } shift.fuel.push({ litres: l, cost: c || 0, place: $('fuP').value.trim(), note: $('fuN').value.trim(), hm: hm(new Date()), at: new Date().toISOString() }); saveShiftLocal(); $('fuL').value = $('fuC').value = $('fuN').value = ''; $('fuE').textContent = ''; $('fuList').innerHTML = list(); bind(); };
+  });
+}
+
+/* ---------- close + submit ---------- */
+function openClose() {
+  if (!shift.pretrip || !shift.pretrip.done) { if (!confirm('No pre-trip was completed on this shift. Close the shift anyway?')) return; }
+  const t = stamp(shift, Date.now());
+  openSheet(`<h3>Close shift &amp; submit</h3><div class="small">Driving ${fmtH(shift.drivingHrs)} · On duty ${fmtH(shift.onDutyHrs)} · Starting odometer ${esc(shift.startOdo)} km</div>
+    <label>Ending odometer (km) — required</label><input id="clOdo" type="number" inputmode="decimal">
+    <label>Closing remarks — required</label><textarea id="clRem" placeholder="Anything the office should know (delays, issues, vehicle notes). Write 'none' if nothing."></textarea>
+    <label>Driver signature — required</label><canvas class="sig" id="clSig"></canvas><div class="btnrow" style="justify-content:flex-start;margin-top:4px"><button class="btn btn-sm btn-outline" id="clClr">Clear signature</button></div>
+    <div class="small" style="margin-top:8px">I certify this log is true and correct. Submitting sets you Off Duty, emails the office and logs you out.</div>
+    <div class="err" id="clErr"></div><div class="btnrow"><button class="btn btn-outline" id="clNo">Back</button><button class="btn" id="clGo">Submit &amp; log out</button></div>`, box => {
+    const sig = makeSig($('clSig')); $('clClr').onclick = () => sig.clear(); $('clNo').onclick = closeSheet;
+    $('clGo').onclick = async () => {
+      const odo = $('clOdo').value, rem = $('clRem').value.trim();
+      if (odo === '' || isNaN(+odo)) { $('clErr').textContent = 'Enter the ending odometer.'; return; }
+      if (+odo < +shift.startOdo) { $('clErr').textContent = 'Ending odometer is lower than the starting odometer (' + shift.startOdo + ').'; return; }
+      if (!rem) { $('clErr').textContent = 'Enter closing remarks (write "none" if nothing).'; return; }
+      if (sig.blank()) { $('clErr').textContent = 'Sign the log.'; return; }
+      $('clGo').disabled = true; $('clErr').textContent = 'Submitting…';
+      const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
+      const now = new Date();
+      if (curStatus() !== 'OFF') shift.events.push({ t: now.toISOString(), hm: hm(now), s: 'OFF', label: 'Off Duty (shift closed)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place, note: '' });
+      shift.endOdo = +odo; shift.remarks = rem; shift.signature = sig.data(); shift.closedAt = now.toISOString(); stamp(shift, now.getTime());
+      shift.submittedPending = true; saveShiftLocal(); closeSheet();
+      await submitNow();
+    };
+  });
+}
+let submitting = false;
+async function submitNow() {
+  if (submitting || !shift || !session) return; submitting = true;
+  try {
+    const r = await pushShift({ submit: true });
+    if (r && r.status === 'ok') {
+      const lo = LS.get('kfDrvLastOdo', {}); lo[shift.unit] = shift.endOdo; LS.set('kfDrvLastOdo', lo);
+      const summary = `Driving ${fmtH(shift.drivingHrs)} · On duty ${fmtH(shift.onDutyHrs)}`; const mailed = r.emailed;
+      shift = null; saveShiftLocal(); session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); stopWatch(); clearInterval(tick); dirty = false;
+      $('view-drivers').innerHTML = `<div class="card"><h2 style="margin-top:0">Shift submitted</h2><div class="notice good">${esc(summary)}. ${mailed ? 'The log was emailed to the office.' : 'Saved to the office sheet (no office email is set up yet).'} You are logged out.</div><button class="btn" id="again" style="width:100%">OK</button></div>`; $('again').onclick = renderDrivers;
+    } else if (r && r.status === 'error') {
+      shift.submittedPending = false; saveShiftLocal(); renderDrivers(); alert('The office could not accept this log: ' + (r.message || 'unknown error') + '\nFix it and submit again.'); openClose();
+    } else if (r && (r.status === 'badpassword' || r.status === 'locked')) {
+      shift.submittedPending = false; saveShiftLocal(); renderDrivers(); alert('Your passcode was changed or is locked. Ask the office. Your log is still saved on this phone.');
+    } else { renderDrivers(); }
+  } finally { submitting = false; }
+}
+
+/* ============================== log sheet rendering ============================== */
+function gridSvg(day, segs) {
+  const W = 960, L = 74, R = 12, H = 150, T = 18, rowH = 30, plot = W - L - R;
+  const x = m => L + m / 1440 * plot, y = r => T + r * rowH + rowH / 2;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Duty status graph for ${esc(day)}"><rect x="${L}" y="${T}" width="${plot}" height="${rowH * 4}" fill="none" stroke="currentColor" opacity=".5"/>`;
+  for (let h = 0; h <= 24; h++) { const xx = x(h * 60); s += `<line x1="${xx}" y1="${T}" x2="${xx}" y2="${T + rowH * 4}" stroke="currentColor" opacity="${h % 6 === 0 ? .5 : .18}"/>`; if (h % 2 === 0 || h === 24) s += `<text x="${xx}" y="12" font-size="14" text-anchor="middle" fill="currentColor">${pad(h % 24 === 0 && h ? 24 : h)}</text>`; }
+  ['Off Duty', 'Sleeper', 'Driving', 'On Duty'].forEach((n, i) => { s += `<line x1="${L}" y1="${T + (i + 1) * rowH}" x2="${W - R}" y2="${T + (i + 1) * rowH}" stroke="currentColor" opacity=".35"/><text x="${L - 6}" y="${y(i) + 4}" font-size="14" text-anchor="end" fill="currentColor">${n}</text>`; });
+  let d = ''; segs.filter(g => g.day === day).sort((a, b) => a.a - b.a).forEach((g, i) => { const yy = y(ROW[g.s]); d += (i === 0 ? 'M' : 'L') + x(g.a) + ' ' + yy + ' L' + x(g.b) + ' ' + yy + ' '; });
+  if (d) s += `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round"/>`;
+  return s + '</svg>';
+}
+function logSheetHtml(sh, company, nowMs, extra) {
+  const t = stamp(JSON.parse(JSON.stringify(sh)), nowMs), c = JSON.parse(JSON.stringify(sh)); const segs = segments(c, nowMs); const tot = dayTotals(segs); stamp(c, nowMs);
+  const days = Object.keys(tot).sort();
+  const ruleTxt = sh.rule === 'c2' ? 'Cycle 2 — 120 h / 14 days' : 'Alberta / Canada Cycle 1 — 70 h / 7 days';
+  const evs = (sh.events || []).slice().sort((a, b) => new Date(a.t) - new Date(b.t));
+  return `<div class="logsheet"><h3 style="margin:0 0 6px">Driver Daily Log</h3>${companyHeaderHtml(sh, company)}<div class="small">Rules: ${ruleTxt} · Date ${esc(sh.date)} (24 h clock) · Odometer ${esc(sh.startOdo)} → ${esc(sh.endOdo === '' ? '—' : sh.endOdo)} km</div>
+  ${days.map(dy => `<div style="margin-top:10px"><b>${dy}</b><div class="gw">${gridSvg(dy, segs)}</div><div class="small">Off ${fmtH(tot[dy].OFF)} · Sleeper ${fmtH(tot[dy].SB)} · Driving ${fmtH(tot[dy].D)} · On duty ${fmtH(tot[dy].ON)}</div></div>`).join('')}
+  <h4 style="margin:14px 0 6px">Duty status changes</h4><table class="ev"><tr><th>Time</th><th>Status</th><th>Location</th><th>Note</th></tr>${evs.map(e => `<tr><td>${esc(e.hm)}</td><td>${esc(e.label || STATUS[e.s])}</td><td>${esc(e.place || '')}</td><td>${esc(e.note || '')}</td></tr>`).join('')}</table>
+  ${(sh.trips || []).length ? `<h4 style="margin:14px 0 6px">Trips</h4>${sh.trips.map(x => `<div>${esc(x.loadId)} ${x.customer ? '· ' + esc(x.customer) : ''}</div>`).join('')}` : ''}
+  ${(sh.fuel || []).length ? `<h4 style="margin:14px 0 6px">Fuel</h4>${sh.fuel.map(f => `<div>${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.place || '')} ${esc(f.note || '')}</div>`).join('')}` : ''}
+  <h4 style="margin:14px 0 6px">Pre-trip</h4><div>${sh.pretrip && sh.pretrip.done ? (sh.pretrip.defects ? '<b style="color:var(--bad)">Defects:</b> ' + esc((sh.pretrip.defectList || []).join(', ')) + ' — ' + esc(sh.pretrip.defectNote) : 'Completed, no defects') : 'Not recorded'}</div>${sh.pretrip && sh.pretrip.signature ? `<img src="${esc(sh.pretrip.signature)}" alt="pre-trip signature" style="height:50px;border:1px solid var(--border);background:#fff">` : ''}
+  <h4 style="margin:14px 0 6px">Totals</h4><div>Driving ${fmtH(c.drivingHrs)} · On duty ${fmtH(c.onDutyHrs)}</div>
+  ${sh.remarks ? `<h4 style="margin:14px 0 6px">Closing remarks</h4><div>${esc(sh.remarks)}</div>` : ''}${sh.signature ? `<h4 style="margin:14px 0 6px">Driver signature</h4><img src="${esc(sh.signature)}" alt="signature" style="height:70px;border:1px solid var(--border);background:#fff">` : ''}</div>`;
+}
+
+/* ============================== ADMIN + SETTINGS ============================== */
+let admin = { cfg: null, drivers: [], sub: 'logs' };
+const adminPw = () => SS.get('kfDrvAdmin');
+async function adminApi(action, extra) { return api(Object.assign({ action, password: adminPw() }, extra || {})); }
+
+async function adminGate(container, title, then) {
+  if (!URL_) { container.innerHTML = '<div class="card">Connect this phone first (Drivers tab).</div>'; return; }
+  if (adminPw()) { const r = await adminApi('adminCheck'); if (r.status === 'ok') return then(); if (r.status === 'offline') { container.innerHTML = '<div class="card"><div class="notice">No signal. Admin needs a connection.</div></div>'; return; } SS.del('kfDrvAdmin'); }
+  const ping = await getJson('action=ping');
+  if (!ping) { container.innerHTML = '<div class="card"><div class="notice">Could not reach the Drivers script. Check signal and the link.</div></div>'; return; }
+  const create = !ping.hasAdmin;
+  container.innerHTML = `<div class="card"><h2 style="margin-top:0">${title}</h2>${create ? '<p class="small">First time: create the admin password. It protects company info, driver passcodes and logs.</p>' : ''}
+    <label>${create ? 'Create admin password' : 'Admin password'}</label><input id="adPw" type="password" autocomplete="off">${create ? '<label>Confirm password</label><input id="adPw2" type="password" autocomplete="off">' : ''}
+    <div class="err" id="adErr"></div><button class="btn" id="adGo" style="width:100%;margin-top:8px">${create ? 'Create password' : 'Unlock'}</button></div>`;
+  $('adGo').onclick = async () => {
+    const p = $('adPw').value; if (!p) { $('adErr').textContent = 'Enter the password.'; return; }
+    if (create) { if (p.length < 4) { $('adErr').textContent = 'At least 4 characters.'; return; } if (p !== $('adPw2').value) { $('adErr').textContent = 'The passwords do not match.'; return; } const r = await api({ action: 'adminSetPassword', newPassword: p }); if (r.status !== 'ok') { $('adErr').textContent = r.message || 'Could not set the password.'; return; } SS.set('kfDrvAdmin', p); return then(); }
+    SS.set('kfDrvAdmin', p); const r = await adminApi('adminCheck');
+    if (r.status === 'ok') return then(); SS.del('kfDrvAdmin'); $('adErr').textContent = r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal.' : 'Wrong password.';
+  };
+}
+async function loadCfg() { const r = await adminApi('adminGetConfig'); if (r.status === 'ok') { admin.cfg = r.config; admin.drivers = r.drivers; } return r; }
+
+function renderAdmin() {
+  const v = $('view-admin');
+  adminGate(v, 'Admin log in', async () => {
+    const r = await loadCfg(); if (r.status !== 'ok') { v.innerHTML = '<div class="card"><div class="notice bad">Could not load admin data.</div></div>'; return; }
+    v.innerHTML = `<div class="seg" id="adSeg">${[['logs', 'Logs'], ['map', 'Drivers'], ['units', 'Units'], ['exp', 'Expenses']].map(x => `<button data-s="${x[0]}" class="${admin.sub === x[0] ? 'on' : ''}">${x[1]}</button>`).join('')}</div><div id="adBody"></div><div class="btnrow noprint" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="adLock">Lock admin</button></div>`;
+    v.querySelectorAll('#adSeg button').forEach(b => b.onclick = () => { admin.sub = b.dataset.s; renderAdmin(); });
+    $('adLock').onclick = () => { SS.del('kfDrvAdmin'); renderAdmin(); };
+    const body = $('adBody');
+    if (admin.sub === 'logs') {
+      body.innerHTML = '<div class="small">Loading…</div>'; const l = await adminApi('adminListShifts', { limit: 60 });
+      body.innerHTML = (l.shifts || []).map(s => `<button class="act" data-id="${esc(s.shiftId)}"><span>${esc(s.driverName)} · ${esc(s.date)}<br><span class="small">${esc(s.unit)} · ${esc(s.startOdo)}→${esc(s.endOdo === '' ? '…' : s.endOdo)} km · drive ${esc(s.drivingHrs)} h</span></span><span class="tag ${s.status === 'Submitted' ? 'ok' : 'todo'}">${esc(s.status)}</span></button>`).join('') || '<div class="card small">No logs yet.</div>';
+      body.querySelectorAll('[data-id]').forEach(b => b.onclick = async () => {
+        const g = await adminApi('adminGetShift', { shiftId: b.dataset.id }); if (g.status !== 'ok') return alert(g.message || 'Could not open');
+        const sh = g.shift; if (g.pretrip && !sh.pretrip) sh.pretrip = g.pretrip.data; const end = sh.closedAt ? new Date(sh.closedAt).getTime() : Date.now();
+        openSheet(logSheetHtml(sh, admin.cfg.company, end) + `<div class="small" style="margin-top:8px">Status: ${esc(g.row.status)} ${esc(g.row.submittedAt || '')}</div><div class="btnrow"><button class="btn btn-outline" onclick="window.print()">Print</button><button class="btn" id="vc">Close</button></div>`, bx => bx.querySelector('#vc').onclick = closeSheet);
+      });
+    } else if (admin.sub === 'map') {
+      body.innerHTML = `<div class="notice">The live map comes in the next release. For now, each driver's last known position (sent at every duty change and every 15 minutes while the app is open):</div>` + admin.drivers.map(d => `<div class="li"><b>${esc(d.name)}</b> ${d.lastSeen ? '' : '<span class="small">— never seen</span>'}<br><span class="small">${d.lastSeen ? esc(d.lastPlace || '') + ' · ' + esc(d.lastStatus || '') + ' · ' + esc(d.lastUnit || '') + ' · ' + esc(new Date(d.lastSeen).toLocaleString()) + (d.lastLat ? ` · <a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${d.lastLat},${d.lastLon}">open map</a>` : '') : ''}</span></div>`).join('');
+    } else if (admin.sub === 'units') { renderUnits(body); }
+    else { body.innerHTML = '<div class="card"><b>Driver expense reports</b><p class="small">Expense submissions from drivers (with receipt photos) arrive in the next release. For now fuel entries are in each driver log, and each driver\'s expense notes are kept in Settings → Drivers.</p></div>'; }
+  });
+}
+function renderUnits(body) {
+  const units = admin.cfg.units;
+  body.innerHTML = `<div id="unList">${units.map((u, i) => `<div class="li"><div class="row2"><div><label>Unit name</label><input data-i="${i}" data-f="name" value="${esc(u.name)}"></div><div><label>Truck plate</label><input data-i="${i}" data-f="plate" value="${esc(u.plate)}"></div></div><div class="row2"><div><label>Trailer plate A</label><input data-i="${i}" data-f="trailerA" value="${esc(u.trailerA)}"></div><div><label>Trailer plate B</label><input data-i="${i}" data-f="trailerB" value="${esc(u.trailerB)}"></div></div><button class="btn btn-sm btn-outline" data-del="${i}" style="margin-top:6px">Remove unit</button></div>`).join('') || '<div class="small">No units yet.</div>'}</div>
+    <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="unAdd">Add unit</button><button class="btn" id="unSave">Save units</button></div><div class="err" id="unMsg"></div>`;
+  const sync = () => body.querySelectorAll('[data-f]').forEach(inp => inp.oninput = () => { units[+inp.dataset.i][inp.dataset.f] = inp.value; });
+  sync();
+  body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this unit?')) { units.splice(+b.dataset.del, 1); renderUnits(body); } });
+  $('unAdd').onclick = () => { units.push({ id: '', name: '', plate: '', trailerA: '', trailerB: '' }); renderUnits(body); };
+  $('unSave').onclick = async () => { const clean = units.filter(u => u.name.trim()); const r = await adminApi('adminSaveConfig', { config: { units: clean } }); $('unMsg').textContent = r.status === 'ok' ? 'Saved.' : (r.message || 'Could not save.'); if (r.status === 'ok') { admin.cfg = r.config; $('unMsg').style.color = 'var(--good)'; } else $('unMsg').style.color = 'var(--bad)'; };
+}
+
+function renderSettings() {
+  const v = $('view-settings');
+  adminGate(v, 'Settings log in', async () => {
+    const r = await loadCfg(); if (r.status !== 'ok') { v.innerHTML = '<div class="card"><div class="notice bad">Could not load settings.</div></div>'; return; }
+    const c = admin.cfg.company, ru = admin.cfg.rules;
+    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Company information</h3>
+      <label>Company name</label><input id="coName" value="${esc(c.name)}"><label>Address</label><input id="coAddr" value="${esc(c.address)}"><div class="row2"><div><label>Phone</label><input id="coPhone" value="${esc(c.phone)}"></div><div><label>Office email (logs are sent here)</label><input id="coMail" type="email" value="${esc(c.officeEmail)}"></div></div>
+      <h3>Hours-of-service limits</h3><div class="small">Defaults follow the Canadian federal rules used in Alberta. Change only if your rules differ.</div>
+      <div class="row2"><div><label>Cycle hours</label><input id="ruCH" type="number" value="${ru.cycleHours}"></div><div><label>Cycle days</label><input id="ruCD" type="number" value="${ru.cycleDays}"></div>
+      <div><label>Max driving / day (h)</label><input id="ruMD" type="number" value="${ru.maxDriving}"></div><div><label>On-duty window (h)</label><input id="ruMW" type="number" value="${ru.maxWindow}"></div>
+      <div><label>Max elapsed (h)</label><input id="ruME" type="number" value="${ru.maxElapsed}"></div><div><label>Rest that resets window (h)</label><input id="ruRO" type="number" value="${ru.resetOffHours}"></div>
+      <div><label>"Not moving" minutes</label><input id="ruSM" type="number" value="${ru.stillMinutes}"></div><div><label>"Not moving" metres</label><input id="ruSD" type="number" value="${ru.stillMeters}"></div></div>
+      <div class="btnrow" style="justify-content:flex-start"><button class="btn" id="coSave">Save company &amp; limits</button></div><div class="err" id="coMsg"></div></div>
+    <div class="card"><h3 style="margin-top:0">Drivers</h3><div id="drvList"></div><div class="btnrow" style="justify-content:flex-start"><button class="btn" id="drvNew">Add driver</button></div></div>
+    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="pwChg">Change admin password</button></div><div class="err" id="stMsg"></div></div>`;
+    $('coSave').onclick = async () => {
+      const n = id => +$(id).value;
+      const r = await adminApi('adminSaveConfig', { config: { company: { name: $('coName').value, address: $('coAddr').value, phone: $('coPhone').value, officeEmail: $('coMail').value }, rules: { cycleHours: n('ruCH'), cycleDays: n('ruCD'), maxDriving: n('ruMD'), maxWindow: n('ruMW'), maxElapsed: n('ruME'), resetOffHours: n('ruRO'), stillMinutes: n('ruSM'), stillMeters: n('ruSD') } } });
+      $('coMsg').textContent = r.status === 'ok' ? 'Saved.' : (r.message || 'Could not save.'); $('coMsg').style.color = r.status === 'ok' ? 'var(--good)' : 'var(--bad)'; if (r.status === 'ok') admin.cfg = r.config;
+    };
+    const drawDrivers = () => {
+      $('drvList').innerHTML = admin.drivers.map(d => `<button class="act" data-id="${esc(d.id)}"><span>${esc(d.name)}<br><span class="small">${d.licenseNo ? 'Licence ' + esc(d.licenseNo) : 'no licence # yet'}${d.licenseExpiry ? ' · exp ' + esc(d.licenseExpiry) : ''}</span></span><span class="tag ${d.active ? 'ok' : 'bad'}">${d.active ? 'Active' : 'Inactive'}</span></button>`).join('') || '<div class="small">No drivers yet.</div>';
+      $('drvList').querySelectorAll('[data-id]').forEach(b => b.onclick = () => driverForm(admin.drivers.find(x => String(x.id) === b.dataset.id)));
+    };
+    drawDrivers(); $('drvNew').onclick = () => driverForm(null);
+    function driverForm(d) {
+      d = d || { name: '', active: true, licenseNo: '', licenseExpiry: '', licenseLink: '', expenseNotes: '' };
+      openSheet(`<h3>${d.id ? 'Edit driver' : 'Add driver'}</h3><label>Driver name</label><input id="dfName" value="${esc(d.name)}"><label>${d.id ? 'New passcode (leave blank to keep)' : 'Create passcode'}</label><input id="dfPass" type="text" autocomplete="off" placeholder="at least 4 characters">
+        <div class="row2"><div><label>Licence number</label><input id="dfLic" value="${esc(d.licenseNo)}"></div><div><label>Licence expiry</label><input id="dfExp" type="date" value="${esc(d.licenseExpiry)}"></div></div>
+        <label>Licence photo link (Drive link)</label><input id="dfLink" value="${esc(d.licenseLink)}" placeholder="https://drive.google.com/…"><div class="small">Photo upload straight from the phone comes in the next release; paste a Drive link for now.</div>
+        <label>Expense notes</label><textarea id="dfNotes">${esc(d.expenseNotes)}</textarea><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="dfAct" style="width:24px;min-height:24px;margin:0" ${d.active !== false ? 'checked' : ''}> Active (can log in)</label>
+        <div class="err" id="dfErr"></div><div class="btnrow"><button class="btn btn-outline" id="dfNo">Cancel</button><button class="btn" id="dfOk">Save driver</button></div>`, box => {
+        $('dfNo').onclick = closeSheet;
+        $('dfOk').onclick = async () => {
+          const r = await adminApi('adminSaveDriver', { driver: { id: d.id, name: $('dfName').value, passcode: $('dfPass').value, licenseNo: $('dfLic').value, licenseExpiry: $('dfExp').value, licenseLink: $('dfLink').value, expenseNotes: $('dfNotes').value, active: $('dfAct').checked } });
+          if (r.status === 'ok') { admin.drivers = r.drivers; closeSheet(); drawDrivers(); } else $('dfErr').textContent = r.message || 'Could not save.';
+        };
+      });
+    }
+    $('urlUpd').onclick = () => { const u = $('urlSet').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('stMsg').textContent = 'That is not a script link.'; return; } URL_ = u; LS.set('kfDrvUrl', u); $('stMsg').textContent = 'Saved on this phone.'; $('stMsg').style.color = 'var(--good)'; };
+    $('pwChg').onclick = () => openSheet(`<h3>Change admin password</h3><label>Current password</label><input id="pcOld" type="password"><label>New password</label><input id="pcNew" type="password"><label>Confirm new password</label><input id="pcNew2" type="password"><div class="err" id="pcErr"></div><div class="btnrow"><button class="btn btn-outline" id="pcNo">Cancel</button><button class="btn" id="pcOk">Change</button></div>`, box => {
+      $('pcNo').onclick = closeSheet; $('pcOk').onclick = async () => { if ($('pcNew').value !== $('pcNew2').value) { $('pcErr').textContent = 'New passwords do not match.'; return; } const r = await api({ action: 'adminSetPassword', password: $('pcOld').value, newPassword: $('pcNew').value }); if (r.status === 'ok') { SS.set('kfDrvAdmin', $('pcNew').value); closeSheet(); $('stMsg').textContent = 'Admin password changed.'; } else $('pcErr').textContent = r.status === 'badpassword' ? 'Current password is wrong.' : (r.message || 'Could not change.'); };
+    });
+  });
+}
+
+/* ============================== boot ============================== */
+(function boot() {
+  const h = (location.hash || '').replace('#', ''); tab = ['admin', 'settings'].includes(h) ? h : 'drivers';
+  showTab(tab);
+  if (shift && session && !shift.submittedPending) { pushShift(); }
+  const n = $('companyNameBanner'); const s = mainSettings(); if (n && s.companyName) n.textContent = s.companyName;
+})();
+</script>
+</body>
+</html>

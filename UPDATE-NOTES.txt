@@ -1,0 +1,32 @@
+KNIGHT FORESTRY - UPDATE NOTES (v3)
+
+DEPLOY ORDER (nothing goes offline if you follow this)
+1. Upload ALL files in this folder to your site (theme.css and theme.js too).
+   The pages work with the OLD Apps Script until step 2; they just show "password protection is OFF".
+2. Update the quote/sync Apps Script WITHOUT changing its link:
+   open the script -> paste quote-apps-script-v3.gs over the old code -> Save ->
+   Deploy -> Manage deployments -> pencil -> Version: "New version" -> Deploy.
+   NEVER choose "New deployment" - that creates a new link and every device would point at a dead one.
+3. On one device: Settings -> Company Sync -> Save to Company. You will be asked to create the company password.
+4. On every other device: Settings -> Company Sync -> Sync to Company.
+   A brand-new device: open the app, paste the one Company Sync link on the Connect screen.
+
+ROLLBACK
+- Pages: put the previous index.html / scale.html / yards.html / theme.css back.
+- Script: Deploy -> Manage deployments -> pencil -> pick the previous version -> Deploy.
+- Saved prices keep working either way: "billed" fields keep their old names (pricePerTonne, hourly, fuelPrice).
+
+NOT CHANGED ON PURPOSE
+- dispatch.html, invoices.html, sw.js, manifest.json and the other .gs files are untouched.
+- apps-script-code.gs is an OLD script. Do not paste it over the live one (it has no dispatch/billing support).
+
+--- Booking notes (added later) ---
+Book Load now asks for optional notes. Notes are stored in column T ("Notes") of the Trip Log
+and shown in a pop-up when the load is opened in Dispatch.
+REQUIRES the updated booking script (quote-apps-script-v3.gs) on the LOAD LOG link, with
+Deploy > Manage deployments > pencil > New version. Until then the page warns "notes were NOT saved"
+and bookings still work exactly as before.
+
+--- Drivers (phase 1) ---
+New page drivers.html + new Apps Script drivers-apps-script.gs (its OWN project and link; creates a "Driver Logs" Google Sheet).
+The Drivers menu button on every page now opens drivers.html. Nothing else on those pages changed.

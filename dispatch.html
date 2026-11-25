@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Dispatch</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+.container { max-width: 700px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); cursor: pointer; }
+.card:hover { border-color: var(--primary-light); }
+.pending-pay { border-color: var(--amber); }
+.small { font-size: .8rem; color: var(--muted); }
+label { display: block; margin-bottom: 4px; font-size: .9rem; }
+input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
+.hidden { display: none; }
+@media (max-width: 700px) { .container { padding: 8px; } }
+</style>
+
+</head>
+<body>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <a href="#" href="index.html#settings" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" onclick="location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="#" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+    </div>
+  </div>
+  <img id="companyLogo" src="logo.jpg" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;">
+</header>
+<div class="container">
+  <div id="listView">
+    <h2>Pending Delivery</h2>
+    <div id="loadList"></div>
+  </div>
+  <div id="detailView" class="hidden">
+    
+    <div class="card" style="cursor:default; margin-top:12px;">
+      <h2 id="dName"></h2>
+      <div id="dInfo"></div>
+      <div id="dNotes" style="display:none;padding:10px 12px;margin:8px 0;border-radius:10px;border:1px solid var(--amber);"></div>
+      <div class="small" id="dDays"></div>
+      <hr style="border-color:var(--border);">
+      <label>Scale Ticket # (Load ID)</label>
+      <input id="ticketInput" placeholder="KF-2026-1120-">
+      <button class="btn" onclick="checkTicket()">Check Ticket</button>
+      <div id="ticketResult" style="margin:12px 0;"></div>
+      <button class="btn" id="deliveredBtn" disabled onclick="markDelivered()">Delivered</button>
+    </div>
+  </div>
+</div>
+<script>
+let loads = [];
+let current = null;
+function loadKey(l) { return (l.customerName || '') + '|' + (l.timestamp || ''); }
+function toTonnes(v) { const n = parseFloat(v); if (!n) return v; return n > 500 ? Math.round(n / 10) / 100 : n; }
+function fmtHours(h) { if (!h) return ''; const hrs = Math.floor(h); const mins = Math.round((h - hrs) * 60); return hrs ? hrs + 'h ' + mins + 'm' : mins + 'm'; }
+function fmtMoney(v) { const n = parseFloat(v); return isNaN(n) ? v : n.toFixed(2); }
+function getRates(l) {
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    const loc = (s.locations || []).find(x => x.name === l.location);
+    const sp = loc && (loc.species || []).find(x => x.name === l.species);
+    const unit = (s.units || []).find(x => x.name === l.truck);
+    return {
+      ppt: sp ? sp.pricePerTonne : (l.pricePerTonne || 0),
+      hourly: unit ? unit.hourly : (l.hourly || 0),
+      fuelL100: unit ? unit.fuel : 70,
+      fuelPrice: s.fuelPrice || 0.90
+    };
+  } catch(e) { return { ppt: 0, hourly: 0, fuelL100: 70, fuelPrice: 0.90 }; }
+}
+function lineItemsHtml(l) {
+  const tonnes = toTonnes(l.netTonnes) || l.tonnes || 0;
+  const rates = getRates(l);
+  const ppt = rates.ppt || l.pricePerTonne || 0;
+  const product = tonnes * ppt;
+  const hours = l.totalHours || 0;
+  const hourly = rates.hourly || l.hourly || 0;
+  const trip = hours * hourly;
+  const roundKm = (l.km || 0) * 2;
+  const fuel = (roundKm / 100) * rates.fuelL100 * rates.fuelPrice;
+  const sub = product + trip + fuel;
+  return `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+    <p><strong>Ticket tonnes:</strong> ${tonnes} t × $${ppt.toFixed(2)} = $${product.toFixed(2)}</p>
+    <p><strong>Trip hours:</strong> ${fmtHours(hours)} × $${hourly}/hr = $${trip.toFixed(2)}</p>
+    <p><strong>Fuel surcharge (FSC):</strong> $${fuel.toFixed(2)}</p>
+    <p style="font-size:1.1rem;"><strong>Billable:</strong> $${sub.toFixed(2)}</p>
+  </div>`;
+}
+function getLocalState() { try { return JSON.parse(localStorage.getItem('kfDispatch') || '{}'); } catch(e) { return {}; } }
+function setLocalState(k, v) { const s = getLocalState(); s[k] = v; localStorage.setItem('kfDispatch', JSON.stringify(s)); }
+let QUOTE_URL = '';
+let TICKET_URL = localStorage.getItem('scriptUrl') || '';
+
+function getCompanyInitials() {
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    const name = s.companyName || 'Knight Forestry';
+    const parts = name.replace(/ltd|inc|llc/gi, '').trim().split(/\s+/);
+    return ((parts[0]||'')[0] || '') + ((parts[1]||'')[0] || '');
+  } catch(e) { return 'KF'; }
+}
+
+function ticketPrefix() {
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return getCompanyInitials().toUpperCase() + '-' + d.getFullYear() + '-' + mm + dd + '-';
+}
+
+async function loadLoads() {
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    QUOTE_URL = s.sheetsUrl || '';
+    if (!QUOTE_URL) { document.getElementById('loadList').innerHTML = '<p>Set the quote sheet URL in Settings.</p>'; return; }
+    const res = await fetch(QUOTE_URL);
+    const data = await res.json();
+    loads = (data.rows || []).filter(r => (r.status || '').toLowerCase() !== 'paid');
+    const local = getLocalState();
+    loads.forEach(l => {
+      const st = local[loadKey(l)];
+      if (st) { if (st.loadId) l.loadId = st.loadId; if (st.status && (l.status || '').toLowerCase() !== 'paid') l.status = st.status; if (st.netTonnes) l.netTonnes = toTonnes(st.netTonnes); }
+    });
+    loads = loads.filter(l => (l.status || '').toLowerCase() !== 'paid');
+    renderList();
+  } catch(e) {
+    document.getElementById('loadList').innerHTML = '<p>Could not load loads. Check the sheet URL.</p>';
+  }
+}
+
+function daysSince(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+  return diff + ' day' + (diff === 1 ? '' : 's') + ' since quoted';
+}
+
+function renderList() {
+  const el = document.getElementById('loadList');
+  if (!loads.length) { el.innerHTML = '<p style="color:var(--muted);">No pending loads.</p>'; return; }
+  el.innerHTML = loads.map((l, i) => `
+    <div class="card ${l.status === 'Delivered' ? 'pending-pay' : ''}" onclick="openLoad(${i})">
+      <strong>${l.customerName || 'No name'}</strong> <span class="small">${(l.timestamp||'').slice(0,10)}</span><br>
+      ${l.species || ''} · ${l.location || ''}<br>
+      <span class="small">${l.duration || ''} · ${l.km || ''} km</span><br>
+      <span class="small">${daysSince(l.timestamp)}</span>
+      ${l.status === 'Delivered' ? '<br><strong style="color:var(--amber);">Pending payment</strong>' : ''}
+    </div>
+  `).join('');
+}
+
+function actualCords(l) {
+  const tonnes = toTonnes(l.netTonnes) || l.tonnes || 0;
+  if (!tonnes) return l.cords || '—';
+  let cvf = 1.3;
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    const loc = (s.locations || []).find(x => x.name === l.location);
+    const sp = loc && (loc.species || []).find(x => x.name === l.species);
+    if (sp && sp.cvf) cvf = sp.cvf;
+  } catch(e) {}
+  return Math.round((tonnes / cvf) * 10) / 10;
+}
+function openLoad(i) {
+  current = loads[i];
+  document.getElementById('listView').classList.add('hidden');
+  document.getElementById('detailView').classList.remove('hidden');
+  document.getElementById('dName').textContent = (current.customerName || '') + (current.loadId ? '  ·  ' + current.loadId : '');
+  document.getElementById('dInfo').innerHTML = `
+    <p><strong>Phone:</strong> ${current.phone || '—'}</p>
+    <p><strong>Address:</strong> ${current.address || '—'}</p>
+    <p><strong>Source:</strong> ${current.location || '—'}</p>
+    <p><strong>Species:</strong> ${current.species || '—'}</p>
+    <p><strong>Truck:</strong> ${current.truck || '—'}</p>
+    <p><strong>Tonnes:</strong> ${toTonnes(current.netTonnes) || current.tonnes || '—'} · <strong>Cords:</strong> ~${actualCords(current)}</p>
+    <p><strong>Trip:</strong> ${current.totalHours ? fmtHours(current.totalHours) + ' cycle' : (current.duration || '—')} · ${current.km || '—'} km</p>
+    <p><strong>Total:</strong> $${fmtMoney(current.total)}</p>
+    ${current.netTonnes ? lineItemsHtml(current) : ''}
+    <p><strong>Status:</strong> ${current.status || 'Pending'}</p>
+    ${current.netTonnes ? '<p><strong>Net tonnes (ticket):</strong> ' + toTonnes(current.netTonnes) + '</p>' : ''}
+  `;
+  document.getElementById('dDays').textContent = daysSince(current.timestamp);
+  showLoadNotes(current);
+  document.getElementById('ticketInput').value = current.loadId || ticketPrefix();
+  document.getElementById('ticketResult').textContent = '';
+  document.getElementById('deliveredBtn').disabled = current.status !== 'Started' && !current.loadId;
+}
+
+function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showLoadNotes(l) {
+  const n = String(l.notes || '').trim();
+  const box = document.getElementById('dNotes');
+  if (box) box.innerHTML = n ? '<strong>Notes:</strong> ' + escHtml(n).replace(/\n/g, '<br>') : '';
+  if (box) box.style.display = n ? '' : 'none';
+  if (!n) return;
+  document.getElementById('notesPopupText').innerHTML = escHtml(n).replace(/\n/g, '<br>');
+  document.getElementById('notesPopup').style.display = 'flex';
+}
+function showList() {
+  document.getElementById('detailView').classList.add('hidden');
+  document.getElementById('listView').classList.remove('hidden');
+  loadLoads();
+}
+
+async function checkTicket() {
+  const num = document.getElementById('ticketInput').value.trim();
+  if (!num) return;
+  if (!TICKET_URL) { document.getElementById('ticketResult').textContent = 'Set ticket sheet URL in Tickets → Settings.'; return; }
+  try {
+    const res = await fetch(TICKET_URL);
+    const data = await res.json();
+    const tickets = data.rows || data.tickets || [];
+    const found = tickets.find(t => String(t[0] || t.ticket || '') === num);
+    if (found) {
+      let net = parseFloat(found[6] || found.net || 0);
+      if (net > 500) net = net / 1000;
+      net = Math.round(net * 100) / 100;
+      const cvf = current.tonnes && current.cords ? current.tonnes / current.cords : 1.3;
+      const newCords = Math.round((net / cvf) * 10) / 10;
+      current.loadId = num;
+      current.netTonnes = net;
+      current.cords = newCords;
+      current.status = 'Started';
+      document.getElementById('ticketResult').innerHTML = '<span style="color:var(--link);">Ticket found. Net: ' + net + ' t · ~' + newCords + ' cords</span>';
+      document.getElementById('deliveredBtn').disabled = false;
+      openLoad(loads.indexOf(current));
+      await updateStatus('Started', num, net);
+    } else {
+      document.getElementById('ticketResult').innerHTML = '<span style="color:var(--bad);">Ticket not found.</span>';
+    }
+  } catch(e) {
+    document.getElementById('ticketResult').textContent = 'Could not check tickets.';
+  }
+}
+
+async function markDelivered() {
+  if (!current) return;
+  await updateStatus('Delivered', current.loadId, current.netTonnes);
+  alert('Marked delivered. Pending payment.');
+  showList();
+}
+
+async function updateStatus(status, loadId, net) {
+  if (current) setLocalState(loadKey(current), { status, loadId, netTonnes: net });
+  if (!QUOTE_URL) return;
+  try {
+    await fetch(QUOTE_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({
+      action: 'updateStatus',
+      customerName: current.customerName,
+      timestamp: current.timestamp,
+      location: current.location,
+      species: current.species,
+      truck: current.truck,
+      loadId: loadId,
+      status: status,
+      netTonnes: net
+    })});
+  } catch(e) {}
+}
+
+loadLoads();
+</script>
+
+<div id="notesPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:1000;padding:12px;">
+  <div style="background:var(--card);color:var(--text);border-radius:16px;max-width:460px;width:100%;padding:22px;border:1px solid var(--amber);box-shadow:0 20px 40px rgba(0,0,0,.3);">
+    <h3 style="margin:0 0 10px;">Special instructions</h3>
+    <div id="notesPopupText" style="font-size:1.05rem;line-height:1.4;margin-bottom:16px;word-break:break-word;"></div>
+    <button class="btn" onclick="document.getElementById('notesPopup').style.display='none'">OK</button>
+  </div>
+</div>
+<script>
+(function() {
+  const co = JSON.parse(localStorage.getItem('kfCompany') || '{}');
+  const logoEl = document.getElementById('companyLogo');
+  if (logoEl && co.logo) logoEl.src = co.logo;
+  const nameEl = document.getElementById('companyNameBanner');
+  if (nameEl && co.name) nameEl.textContent = co.name;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tickets — Operations</title>
+  <link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+    .card { background: var(--card); margin: 10px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); }
+    h1 { margin: 0 0 12px; font-size: 1.4rem; }
+    .weight { font-size: 3rem; font-weight: 700; text-align: center; color: var(--accent-text); margin: 10px 0; letter-spacing: 1px; }
+    .status { text-align: center; color: var(--muted); margin-bottom: 10px; }
+    button { width: 100%; padding: 14px; margin: 6px 0; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; font-family: inherit; cursor: pointer; }
+    button.primary { background: var(--btn-bg); color: #fff; }
+    button.secondary { background: var(--btn2-bg); color: var(--btn2-text); border: 1px solid var(--border); }
+    input, select, textarea { width: 100%; padding: 12px; margin: 6px 0; min-height: 46px; }
+    textarea { min-height: 90px; }
+    .hidden { display: none !important; }
+    .ticket { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin: 10px 0; }
+    .net { font-size: 1.4rem; font-weight: 700; color: var(--accent-text); margin: 10px 0; text-align: center; }
+    .profit { font-size: 1.2rem; font-weight: 700; color: var(--good); margin: 6px 0; text-align: center; }
+    label { font-weight: 600; font-size: .9rem; display: block; margin-top: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row input { flex: 1; }
+    .row button { width: auto; padding: 12px 16px; margin: 0; }
+    .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+    .btn-row button { flex: 1; padding: 10px; margin: 0; }
+</style>
+</head>
+<body>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <a href="#" href="index.html#settings" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;">Knight Forestry Ltd</h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" onclick="location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="#" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+    </div>
+  </div>
+  <img id="companyLogo" src="logo.jpg" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;">
+</header>
+
+<div id="login" class="card">
+  <h1>SI Scale Ticket</h1>
+  <p>Enter password to continue</p>
+  <input id="passInput" type="password" placeholder="Password">
+  <button class="primary" onclick="doLogin()">Login</button>
+  <p style="font-size:0.85rem; color:var(--muted); margin-top:12px;">New user? Use password <b>knight</b> then set your own sheet link in Settings.</p>
+</div>
+
+<div style="text-align:right; margin:8px 10px 0;"><a href="./" style="text-decoration:none; color:var(--link); font-weight:600;">← Quotes</a></div>
+<div id="home" class="card hidden">
+  <h1>SI Scale Ticket</h1>
+  <div class="weight" id="liveWeight">------</div>
+  <div class="status" id="status">Not connected</div>
+  <div style="display:flex; gap:8px;">
+    <select id="baud" onchange="savePrefs()">
+      <option value="9600">9600 baud (standard)</option>
+      <option value="4800">4800</option>
+      <option value="2400">2400</option>
+      <option value="1200">1200</option>
+      <option value="19200">19200</option>
+      <option value="38400">38400</option>
+      <option value="57600">57600</option>
+      <option value="115200">115200</option>
+    </select>
+    <select id="fmt" onchange="savePrefs()">
+      <option value="8N1">8-N-1 (standard)</option>
+      <option value="7E1">7-E-1</option>
+      <option value="7N2">7-N-2</option>
+      <option value="8E1">8-E-1</option>
+    </select>
+  </div>
+  <button class="primary" id="btnSerial" onclick="connectSerial()">Connect Serial (USB cable or paired Bluetooth)</button>
+  <button class="primary" id="btnBle" onclick="connectBle()">Connect Bluetooth (BLE)</button>
+  <button class="secondary hidden" id="reconnectBtn" onclick="reconnectLast()">Reconnect last scale</button>
+  <button class="secondary" id="disconnectBtn" onclick="disconnectScale()" style="display:none;">Disconnect</button>
+  <div id="rawLine" style="font-family:monospace; font-size:0.75rem; color:var(--muted); margin:6px 0; min-height:1em; word-break:break-all;"></div>
+  <div id="supportNote" style="font-size:0.8rem; color:var(--amber); margin-bottom:8px;"></div>
+  <button class="primary" onclick="newTicket()">New Ticket</button>
+  <button class="secondary" onclick="showScreen('history')">Ticket History</button>
+  <button class="secondary" onclick="showScreen('settings')">Settings</button>
+</div>
+
+<div id="ticket" class="card hidden">
+  <h1 id="formTitle">New Ticket</h1>
+  <input id="tm9" placeholder="Ticket Number">
+  <select id="book">
+    <option>Alberta Forestry</option>
+    <option>Birch</option>
+    <option>Dry Softwood</option>
+    <option>Sawlog</option>
+    <option>Tamarack</option>
+    <option>Poplar</option>
+  </select>
+  <input id="customer" placeholder="Customer Name">
+  <input id="source" placeholder="Source">
+
+  <label>Empty (Tare) Weight</label>
+  <div class="row">
+    <input id="tare" type="number" placeholder="Manual or live" oninput="updateCalcs()">
+    <button class="secondary" onclick="captureTare()">Use Live</button>
+  </div>
+
+  <label>Loaded (Gross) Weight</label>
+  <div class="row">
+    <input id="gross" type="number" placeholder="Manual or live" oninput="updateCalcs()">
+    <button class="secondary" onclick="captureGross()">Use Live</button>
+  </div>
+
+  <div class="net" id="netDisplay">Net: —</div>
+
+  <label>Purchase Price (total $)</label>
+  <input id="purchase" type="number" step="0.01" placeholder="0.00" oninput="updateCalcs()">
+
+  <label>Sale Price (total $)</label>
+  <input id="sale" type="number" step="0.01" placeholder="0.00" oninput="updateCalcs()">
+
+  <div class="profit" id="profitDisplay">Profit: —</div>
+
+  <label>Notes</label>
+  <textarea id="notes" rows="3" placeholder="Private notes"></textarea>
+
+  <button class="primary" onclick="saveTicket()">Save Ticket</button>
+  <button class="secondary" id="deleteBtn" onclick="deleteTicket()" style="background:#d32f2f; color:white; display:none;">Delete Ticket</button>
+  <button class="secondary" onclick="showScreen('home')">Cancel</button>
+</div>
+
+<div id="history" class="card hidden">
+  <h1>Ticket History</h1>
+  <div id="historyList"></div>
+  <div id="summary" style="margin-top:16px; padding:12px; background:var(--info-bg); color:var(--info-text); border-radius:8px;"></div>
+  <button class="secondary" onclick="showScreen('home')">Back</button>
+</div>
+
+<div id="monitor" class="card hidden">
+  <h1>Scale Monitor</h1>
+  <div style="display:flex; gap:6px;">
+    <select id="mBaud" onchange="monSyncPrefs()">
+      <option value="9600">9600</option><option value="4800">4800</option><option value="2400">2400</option><option value="1200">1200</option>
+      <option value="19200">19200</option><option value="38400">38400</option><option value="57600">57600</option><option value="115200">115200</option>
+    </select>
+    <select id="mFmt" onchange="monSyncPrefs()">
+      <option value="8N1">8-N-1</option><option value="7E1">7-E-1</option><option value="7N2">7-N-2</option><option value="8E1">8-E-1</option>
+    </select>
+    <select id="mFlow">
+      <option value="none">No flow ctrl</option><option value="hardware">RTS/CTS</option>
+    </select>
+  </div>
+  <div style="display:flex; gap:6px;">
+    <button class="primary" style="flex:1;" onclick="monConnect()">Connect</button>
+    <button class="secondary" style="flex:1;" onclick="disconnectScale()">Disconnect</button>
+  </div>
+  <div id="monStatus" style="font-size:0.85rem; margin:6px 0;">Not connected</div>
+  <div id="monStats" style="font-family:monospace; font-size:0.8rem; color:var(--muted);">RX bytes: 0 | chunks: 0 | last: never</div>
+  <div id="monSignals" style="font-family:monospace; font-size:0.8rem; color:var(--muted); margin:4px 0;">Signals: -</div>
+  <div id="monHint" style="font-size:0.8rem; color:var(--amber); margin:4px 0;"></div>
+  <div style="display:flex; gap:6px;">
+    <button class="secondary" id="btnDtr" style="flex:1; padding:10px;" onclick="monToggle('dtr')">DTR: on</button>
+    <button class="secondary" id="btnRts" style="flex:1; padding:10px;" onclick="monToggle('rts')">RTS: on</button>
+  </div>
+  <div style="display:flex; gap:6px;">
+    <select id="monView" onchange="monRender()" style="flex:1;">
+      <option value="hex">Hex + ASCII</option><option value="text">Text (show CR/LF)</option>
+    </select>
+    <button class="secondary" id="btnPause" style="flex:1; padding:10px;" onclick="monPause()">Pause</button>
+    <button class="secondary" style="flex:1; padding:10px;" onclick="monClear()">Clear</button>
+  </div>
+  <pre id="monLog" style="background:#020617; color:#a7f3d0; border:1px solid #334155; border-radius:8px; padding:8px; font-size:11px; line-height:1.35; height:38vh; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:8px 0;"></pre>
+  <div style="display:flex; gap:6px;">
+    <button class="primary" style="flex:1;" onclick="monCopy('log')">Copy log</button>
+    <button class="primary" style="flex:1;" onclick="monCopy('report')">Copy report</button>
+  </div>
+  <label style="font-size:0.8rem;">Send to scale (some indicators only reply when asked). Use \r \n \x05 for control characters.</label>
+  <div style="display:flex; gap:6px;">
+    <input id="monSendText" placeholder="e.g. P\r\n" style="flex:1;">
+    <button class="secondary" style="width:auto; padding:10px 16px;" onclick="monSend(document.getElementById('monSendText').value)">Send</button>
+  </div>
+  <div style="display:flex; gap:6px;">
+    <button class="secondary" style="flex:1; padding:8px;" onclick="monSend('P\\r\\n')">P CRLF</button>
+    <button class="secondary" style="flex:1; padding:8px;" onclick="monSend('W\\r\\n')">W CRLF</button>
+    <button class="secondary" style="flex:1; padding:8px;" onclick="monSend('\\x05')">ENQ</button>
+    <button class="secondary" style="flex:1; padding:8px;" onclick="monSend('\\r\\n')">CRLF</button>
+  </div>
+  <button class="secondary" onclick="showScreen('settings')">Back</button>
+</div>
+
+<div id="settings" class="card hidden">
+  <h1>Settings</h1>
+  <p>Paste your own Apps Script web app URL to use a separate sheet.<br>Leave blank for local-only tickets.</p>
+  <input id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+  <button class="primary" onclick="saveSettings()">Save Settings</button>
+  <button class="secondary" onclick="showScreen('monitor')">Scale Monitor (see raw incoming data)</button>
+  <button class="secondary" onclick="showScreen('home')">Back</button>
+  <p style="font-size:0.8rem; color:var(--muted); margin-top:20px;">Paste your Apps Script URL to load and save tickets to a sheet.</p>
+</div>
+
+<script>
+const DEFAULT_SCRIPT = '';
+const PASSWORD = 'knight';
+
+let SCRIPT_URL = localStorage.getItem('scriptUrl') || '';
+let tickets = [];
+let liveWeight = 0;
+let serialPort = null;
+let editing = -1;
+
+function doLogin() {
+  const pass = document.getElementById('passInput').value;
+  if (pass === PASSWORD) {
+    localStorage.setItem('loggedIn', 'true');
+    document.getElementById('login').classList.add('hidden');
+    showScreen('home');
+    loadTickets();
+  } else {
+    alert('Wrong password');
+  }
+}
+
+function showScreen(id) {
+  ['home','ticket','history','settings','monitor'].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.classList.add('hidden');
+  });
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
+  if (id === 'history') renderHistory();
+  if (id === 'monitor') monitorOpened();
+  if (id === 'settings') {
+    document.getElementById('scriptUrlInput').value = localStorage.getItem('scriptUrl') || '';
+  }
+}
+
+function saveSettings() {
+  const url = document.getElementById('scriptUrlInput').value.trim();
+  if (url) {
+    localStorage.setItem('scriptUrl', url);
+    SCRIPT_URL = url;
+  } else {
+    localStorage.removeItem('scriptUrl');
+    SCRIPT_URL = '';
+  }
+  localStorage.setItem('scriptUrlAt', String(Date.now()));   // lets company sync tell which copy is newer
+  alert(url ? 'Settings saved. Reloading history...' : 'Sheet link cleared. Tickets stay local.');
+  if (SCRIPT_URL) loadTickets();
+  showScreen('home');
+}
+
+function generateTicketNumber() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  const prefix = `KF-${y}-${m}${d}-`;
+  const todayTickets = tickets.filter(t => (t[0]||'').startsWith(prefix));
+  const seq = String(todayTickets.length + 1).padStart(2,'0');
+  return prefix + seq;
+}
+
+function newTicket() {
+  editing = -1;
+  document.getElementById('formTitle').textContent = 'New Ticket';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('tm9').value = generateTicketNumber();
+  document.getElementById('customer').value = '';
+  document.getElementById('source').value = '';
+  document.getElementById('tare').value = '';
+  document.getElementById('gross').value = '';
+  document.getElementById('purchase').value = '';
+  document.getElementById('sale').value = '';
+  document.getElementById('notes').value = '';
+  updateCalcs();
+  showScreen('ticket');
+}
+
+function captureTare() {
+  if (liveWeight > 0) document.getElementById('tare').value = liveWeight;
+  updateCalcs();
+}
+function captureGross() {
+  if (liveWeight > 0) document.getElementById('gross').value = liveWeight;
+  updateCalcs();
+}
+
+function updateCalcs() {
+  const tare = +document.getElementById('tare').value || 0;
+  const gross = +document.getElementById('gross').value || 0;
+  const net = gross - tare;
+  const buy = +document.getElementById('purchase').value || 0;
+  const sell = +document.getElementById('sale').value || 0;
+  const profit = sell - buy;
+  document.getElementById('netDisplay').textContent = 'Net: ' + (net > 0 ? net.toLocaleString() : '—');
+  document.getElementById('profitDisplay').textContent = 'Profit: ' + ((buy || sell) ? '$' + profit.toFixed(2) : '—');
+  return net;
+}
+
+async function loadTickets() {
+  if (!SCRIPT_URL) { console.log('No sheet URL set'); return; }
+  try {
+    const res = await fetch(SCRIPT_URL);
+    const data = await res.json();
+    if (Array.isArray(data)) tickets = data.filter(r => r && r[0]);
+    else if (data && data.rows) tickets = data.rows.filter(r => r && r[0]);
+  } catch(e) { console.log(e); }
+  if (document.getElementById('history') && !document.getElementById('history').classList.contains('hidden')) {
+    renderHistory();
+  }
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!tickets.length) {
+    list.innerHTML = '<p>No tickets yet</p>';
+  } else {
+    list.innerHTML = tickets.map((r, i) => `
+      <div class="ticket">
+        <b>${r[0]}</b> — ${r[1]||''}<br>
+        ${r[2]||'—'} · ${r[3]||'—'}<br>
+        Tare ${(+r[4]||0).toLocaleString()} | Gross ${(+r[5]||0).toLocaleString()} | <b>Net ${(+r[6]||0).toLocaleString()}</b><br>
+        Buy $${(+r[7]||0).toFixed(2)} &nbsp; Sale $${(+r[8]||0).toFixed(2)}<br>
+        <small>${r[9]||''}</small>
+        <div class="btn-row">
+          <button class="secondary" onclick="editTicket(${i})">Edit</button>
+        </div>
+        <div class="btn-row">
+          <button class="secondary" onclick="shareTicket(${i}, 'customer')">Customer</button>
+          <button class="secondary" onclick="shareTicket(${i}, 'supplier')">Supplier</button>
+          <button class="secondary" onclick="shareTicket(${i}, 'office')">Office</button>
+        </div>
+        <div class="btn-row">
+          <button class="secondary" onclick="printTicket(${i}, 'customer')">Print Customer</button>
+          <button class="secondary" onclick="printTicket(${i}, 'supplier')">Print Supplier</button>
+          <button class="secondary" onclick="printTicket(${i}, 'office')">Print Office</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  const totalNet = tickets.reduce((s,r)=>s+(+r[6]||0),0);
+  const totalCost = tickets.reduce((s,r)=>s+(+r[7]||0),0);
+  const totalSale = tickets.reduce((s,r)=>s+(+r[8]||0),0);
+  document.getElementById('summary').innerHTML = `
+    <b>Summary</b><br>
+    Tickets: ${tickets.length}<br>
+    Total Net: ${totalNet.toLocaleString()}<br>
+    Total Cost: $${totalCost.toFixed(2)}<br>
+    Total Sale: $${totalSale.toFixed(2)}<br>
+    <b>Total Profit: $${(totalSale-totalCost).toFixed(2)}</b>
+  `;
+}
+
+function editTicket(i) {
+  const r = tickets[i];
+  if (!r) return;
+  editing = i;
+  document.getElementById('formTitle').textContent = 'Edit Ticket';
+  document.getElementById('tm9').value = r[0] || '';
+  document.getElementById('book').value = r[1] || 'Birch';
+  document.getElementById('customer').value = r[2] || '';
+  document.getElementById('source').value = r[3] || '';
+  document.getElementById('tare').value = r[4] || '';
+  document.getElementById('gross').value = r[5] || '';
+  document.getElementById('purchase').value = r[7] || '';
+  document.getElementById('sale').value = r[8] || '';
+  document.getElementById('notes').value = r[10] || '';
+  document.getElementById('deleteBtn').style.display = 'block';
+  updateCalcs();
+  showScreen('ticket');
+}
+
+async function deleteTicket() {
+  if (editing < 0) return;
+  if (!confirm('Delete this ticket?')) return;
+  const ticketNum = tickets[editing] && tickets[editing][0];
+  tickets.splice(editing, 1);
+  editing = -1;
+  document.getElementById('deleteBtn').style.display = 'none';
+  if (SCRIPT_URL && ticketNum) {
+    try {
+      await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', ticket: ticketNum }) });
+    } catch (e) {}
+  }
+  alert('Ticket deleted.');
+  showScreen('history');
+}
+
+function shareTicket(i, mode) {
+  const r = tickets[i];
+  if (!r) return;
+  const base = `Ticket: ${r[0]}\nTime: ${r[9]||'—'}\nProduct: ${r[1]||'—'}\n`;
+  let text = base;
+  if (mode === 'customer') {
+    text += `Customer: ${r[2]||'—'}\nTare: ${r[4]||'—'}\nGross: ${r[5]||'—'}\nNET: ${r[6]||'—'}\nNotes: ${r[10]||''}`;
+  } else if (mode === 'supplier') {
+    text += `Source: ${r[3]||'—'}\nTare: ${r[4]||'—'}\nGross: ${r[5]||'—'}\nNET: ${r[6]||'—'}\nPurchase: $${r[7]||0}\nNotes: ${r[10]||''}`;
+  } else {
+    text += `Customer: ${r[2]||'—'}\nSource: ${r[3]||'—'}\nTare: ${r[4]||'—'}\nGross: ${r[5]||'—'}\nNET: ${r[6]||'—'}\nPurchase: $${r[7]||0}\nSale: $${r[8]||0}\nNotes: ${r[10]||''}`;
+  }
+  if (navigator.share) {
+    navigator.share({ title: 'Scale Ticket', text });
+  } else {
+    prompt('Copy ticket:', text);
+  }
+}
+
+function printTicket(i, mode) {
+  const r = tickets[i];
+  if (!r) return;
+  const win = window.open('', '_blank');
+  let h = `<html><head><title>${r[0]}</title><style>body{font-family:Arial;padding:24px;} .line{margin:8px 0;font-size:16px;} .net{font-weight:bold;font-size:18px;}</style></head><body>`;
+  h += `<h2>SI Scale Ticket</h2>`;
+  h += `<div class="line"><b>Ticket:</b> ${r[0]}</div>`;
+  h += `<div class="line"><b>Time:</b> ${r[9]||'—'}</div>`;
+  h += `<div class="line"><b>Product:</b> ${r[1]||'—'}</div>`;
+  if (mode === 'customer') {
+    h += `<div class="line"><b>Customer:</b> ${r[2]||'—'}</div>`;
+    h += `<div class="line">Tare: ${r[4]||'—'}</div>`;
+    h += `<div class="line">Gross: ${r[5]||'—'}</div>`;
+    h += `<div class="line net">NET: ${r[6]||'—'}</div>`;
+  } else if (mode === 'supplier') {
+    h += `<div class="line"><b>Source:</b> ${r[3]||'—'}</div>`;
+    h += `<div class="line">Tare: ${r[4]||'—'}</div>`;
+    h += `<div class="line">Gross: ${r[5]||'—'}</div>`;
+    h += `<div class="line net">NET: ${r[6]||'—'}</div>`;
+    h += `<div class="line"><b>Purchase:</b> $${r[7]||0}</div>`;
+  } else {
+    h += `<div class="line"><b>Customer:</b> ${r[2]||'—'}</div>`;
+    h += `<div class="line"><b>Source:</b> ${r[3]||'—'}</div>`;
+    h += `<div class="line">Tare: ${r[4]||'—'}</div>`;
+    h += `<div class="line">Gross: ${r[5]||'—'}</div>`;
+    h += `<div class="line net">NET: ${r[6]||'—'}</div>`;
+    h += `<div class="line"><b>Purchase:</b> $${r[7]||0}</div>`;
+    h += `<div class="line"><b>Sale:</b> $${r[8]||0}</div>`;
+  }
+  if (r[10]) h += `<div class="line"><b>Notes:</b> ${r[10]}</div>`;
+  h += `<script>window.print();<\/script></body></html>`;
+  win.document.write(h);
+  win.document.close();
+}
+
+async function saveTicket() {
+  const net = updateCalcs();
+  const row = [
+    document.getElementById('tm9').value,
+    document.getElementById('book').value,
+    document.getElementById('customer').value,
+    document.getElementById('source').value,
+    document.getElementById('tare').value,
+    document.getElementById('gross').value,
+    net > 0 ? net : '',
+    document.getElementById('purchase').value,
+    document.getElementById('sale').value,
+    new Date().toLocaleString(),
+    document.getElementById('notes').value
+  ];
+  if (editing >= 0) {
+    tickets[editing] = row;
+    editing = -1;
+  } else {
+    tickets.unshift(row);
+  }
+  try {
+    await fetch(SCRIPT_URL, {method:'POST', mode:'no-cors', body: JSON.stringify({action: editing >= 0 ? 'edit' : 'save', row})});
+  } catch(e) {}
+  alert('Ticket saved');
+  showScreen('history');
+}
+
+/* ================= Scale connection: USB / Serial and Bluetooth (BLE) =================
+   Web Serial  -> USB serial adapters, and Bluetooth SPP scales that are paired in the OS (laptop)
+   Web Bluetooth -> BLE UART modules (Nordic UART, HM-10/FFE0, ISSC), laptop and Android phone
+   Both feed the same line parser below. */
+const $ = id => document.getElementById(id);
+const SERIAL_FORMATS = {
+  '8N1': { dataBits: 8, parity: 'none', stopBits: 1 },
+  '7E1': { dataBits: 7, parity: 'even', stopBits: 1 },
+  '7N2': { dataBits: 7, parity: 'none', stopBits: 2 },
+  '8E1': { dataBits: 8, parity: 'even', stopBits: 1 }
+};
+const BLE_SERVICES = [
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e',   // Nordic UART
+  '0000ffe0-0000-1000-8000-00805f9b34fb',   // HM-10 / common clones
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',   // ISSC / Microchip transparent UART
+  '0000fff0-0000-1000-8000-00805f9b34fb'
+];
+let serialReader = null, bleDevice = null, lineBuf = '', flushTimer = null, recent = [];
+
+function savePrefs() { localStorage.setItem('scaleBaud', $('baud').value); localStorage.setItem('scaleFmt', $('fmt').value); }
+function loadPrefs() {
+  if (localStorage.getItem('scaleBaud')) $('baud').value = localStorage.getItem('scaleBaud');
+  if (localStorage.getItem('scaleFmt')) $('fmt').value = localStorage.getItem('scaleFmt');
+}
+function onConnected(label) {
+  $('status').textContent = 'Connected: ' + label;
+  $('disconnectBtn').style.display = 'block';
+  $('reconnectBtn').classList.add('hidden');
+  savePrefs();
+}
+function onDisconnected(msg) {
+  monitorNote('Disconnected: ' + (msg || 'Not connected'));
+  $('status').textContent = msg || 'Not connected';
+  $('disconnectBtn').style.display = 'none';
+  $('liveWeight').textContent = '------';
+  $('liveWeight').style.opacity = 1;
+  liveWeight = 0; lineBuf = ''; recent = [];
+  clearTimeout(flushTimer);
+  checkReconnect();
+}
+
+/* ---- parsing: buffer into whole lines, so a number split across two chunks is never misread ---- */
+function handleChunk(text) {
+  lineBuf += text;
+  clearTimeout(flushTimer);
+  let i;
+  while ((i = lineBuf.search(/[\r\n]/)) >= 0) {
+    const line = lineBuf.slice(0, i);
+    lineBuf = lineBuf.slice(i + 1);
+    if (line.trim()) handleLine(line);
+  }
+  if (lineBuf.length > 80) lineBuf = lineBuf.slice(-80);
+  // some indicators send no line ending: treat a quiet gap as end of reading
+  if (lineBuf.trim()) flushTimer = setTimeout(() => { const l = lineBuf; lineBuf = ''; handleLine(l); }, 250);
+}
+function handleLine(line) {
+  $('rawLine').textContent = 'Scale: ' + line.replace(/[^\x20-\x7e]/g, '·').trim();
+  const m = line.match(/[-+]?\d+(?:\.\d+)?/);        // first number on the line, e.g. "ST,GS,+012345 kg"
+  if (!m) return;
+  liveWeight = parseFloat(m[0]);
+  recent.push(liveWeight); if (recent.length > 4) recent.shift();
+  const stable = recent.length === 4 && recent.every(v => v === recent[0]);
+  const el = $('liveWeight');
+  el.textContent = liveWeight.toLocaleString();
+  el.style.opacity = stable ? 1 : 0.55;                // dimmed while the reading is still moving
+}
+
+/* ---- USB / serial ---- */
+async function connectSerial() {
+  if (!('serial' in navigator)) return alert('This browser has no Web Serial. Use an up-to-date Chrome or Edge on a laptop or Android phone. (On a phone, pair a Bluetooth serial adapter in Bluetooth settings first.)');
+  try {
+    const port = await navigator.serial.requestPort();
+    await openSerial(port);
+  } catch (e) { if (e.name !== 'NotFoundError') alert('Connect failed: ' + e.message); }
+}
+async function openSerial(port) {
+  const fmt = SERIAL_FORMATS[$('fmt').value] || SERIAL_FORMATS['8N1'];
+  const flow = ($('mFlow') && $('mFlow').value) || 'none';
+  await port.open(Object.assign({ baudRate: +$('baud').value, flowControl: flow }, fmt));
+  serialPort = port;
+  monitorOpenedPort(port, +$('baud').value, $('fmt').value, flow);
+  onConnected('USB / serial');
+  readLoop(port);
+}
+async function readLoop(port) {
+  const decoder = new TextDecoder();
+  try {
+    while (port.readable && serialPort === port) {
+      serialReader = port.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await serialReader.read();
+          if (done) break;
+          if (value) { monitorFeed('RX', value); handleChunk(decoder.decode(value, { stream: true })); }
+        }
+      } catch (e) { /* non-fatal read error (framing/parity): loop picks the stream up again */ }
+      finally { serialReader.releaseLock(); serialReader = null; }
+    }
+  } catch (e) {}
+  if (serialPort === port) {                            // stream ended without the user pressing Disconnect = unplugged
+    try { await port.close(); } catch (e) {}
+    serialPort = null;
+    onDisconnected('Connection lost - cable unplugged?');
+  }
+}
+
+/* ---- Bluetooth (BLE UART) ---- */
+async function connectBle() {
+  if (!navigator.bluetooth) return alert('This browser has no Web Bluetooth. Use Chrome or Edge on a laptop or Android phone (iPhone/Safari cannot do this).');
+  try {
+    const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: BLE_SERVICES });
+    dev.addEventListener('gattserverdisconnected', () => {
+      if (bleDevice === dev) { bleDevice = null; onDisconnected('Bluetooth connection lost'); }
+    });
+    $('status').textContent = 'Connecting…';
+    const server = await dev.gatt.connect();
+    let ch = null;
+    for (const uuid of BLE_SERVICES) {
+      try {
+        const svc = await server.getPrimaryService(uuid);
+        const chars = await svc.getCharacteristics();
+        ch = chars.find(c => c.properties.notify || c.properties.indicate);
+        if (ch) break;
+      } catch (e) {}
+    }
+    if (!ch) {
+      dev.gatt.disconnect();
+      $('status').textContent = 'Not connected';
+      return alert('Connected, but no serial (UART) service was found on "' + (dev.name || 'this device') + '". It may be a classic Bluetooth (SPP) module. Pair it in the phone or laptop Bluetooth settings first, then use "Connect Serial".');
+    }
+    await ch.startNotifications();
+    const decoder = new TextDecoder();
+    ch.addEventListener('characteristicvaluechanged', ev => { const dv = ev.target.value; monitorFeed('RX', new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)); handleChunk(decoder.decode(dv, { stream: true })); });
+    bleDevice = dev;
+    onConnected('Bluetooth ' + (dev.name || ''));
+  } catch (e) {
+    $('status').textContent = 'Not connected';
+    if (e.name !== 'NotFoundError') alert('Bluetooth connect failed: ' + e.message);
+  }
+}
+
+/* ---- disconnect / reconnect ---- */
+async function disconnectScale() {
+  const p = serialPort; serialPort = null;
+  try { if (serialReader) await serialReader.cancel(); } catch (e) {}
+  await new Promise(r => setTimeout(r, 60));
+  try { if (p) await p.close(); } catch (e) {}
+  const d = bleDevice; bleDevice = null;
+  try { if (d && d.gatt.connected) d.gatt.disconnect(); } catch (e) {}
+  onDisconnected('Not connected');
+}
+async function checkReconnect() {
+  try {
+    if (!('serial' in navigator) || serialPort) return;
+    const ports = await navigator.serial.getPorts();
+    $('reconnectBtn').classList.toggle('hidden', !ports.length);
+  } catch (e) {}
+}
+async function reconnectLast() {
+  try {
+    const ports = await navigator.serial.getPorts();
+    if (!ports.length) return checkReconnect();
+    await openSerial(ports[0]);
+  } catch (e) { alert('Reconnect failed: ' + e.message); }
+}
+function initScale() {
+  loadPrefs();
+  const hasSerial = 'serial' in navigator, hasBle = !!navigator.bluetooth;
+  if (!hasSerial) { $('btnSerial').disabled = true; $('btnSerial').style.opacity = 0.5; }
+  if (!hasBle) { $('btnBle').disabled = true; $('btnBle').style.opacity = 0.5; }
+  const notes = [];
+  if (!hasSerial && !hasBle) notes.push('This browser cannot connect to a scale (iPhone/iPad, Safari and Firefox are not supported). Use Chrome or Edge on a laptop or Android phone.');
+  else {
+    if (!hasSerial) notes.push('Serial is not available in this browser - update Chrome.');
+    if (!hasBle) notes.push('Bluetooth is not available in this browser.');
+  }
+  $('supportNote').textContent = notes.join(' ');
+  if (hasSerial) {
+    checkReconnect();
+    // replugging a USB adapter that was used before reconnects automatically
+    navigator.serial.addEventListener('connect', async e => {
+      if (!serialPort && !bleDevice && e.target) { try { await openSerial(e.target); } catch (err) {} }
+    });
+  }
+}
+
+
+/* ================= Scale Monitor: shows every raw byte coming from the port ================= */
+let monEntries = [], monBytes = 0, monChunks = 0, monLastAt = 0, monPaused = false, monRenderQueued = false;
+let monDtr = true, monRts = true, monInfoText = '', monConnectedAt = 0, monTimer = null;
+const MON_MAX = 2000;
+
+function monTs(t) { const d = new Date(t); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
+function monVis(b) {
+  const names = { 2: '<STX>', 3: '<ETX>', 5: '<ENQ>', 6: '<ACK>', 10: '<LF>', 13: '<CR>', 21: '<NAK>', 0: '<NUL>' };
+  if (names[b]) return names[b];
+  if (b >= 32 && b < 127) return String.fromCharCode(b);
+  return '<' + b.toString(16).padStart(2, '0') + '>';
+}
+function monitorFeed(dir, bytes) {
+  monEntries.push({ t: Date.now(), dir, bytes: Array.from(bytes) });
+  if (monEntries.length > MON_MAX) monEntries.shift();
+  if (dir === 'RX') { monBytes += bytes.length; monChunks++; monLastAt = Date.now(); }
+  monScheduleRender();
+}
+function monitorNote(text) {
+  monEntries.push({ t: Date.now(), dir: 'NOTE', text });
+  if (monEntries.length > MON_MAX) monEntries.shift();
+  monScheduleRender();
+}
+function monitorOpenedPort(port, baud, fmt, flow) {
+  monBytes = 0; monChunks = 0; monLastAt = 0; monConnectedAt = Date.now();
+  let info = {};
+  try { info = port.getInfo ? port.getInfo() : {}; } catch (e) {}
+  const hex = v => v == null ? '?' : '0x' + v.toString(16).padStart(4, '0');
+  monInfoText = 'USB vendor ' + hex(info.usbVendorId) + ' product ' + hex(info.usbProductId) + (info.usbVendorId === 0x0403 ? ' (FTDI)' : '') + ' | ' + baud + ' ' + fmt + ' | flow ' + flow;
+  monitorNote('Opened port: ' + monInfoText);
+  monDtr = true; monRts = true;
+  try { port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch (e) {}
+  monUpdateToggles();
+}
+function monRows(e) {
+  if (e.dir === 'NOTE') return ['--- ' + monTs(e.t) + ' ' + e.text];
+  const mode = ($('monView') || {}).value || 'hex';
+  const head = monTs(e.t) + ' ' + e.dir + ' ';
+  if (mode === 'text') return [head + e.bytes.map(monVis).join('')];
+  const rows = [];
+  for (let i = 0; i < e.bytes.length; i += 16) {
+    const chunk = e.bytes.slice(i, i + 16);
+    const hex = chunk.map(b => b.toString(16).padStart(2, '0')).join(' ').padEnd(47, ' ');
+    const asc = chunk.map(b => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join('');
+    rows.push((i === 0 ? head : ' '.repeat(head.length)) + hex + ' |' + asc + '|');
+  }
+  return rows;
+}
+function monScheduleRender() {
+  if (monRenderQueued || monPaused) return;
+  monRenderQueued = true;
+  requestAnimationFrame(() => { monRenderQueued = false; monRender(); });
+}
+function monRender() {
+  const el = $('monLog'); if (!el) return;
+  const rows = [];
+  for (const e of monEntries.slice(-120)) rows.push(...monRows(e));
+  el.textContent = rows.slice(-400).join('\n');
+  el.scrollTop = el.scrollHeight;
+}
+function monPause() { monPaused = !monPaused; $('btnPause').textContent = monPaused ? 'Resume' : 'Pause'; if (!monPaused) monRender(); }
+function monClear() { monEntries = []; monBytes = 0; monChunks = 0; monLastAt = 0; monRender(); }
+function monSyncPrefs() { $('baud').value = $('mBaud').value; $('fmt').value = $('mFmt').value; savePrefs(); }
+async function monConnect() {
+  if (serialPort || bleDevice) await disconnectScale();
+  monSyncPrefs();
+  connectSerial();
+}
+function monitorOpened() {
+  $('mBaud').value = $('baud').value; $('mFmt').value = $('fmt').value;
+  monUpdateToggles(); monRender();
+  clearInterval(monTimer);
+  monTimer = setInterval(monTick, 500);
+}
+async function monTick() {
+  if ($('monitor').classList.contains('hidden')) { clearInterval(monTimer); return; }
+  const connected = !!serialPort || !!bleDevice;
+  $('monStatus').textContent = connected ? $('status').textContent : 'Not connected';
+  const ago = monLastAt ? ((Date.now() - monLastAt) / 1000).toFixed(1) + 's ago' : 'never';
+  $('monStats').textContent = 'RX bytes: ' + monBytes + ' | chunks: ' + monChunks + ' | last: ' + ago;
+  let hint = '';
+  if (connected && !monBytes && Date.now() - monConnectedAt > 5000) {
+    hint = 'Connected but 0 bytes after 5s. Try: (1) set the scale to continuous/stream output or press its Print key, (2) a null-modem adapter or swap the cable, (3) toggle DTR/RTS below, (4) send P or W below.';
+  }
+  $('monHint').textContent = hint;
+  if (serialPort && serialPort.getSignals) {
+    try {
+      const sg = await serialPort.getSignals();
+      const f = v => v ? 'ON ' : 'off';
+      $('monSignals').textContent = 'Signals  CTS:' + f(sg.clearToSend) + ' DSR:' + f(sg.dataSetReady) + ' DCD:' + f(sg.dataCarrierDetect) + ' RI:' + f(sg.ringIndicator);
+    } catch (e) { $('monSignals').textContent = 'Signals: not readable'; }
+  } else $('monSignals').textContent = 'Signals: -';
+}
+function monUpdateToggles() { $('btnDtr').textContent = 'DTR: ' + (monDtr ? 'on' : 'off'); $('btnRts').textContent = 'RTS: ' + (monRts ? 'on' : 'off'); }
+async function monToggle(which) {
+  if (which === 'dtr') monDtr = !monDtr; else monRts = !monRts;
+  monUpdateToggles();
+  try { if (serialPort) await serialPort.setSignals({ dataTerminalReady: monDtr, requestToSend: monRts }); monitorNote('Set DTR=' + monDtr + ' RTS=' + monRts); }
+  catch (e) { monitorNote('Could not set signals: ' + e.message); }
+}
+function monParseEscapes(str) {
+  return str.replace(/\\x([0-9a-fA-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16)))
+            .replace(/\\r/g, '\r').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+}
+async function monSend(text) {
+  if (!serialPort || !serialPort.writable) { alert('Connect over USB / serial first (sending is not available over BLE here).'); return; }
+  const str = monParseEscapes(text || '');
+  if (!str) return;
+  const bytes = Uint8Array.from(Array.from(str).map(c => c.charCodeAt(0) & 0xff));
+  const w = serialPort.writable.getWriter();
+  try { await w.write(bytes); monitorFeed('TX', bytes); } catch (e) { monitorNote('Send failed: ' + e.message); } finally { w.releaseLock(); }
+}
+function monCopy(kind) {
+  const all = [];
+  monEntries.forEach(e => all.push(...monRows(e)));
+  let text;
+  if (kind === 'report') {
+    text = ['SCALE MONITOR REPORT', 'Time: ' + new Date().toString(), 'Browser: ' + navigator.userAgent,
+      'Port: ' + (monInfoText || 'not opened'), 'Totals: RX ' + monBytes + ' bytes, ' + monChunks + ' chunks',
+      'DTR=' + monDtr + ' RTS=' + monRts, $('monSignals').textContent, '--- last 60 log rows ---'].concat(all.slice(-60)).join('\n');
+  } else text = all.join('\n');
+  const done = () => alert('Copied. Paste it into your message to Claude.');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => monFallbackCopy(text, done));
+  else monFallbackCopy(text, done);
+}
+function monFallbackCopy(text, done) {
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { alert('Copy failed - long-press the log and copy it manually.'); }
+  ta.remove();
+}
+
+// Boot
+initScale();
+if (localStorage.getItem('loggedIn') === 'true') {
+  document.getElementById('login').classList.add('hidden');
+  showScreen('home');
+  loadTickets();
+}
+</script>
+</script>
+</body>
+</html>
