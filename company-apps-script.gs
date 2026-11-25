@@ -339,11 +339,16 @@ function ticketsPost_(d) {
     if (last >= 2) { var nums = sh.getRange(2, 1, last - 1, 1).getValues(); for (var i = nums.length - 1; i >= 0; i--) if (String(nums[i][0]) === String(d.ticket)) sh.deleteRow(i + 2); }
     log_('tickets', 'deleted', d.ticket, ''); return json_({ status: 'deleted' });
   }
-  if (d.action === 'edit' && d.row && d.row[0]) {
-    if (last >= 2) { var n2 = sh.getRange(2, 1, last - 1, 1).getValues(); for (var j = 0; j < n2.length; j++) if (String(n2[j][0]) === String(d.row[0])) { sh.getRange(j + 2, 1, 1, d.row.length).setValues([d.row]); break; } }
-    log_('tickets', 'edited', d.row[0], { net: d.row[6] }); return json_({ status: 'edited' });
+  // edit: find the ticket by the number it had when the edit started (the number itself may have been changed)
+  // save: a ticket number that already exists is updated, never added twice (a resent save cannot duplicate)
+  if ((d.action === 'edit' || d.action === 'save') && d.row && d.row[0]) {
+    var row = d.row.slice(0, 11); while (row.length < 11) row.push('');
+    var find = function (key) { if (last < 2 || !key) return -1; var nn = sh.getRange(2, 1, last - 1, 1).getValues(); for (var j = 0; j < nn.length; j++) if (String(nn[j][0]) === String(key)) return j + 2; return -1; };
+    var at = find(d.action === 'edit' ? (d.original || d.row[0]) : d.row[0]);
+    if (at < 0 && d.action === 'edit') at = find(d.row[0]);
+    if (at > 0) { sh.getRange(at, 1, 1, 11).setValues([row]); log_('tickets', 'edited', row[0], { was: d.original || '', net: row[6] }); return json_({ status: 'edited' }); }
+    sh.appendRow(row); log_('tickets', 'saved', row[0], { net: row[6], customer: row[2] }); return json_({ status: 'ok' });
   }
-  if (d.action === 'save' && d.row) { sh.appendRow(d.row); log_('tickets', 'saved', d.row[0], { net: d.row[6], customer: d.row[2] }); return json_({ status: 'ok' }); }
   return json_({ status: 'unknown' });
 }
 

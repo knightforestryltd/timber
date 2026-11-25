@@ -335,15 +335,15 @@ async function fetchLoad(...ids) {
 /* ---------- pending list ---------- */
 async function loadPending() {
   const list = $('pendingList');
-  list.innerHTML = '<p style="color:var(--muted);">Loading…</p>';
+  if (!list.children.length) list.innerHTML = '<p style="color:var(--muted);">Loading…</p>';
   try {
     const s = getSettings();
     if (!s.sheetsUrl) { list.innerHTML = '<p>Set the Load Log sheet link in Settings.</p>'; return; }
-    const data = await (await fetch(s.sheetsUrl)).json();
+    const data = await (await fetch(s.sheetsUrl + (s.sheetsUrl.includes('?') ? '&' : '?') + 't=' + Date.now())).json();
     const local = JSON.parse(localStorage.getItem('kfDispatch') || '{}');
     loads = (data.rows || []).filter(r => {
       const st = local[loadKey(r)];
-      if (st) {
+      if (st && st.pending) {            // only Dispatch changes that have not reached the sheet yet
         if (st.loadId && !r.loadId) r.loadId = st.loadId;
         if (st.netTonnes && !r.netTonnes) r.netTonnes = st.netTonnes;
         if (st.status && (r.status || '').toLowerCase() !== 'paid') r.status = st.status;
@@ -861,6 +861,11 @@ async function completeNew() {
 }
 
 showMenu();
+// delivered loads and payments from other devices show up by themselves
+if (window.kfLive) kfLive(() => {
+  if (!$('pendingView').classList.contains('hidden')) return loadPending();
+  if (!$('menu').classList.contains('hidden')) return loadPaidHistory();
+}, { ms: 30000 });
 </script>
 </body>
 </html>

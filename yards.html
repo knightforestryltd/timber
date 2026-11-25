@@ -252,12 +252,17 @@ function hideAll() {
 async function loadInventory() {
   if (!YARD_URL) return;
   try {
-    const res = await fetch(YARD_URL);
+    const res = await fetch(YARD_URL + (YARD_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
     const data = await res.json();
     inventory = data.rows || [];
     renderYardList();
+    const vis = id => !document.getElementById(id).classList.contains('hidden');
+    if (vis('yardScreen') && currentYard) renderYardSpecies(currentYard);
+    if (vis('speciesScreen') && currentYard) renderSpeciesDetail(currentYard, currentSpecies);
   } catch (e) { console.log(e); }
 }
+// inventory moves from other devices show up by themselves
+if (window.kfLive) kfLive(loadInventory, { ms: 30000, when: () => ['menuScreen', 'yardScreen', 'speciesScreen'].some(id => !document.getElementById(id).classList.contains('hidden')) });
 
 function getYards() {
   const fromSheet = [...new Set(inventory.map(r => r.yard).filter(Boolean))];

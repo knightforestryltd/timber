@@ -41,7 +41,8 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
 </header>
 <div class="container">
   <div id="listView">
-    <h2>Pending Delivery</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h2>Pending Delivery</h2><button class="btn btn-outline btn-sm" onclick="loadLoads()" title="Refresh">↻</button></div>
+    <div class="small" id="listUpdated" style="margin:-6px 0 8px;"></div>
     <div id="loadList"></div>
   </div>
   <div id="settingsView" class="hidden">
@@ -130,14 +131,18 @@ async function loadLoads() {
     const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
     QUOTE_URL = s.sheetsUrl || '';
     if (!QUOTE_URL) { document.getElementById('loadList').innerHTML = '<p>Set the Load Log sheet link in Settings (gear, top left).</p>'; return; }
-    const res = await fetch(QUOTE_URL);
+    await sendPending();
+    const res = await fetch(QUOTE_URL + (QUOTE_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
     const data = await res.json();
+    if (data.status === 'nokey') { document.getElementById('loadList').innerHTML = '<p>This device is not connected to the company. Connect on the Quote page.</p>'; return; }
     loads = (data.rows || []).filter(r => (r.status || '').toLowerCase() !== 'paid');
+    // the sheet is the truth; this phone only remembers changes that have not reached the sheet yet
     const local = getLocalState();
     loads.forEach(l => {
       const st = local[loadKey(l)];
-      if (st) { if (st.loadId) l.loadId = st.loadId; if (st.status && (l.status || '').toLowerCase() !== 'paid') l.status = st.status; if (st.netTonnes) l.netTonnes = toTonnes(st.netTonnes); }
+      if (st && st.pending) { if (st.loadId) l.loadId = st.loadId; if (st.status && (l.status || '').toLowerCase() !== 'paid') l.status = st.status; if (st.netTonnes) l.netTonnes = toTonnes(st.netTonnes); l._pending = true; }
     });
+    const lu = document.getElementById('listUpdated'); if (lu) lu.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · refreshes by itself';
     loads = loads.filter(l => (l.status || '').toLowerCase() !== 'paid');
     renderList();
   } catch(e) {
@@ -161,7 +166,7 @@ function renderList() {
       ${l.species || ''} · ${l.location || ''}<br>
       <span class="small">${l.duration || ''} · ${l.km || ''} km</span><br>
       <span class="small">${daysSince(l.timestamp)}</span>
-      ${l.status === 'Delivered' ? '<br><strong style="color:var(--amber);">Pending payment</strong>' : ''}
+      ${l.status === 'Delivered' ? '<br><strong style="color:var(--amber);">Pending payment</strong>' : l.status === 'Started' ? '<br><strong style="color:var(--good);">Started' + (l.loadId ? ' · ' + l.loadId : '') + '</strong>' : ''}${l._pending ? ' <span class="small">(not sent yet)</span>' : ''}
     </div>
   `).join('');
 }
@@ -251,9 +256,10 @@ async function checkTicket() {
       current.netTonnes = net;
       current.cords = newCords;
       current.status = 'Started';
+      openLoad(loads.indexOf(current));
+      document.getElementById('ticketInput').value = num;
       document.getElementById('ticketResult').innerHTML = '<span style="color:var(--link);">Ticket found. Net: ' + net + ' t · ~' + newCords + ' cords</span>';
       document.getElementById('deliveredBtn').disabled = false;
-      openLoad(loads.indexOf(current));
       await updateStatus('Started', num, net);
     } else {
       document.getElementById('ticketResult').innerHTML = '<span style="color:var(--bad);">Ticket not found.</span>';
@@ -270,25 +276,36 @@ async function markDelivered() {
   showList();
 }
 
+// A status change is remembered on this phone until the sheet confirms it, then forgotten
+// (so the next refresh shows what the sheet says, including changes made on other devices).
+function statusBody(l, status, loadId, net) {
+  return { action: 'updateStatus', customerName: l.customerName, timestamp: l.timestamp, location: l.location, species: l.species, truck: l.truck, loadId, status, netTonnes: net };
+}
+async function postStatus(body) {
+  const r = await fetch(QUOTE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  const j = await r.json(); if (j.status !== 'ok' && j.status !== 'notfound') throw new Error(j.message || j.status); return j;
+}
 async function updateStatus(status, loadId, net) {
-  if (current) setLocalState(loadKey(current), { status, loadId, netTonnes: net });
+  if (!current) return;
+  const key = loadKey(current), body = statusBody(current, status, loadId, net);
+  setLocalState(key, { status, loadId, netTonnes: net, pending: true, body });
   if (!QUOTE_URL) return;
-  try {
-    await fetch(QUOTE_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({
-      action: 'updateStatus',
-      customerName: current.customerName,
-      timestamp: current.timestamp,
-      location: current.location,
-      species: current.species,
-      truck: current.truck,
-      loadId: loadId,
-      status: status,
-      netTonnes: net
-    })});
-  } catch(e) {}
+  try { await postStatus(body); const s = getLocalState(); delete s[key]; localStorage.setItem('kfDispatch', JSON.stringify(s)); } catch (e) {}
+}
+async function sendPending() {
+  if (!QUOTE_URL || navigator.onLine === false) return;
+  const s = getLocalState();
+  for (const k of Object.keys(s)) {
+    if (!s[k] || !s[k].pending) { delete s[k]; continue; }     // old remembered values: the sheet is the truth now
+    if (!s[k].body) continue;
+    try { await postStatus(s[k].body); delete s[k]; } catch (e) { break; }
+  }
+  localStorage.setItem('kfDispatch', JSON.stringify(s));
 }
 
 loadLoads();
+// new loads, started loads and tickets from other devices show up by themselves
+if (window.kfLive) kfLive(loadLoads, { ms: 20000, when: () => !document.getElementById('listView').classList.contains('hidden') });
 </script>
 
 <div id="notesPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:1000;padding:12px;">

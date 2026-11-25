@@ -1332,6 +1332,9 @@ window.kfBack = function () {
   return false;
 };
 
+/* ---------- the admin shift list refreshes by itself ---------- */
+if (window.kfLive) kfLive(() => { const b = $('adBody'); if (tab === 'admin' && admin.sub === 'logs' && b && $('slList') && !$('sheetOv').classList.contains('show')) return renderShiftList(b); }, { ms: 30000 });
+
 /* ============================== boot ============================== */
 (function boot() {
   if (shift) normalize(shift);

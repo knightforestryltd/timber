@@ -138,6 +138,55 @@
   };
   window.kfCo = kfCo;
 
+  /* ---------------- live refresh ----------------
+     kfLive(fn, { ms, when }) runs fn every `ms` while the page is on screen and online, and right away when the
+     person comes back to the app. Pages use it so loads, tickets and inventory from other devices show up by themselves. */
+  window.kfLive = function (fn, opts) {
+    opts = opts || {}; var ms = opts.ms || 30000, when = opts.when || function () { return true; }, busy = false, last = 0;
+    var run = function (force) {
+      if (busy || document.hidden || navigator.onLine === false) return;
+      if (!force && Date.now() - last < ms - 1000) return;
+      var typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.type !== 'search' && document.activeElement.id !== 'tkSearch';
+      if (typing || !when()) return;
+      busy = true; last = Date.now();
+      Promise.resolve().then(fn).catch(function () {}).then(function () { busy = false; });
+    };
+    setInterval(function () { run(false); }, Math.min(ms, 10000));
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) run(true); });
+    window.addEventListener('focus', function () { run(true); });
+    window.addEventListener('online', function () { run(true); });
+    return function () { run(true); };
+  };
+
+  /* ---------------- company settings arrive on every connected device ----------------
+     Saving settings needs the company password (Quote → Settings → Save to Company). Every device connected to the
+     company checks for a newer version about once a minute and applies it, unless it has its own unsaved changes. */
+  function applyCompanySettings(data) {
+    var s = readSettings();
+    if (Array.isArray(data.locations) && data.locations.length) s.locations = data.locations;
+    if (Array.isArray(data.units) && data.units.length) s.units = data.units;
+    ['companyName', 'quoteShow', 'apiKey'].forEach(function (k) { if (data[k]) s[k] = data[k]; });
+    ['speed', 'fuelPrice', 'gst'].forEach(function (k) { if (data[k] != null && data[k] !== '') s[k] = +data[k]; });
+    if (data.costFuelPrice != null && data.costFuelPrice !== '') s.costFuelPrice = +data.costFuelPrice; else delete s.costFuelPrice;
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
+    if (data.profile && typeof data.profile === 'object') {
+      var pr = data.profile;
+      try { localStorage.setItem('kfCompany', JSON.stringify({ name: pr.name || '', gst: pr.gst || '', wcb: pr.wcb || '', email: pr.email || '', phone: pr.phone || '', addr: pr.addr || '', mail: pr.mail || '', etNote: pr.etNote || '', logo: pr.logo || '' })); } catch (e) {}
+    }
+  }
+  window.kfPullSettings = function () {
+    if (!kfCo.unified() || window.kfOwnSync) return Promise.resolve(false);
+    return fetch(kfCo.url('sync') + '&settings=1&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.status === 'nokey') { hint('This device is no longer connected (the company password was changed). Open Quote → Settings to connect again.'); return false; }
+      var rev = j && j._meta && j._meta.rev;
+      if (rev == null || String(rev) === LS.get('kfCompanyRev')) return false;
+      if (LS.get('kfDirty') === '1') return false;                   // this device has unsaved company changes: never overwrite them
+      applyCompanySettings(j); LS.set('kfCompanyRev', String(rev));
+      window.kfBrand(); if (window.kfOnSettings) window.kfOnSettings(); if (window.kfOnProfile) window.kfOnProfile();
+      return true;
+    }).catch(function () { return false; });
+  };
+
   /* ---------------- company name + logo in every page header ---------------- */
   function company() { try { return JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch (e) { return {}; } }
   window.kfBrand = function () {
@@ -150,17 +199,8 @@
   };
   document.addEventListener('DOMContentLoaded', function () {
     window.kfBrand();
-    // keep company info (Billing details, name, logo) current on every device
-    if (kfCo.unified() && navigator.onLine !== false) {
-      fetch(kfCo.url('sync') + '&profile=1&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
-        if (j && j.status === 'ok' && j.profile) {
-          var cur = company(), pr = j.profile, next = { name: pr.name || '', gst: pr.gst || '', wcb: pr.wcb || '', email: pr.email || '', phone: pr.phone || '', addr: pr.addr || '', mail: pr.mail || '', etNote: pr.etNote || '', logo: pr.logo || '' };
-          if (JSON.stringify(cur) !== JSON.stringify(next)) { try { localStorage.setItem('kfCompany', JSON.stringify(next)); } catch (e) {} window.kfBrand(); if (window.kfOnProfile) window.kfOnProfile(next); }
-        } else if (j && j.status === 'nokey') {
-          hint('This device is no longer connected to the company (the password was changed). Open Quote → Settings to connect again.');
-        }
-      }).catch(function () {});
-    }
+    // keep company settings, name and logo current on every connected device
+    if (kfCo.unified()) window.kfLive(window.kfPullSettings, { ms: 60000 })();
   });
   // Shrink a picture for the company sheet: at most `max` px and small enough to store whole (about 60 KB).
   // Simple logos stay PNG (keeps transparency); detailed ones become JPEG on white.

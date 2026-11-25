@@ -55,27 +55,24 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Edit existing row
-    if (data.action === 'edit' && data.row && data.row[0]) {
+    // Edit (found by the number the ticket had when the edit started) or save.
+    // A save whose ticket number already exists updates that row, so a resent save never makes a duplicate.
+    if ((data.action === 'edit' || data.action === 'save') && data.row && data.row[0]) {
       const lastRow = sheet.getLastRow();
-      if (lastRow >= 2) {
+      const find = key => {
+        if (lastRow < 2 || !key) return -1;
         const nums = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-        for (let i = 0; i < nums.length; i++) {
-          if (String(nums[i][0]) === String(data.row[0])) {
-            sheet.getRange(i + 2, 1, 1, data.row.length).setValues([data.row]);
-            break;
-          }
-        }
+        for (let i = 0; i < nums.length; i++) if (String(nums[i][0]) === String(key)) return i + 2;
+        return -1;
+      };
+      let at = find(data.action === 'edit' ? (data.original || data.row[0]) : data.row[0]);
+      if (at < 0 && data.action === 'edit') at = find(data.row[0]);
+      if (at > 0) {
+        sheet.getRange(at, 1, 1, data.row.length).setValues([data.row]);
+        return ContentService.createTextOutput(JSON.stringify({ status: 'edited' })).setMimeType(ContentService.MimeType.JSON);
       }
-      return ContentService.createTextOutput(JSON.stringify({ status: 'edited' }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Save new ticket
-    if (data.action === 'save' && data.row) {
       sheet.appendRow(data.row);
-      return ContentService.createTextOutput(JSON.stringify({ status: 'ok' }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify({ status: 'ok' })).setMimeType(ContentService.MimeType.JSON);
     }
 
     return ContentService.createTextOutput(JSON.stringify({ status: 'unknown' }))

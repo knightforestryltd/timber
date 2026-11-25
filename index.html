@@ -1830,6 +1830,9 @@ renderSettings();
     } catch (e) { if (e && e.name !== 'AbortError' && !/cancel/i.test(String(e.message || e))) prompt('Copy this link:', pageUrl); }
   };
 })();
+// this page applies company settings itself (with its Save to Company / unsaved-change handling)
+window.kfOwnSync = true;
+if (window.kfLive) kfLive(() => pullCompany(false), { ms: 60000, when: () => !!(settings.syncUrl || '').trim() });
 if (location.hash === '#settings') { showView('settings'); try { history.replaceState(history.state, '', location.pathname); } catch (e) {} }
 
 </script>

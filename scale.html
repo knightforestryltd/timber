@@ -3,30 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Tickets — Operations</title>
+  <title>Tickets</title>
   <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
 <script src="nav.js"></script>
 <style>
-    .card { background: var(--card); margin: 10px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); }
-    h1 { margin: 0 0 12px; font-size: 1.4rem; }
-    .weight { font-size: 3rem; font-weight: 700; text-align: center; color: var(--accent-text); margin: 10px 0; letter-spacing: 1px; }
-    .status { text-align: center; color: var(--muted); margin-bottom: 10px; }
-    button { width: 100%; padding: 14px; margin: 6px 0; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; font-family: inherit; cursor: pointer; }
-    button.primary { background: var(--btn-bg); color: #fff; }
-    button.secondary { background: var(--btn2-bg); color: var(--btn2-text); border: 1px solid var(--border); }
-    input, select, textarea { width: 100%; padding: 12px; margin: 6px 0; min-height: 46px; }
-    textarea { min-height: 90px; }
-    .hidden { display: none !important; }
-    .ticket { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin: 10px 0; }
-    .net { font-size: 1.4rem; font-weight: 700; color: var(--accent-text); margin: 10px 0; text-align: center; }
-    .profit { font-size: 1.2rem; font-weight: 700; color: var(--good); margin: 6px 0; text-align: center; }
-    label { font-weight: 600; font-size: .9rem; display: block; margin-top: 12px; }
-    .row { display: flex; gap: 8px; align-items: center; }
-    .row input { flex: 1; }
-    .row button { width: auto; padding: 12px 16px; margin: 0; }
-    .btn-row { display: flex; gap: 6px; margin-top: 8px; }
-    .btn-row button { flex: 1; padding: 10px; margin: 0; }
+.container { max-width: 720px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+.card h2 { margin: 0 0 10px; font-size: 1.15rem; }
+.hidden { display: none !important; }
+.small { font-size: .85rem; color: var(--muted); }
+label { display: block; margin: 10px 0 4px; font-size: .9rem; font-weight: 600; }
+input, select, textarea { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 4px; font-size: 16px; box-sizing: border-box; }
+textarea { min-height: 80px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.inrow { display: flex; gap: 8px; align-items: center; } .inrow input { flex: 1; margin: 0; } .inrow .btn { flex: 0 0 auto; margin: 0; }
+.full { width: 100%; margin-top: 8px; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; } .btnrow .btn { flex: 1; }
+.weight { font-size: 2.8rem; font-weight: 800; text-align: center; color: var(--accent-text); letter-spacing: 1px; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.status { text-align: center; color: var(--muted); font-size: .9rem; }
+.bigval { font-size: 1.4rem; font-weight: 800; text-align: center; margin: 10px 0; color: var(--accent-text); }
+.profit { color: var(--good); font-weight: 700; text-align: center; margin: 6px 0; }
+.tk { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: var(--card); }
+.tk .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.tk .num { font-weight: 800; } .tk .net { font-weight: 800; font-size: 1.15rem; white-space: nowrap; }
+.tk .tag { font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--warn-bg); color: var(--warn-text); margin-left: 6px; }
+.danger { color: var(--bad) !important; border-color: var(--bad) !important; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: none; align-items: flex-start; justify-content: center; padding: 12px; overflow: auto; }
+.overlay.show { display: flex; }
+.sheet { background: var(--card); color: var(--text); border-radius: 16px; width: 100%; max-width: 520px; padding: 18px; margin: auto 0; box-shadow: 0 20px 40px rgba(0,0,0,.3); }
+.sheet h3 { margin: 0 0 8px; }
+pre.receipt { background: #fff; color: #000; font: 13px/1.35 "Courier New", monospace; padding: 12px; border-radius: 8px; border: 1px solid var(--border); white-space: pre; overflow-x: auto; margin: 8px 0; }
+.opt { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
+.opt small { display: block; font-weight: 400; color: var(--muted); }
+/* scale monitor keeps its compact controls */
+#monitor button { width: 100%; padding: 12px; margin: 6px 0; border-radius: 8px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid var(--border); }
+#monitor button.primary { background: var(--btn-bg); color: #fff; border-color: transparent; }
+#monitor button.secondary { background: var(--btn2-bg); color: var(--btn2-text); }
+#monitor input, #monitor select { margin: 6px 0; }
 </style>
 </head>
 <body>
@@ -49,101 +63,90 @@
   <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
 </header>
 
-<div id="login" class="card">
-  <h1>SI Scale Ticket</h1>
-  <p>Enter password to continue</p>
+<div class="container">
+<div id="login" class="card hidden">
+  <h2>Tickets</h2>
+  <p class="small">Enter the tickets password.</p>
   <input id="passInput" type="password" placeholder="Password">
-  <button class="primary" onclick="doLogin()">Login</button>
-  <p style="font-size:0.85rem; color:var(--muted); margin-top:12px;">New user? Use password <b>knight</b> then set your own sheet link in Settings.</p>
+  <button class="btn full" onclick="doLogin()">Log in</button>
 </div>
 
-<div style="text-align:right; margin:8px 10px 0;"><a href="./" style="text-decoration:none; color:var(--link); font-weight:600;">← Quotes</a></div>
-<div id="home" class="card hidden">
-  <h1>SI Scale Ticket</h1>
-  <div class="weight" id="liveWeight">------</div>
-  <div class="status" id="status">Not connected</div>
-  <div style="display:flex; gap:8px;">
-    <select id="baud" onchange="savePrefs()">
-      <option value="9600">9600 baud (standard)</option>
-      <option value="4800">4800</option>
-      <option value="2400">2400</option>
-      <option value="1200">1200</option>
-      <option value="19200">19200</option>
-      <option value="38400">38400</option>
-      <option value="57600">57600</option>
-      <option value="115200">115200</option>
-    </select>
-    <select id="fmt" onchange="savePrefs()">
-      <option value="8N1">8-N-1 (standard)</option>
-      <option value="7E1">7-E-1</option>
-      <option value="7N2">7-N-2</option>
-      <option value="8E1">8-E-1</option>
-    </select>
+<div id="home" class="hidden">
+  <div class="card">
+    <div class="weight" id="liveWeight">------</div>
+    <div class="status" id="status">Not connected</div>
+    <div id="rawLine" style="font-family:monospace;font-size:.75rem;color:var(--muted);margin:6px 0;min-height:1em;word-break:break-all;text-align:center;"></div>
+    <details id="connBox" style="margin-top:6px;"><summary class="small" style="cursor:pointer;"><b>Scale connection</b></summary>
+      <div class="row2" style="margin-top:8px;">
+        <select id="baud" onchange="savePrefs()"><option value="9600">9600 baud (standard)</option><option value="4800">4800</option><option value="2400">2400</option><option value="1200">1200</option><option value="19200">19200</option><option value="38400">38400</option><option value="57600">57600</option><option value="115200">115200</option></select>
+        <select id="fmt" onchange="savePrefs()"><option value="8N1">8-N-1 (standard)</option><option value="7E1">7-E-1</option><option value="7N2">7-N-2</option><option value="8E1">8-E-1</option></select>
+      </div>
+      <button class="btn full" id="btnSerial" onclick="connectSerial()">Connect scale: USB cable or paired Bluetooth</button>
+      <button class="btn full" id="btnBle" onclick="connectBle()">Connect scale: Bluetooth (BLE)</button>
+      <button class="btn btn-outline full hidden" id="reconnectBtn" onclick="reconnectLast()">Reconnect last scale</button>
+      <button class="btn btn-outline full" id="disconnectBtn" onclick="disconnectScale()" style="display:none;">Disconnect scale</button>
+      <div id="supportNote" class="small" style="color:var(--amber);margin-top:6px;"></div>
+    </details>
   </div>
-  <button class="primary" id="btnSerial" onclick="connectSerial()">Connect Serial (USB cable or paired Bluetooth)</button>
-  <button class="primary" id="btnBle" onclick="connectBle()">Connect Bluetooth (BLE)</button>
-  <button class="secondary hidden" id="reconnectBtn" onclick="reconnectLast()">Reconnect last scale</button>
-  <button class="secondary" id="disconnectBtn" onclick="disconnectScale()" style="display:none;">Disconnect</button>
-  <div id="rawLine" style="font-family:monospace; font-size:0.75rem; color:var(--muted); margin:6px 0; min-height:1em; word-break:break-all;"></div>
-  <div id="supportNote" style="font-size:0.8rem; color:var(--amber); margin-bottom:8px;"></div>
-  <button class="primary" onclick="newTicket()">New Ticket</button>
-  <button class="secondary" onclick="showScreen('history')">Ticket History</button>
-  <button class="secondary" onclick="showScreen('settings')">Settings</button>
+  <button class="btn full" style="min-height:58px;font-size:1.1rem;margin:0 0 10px;" onclick="newTicket()">+ New ticket</button>
+  <button class="menu-item" onclick="showScreen('history')">Tickets <span class="small" id="homeCount"></span></button>
+  <button class="menu-item" onclick="showScreen('settings')">Settings</button>
 </div>
 
 <div id="ticket" class="card hidden">
-  <h1 id="formTitle">New Ticket</h1>
-  <input id="tm9" placeholder="Ticket Number">
-  <select id="book">
-    <option>Alberta Forestry</option>
-    <option>Birch</option>
-    <option>Dry Softwood</option>
-    <option>Sawlog</option>
-    <option>Tamarack</option>
-    <option>Poplar</option>
-  </select>
-  <input id="customer" placeholder="Customer Name">
-  <input id="source" placeholder="Source">
-
-  <label>Empty (Tare) Weight</label>
-  <div class="row">
-    <input id="tare" type="number" placeholder="Manual or live" oninput="updateCalcs()">
-    <button class="secondary" onclick="captureTare()">Use Live</button>
+  <h2 id="formTitle">New ticket</h2>
+  <label for="tm9">Ticket number</label><input id="tm9" placeholder="Ticket number" autocapitalize="characters">
+  <div class="row2">
+    <div><label for="book">Product</label><select id="book"><option>Alberta Forestry</option><option>Birch</option><option>Dry Softwood</option><option>Sawlog</option><option>Tamarack</option><option>Poplar</option></select></div>
+    <div><label for="customer">Customer</label><input id="customer" placeholder="Customer name"></div>
   </div>
-
-  <label>Loaded (Gross) Weight</label>
-  <div class="row">
-    <input id="gross" type="number" placeholder="Manual or live" oninput="updateCalcs()">
-    <button class="secondary" onclick="captureGross()">Use Live</button>
+  <label for="source">Source / supplier</label><input id="source" placeholder="Source">
+  <label for="tare">Empty (tare) weight</label>
+  <div class="inrow"><input id="tare" type="number" inputmode="decimal" placeholder="Type or use live" oninput="updateCalcs()"><button class="btn btn-outline" onclick="captureTare()">Use live</button></div>
+  <label for="gross">Loaded (gross) weight</label>
+  <div class="inrow"><input id="gross" type="number" inputmode="decimal" placeholder="Type or use live" oninput="updateCalcs()"><button class="btn btn-outline" onclick="captureGross()">Use live</button></div>
+  <div class="bigval" id="netDisplay">Net: —</div>
+  <div class="row2">
+    <div><label for="purchase">Purchase (total $)</label><input id="purchase" type="number" inputmode="decimal" step="0.01" placeholder="0.00" oninput="updateCalcs()"></div>
+    <div><label for="sale">Sale (total $)</label><input id="sale" type="number" inputmode="decimal" step="0.01" placeholder="0.00" oninput="updateCalcs()"></div>
   </div>
-
-  <div class="net" id="netDisplay">Net: —</div>
-
-  <label>Purchase Price (total $)</label>
-  <input id="purchase" type="number" step="0.01" placeholder="0.00" oninput="updateCalcs()">
-
-  <label>Sale Price (total $)</label>
-  <input id="sale" type="number" step="0.01" placeholder="0.00" oninput="updateCalcs()">
-
   <div class="profit" id="profitDisplay">Profit: —</div>
-
-  <label>Notes</label>
-  <textarea id="notes" rows="3" placeholder="Private notes"></textarea>
-
-  <button class="primary" onclick="saveTicket()">Save Ticket</button>
-  <button class="secondary" id="deleteBtn" onclick="deleteTicket()" style="background:#d32f2f; color:white; display:none;">Delete Ticket</button>
-  <button class="secondary" onclick="showScreen('home')">Cancel</button>
+  <label for="notes">Notes (office only)</label><textarea id="notes" rows="3" placeholder="Private notes: only on the office copy"></textarea>
+  <div class="err" id="tkErr" style="color:var(--bad);font-weight:600;min-height:1em;margin-top:6px;"></div>
+  <button class="btn full" id="saveBtn" onclick="saveTicket()">Save ticket</button>
+  <div class="btnrow"><button class="btn btn-outline" onclick="cancelTicket()">Cancel</button><button class="btn btn-outline danger" id="deleteBtn" onclick="deleteTicket()" style="display:none;">Delete</button></div>
 </div>
 
-<div id="history" class="card hidden">
-  <h1>Ticket History</h1>
+<div id="history" class="hidden">
+  <button class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="showScreen('home')">&larr; Back</button>
+  <div class="card" style="padding:12px;">
+    <div class="inrow"><input id="tkSearch" placeholder="Search ticket, customer, source" oninput="renderHistory()"><button class="btn btn-outline" onclick="loadTickets(true)" title="Refresh">↻</button></div>
+    <div class="small" id="tkUpdated" style="margin-top:6px;"></div>
+  </div>
   <div id="historyList"></div>
-  <div id="summary" style="margin-top:16px; padding:12px; background:var(--info-bg); color:var(--info-text); border-radius:8px;"></div>
-  <button class="secondary" onclick="showScreen('home')">Back</button>
+  <div id="summary" class="card"></div>
+</div>
+
+<div id="settings" class="hidden">
+  <button class="btn btn-outline btn-sm" style="margin-bottom:10px;" onclick="showScreen('home')">&larr; Back</button>
+  <div class="card" id="tkLinks"></div>
+  <div class="card">
+    <h2>Receipt printer</h2>
+    <div class="small">For the <b>Print</b> option on tickets: a Bluetooth or USB thermal receipt printer (ESC/POS). Works in Chrome on Android or a laptop.</div>
+    <div class="small" id="prStatus" style="margin:8px 0;font-weight:600;">No printer connected.</div>
+    <div class="row2">
+      <div><label for="prWidth">Paper width</label><select id="prWidth" onchange="prSave()"><option value="32">58 mm (32 characters)</option><option value="48">80 mm (48 characters)</option></select></div>
+      <div><label for="prBaud">USB / serial speed</label><select id="prBaud" onchange="prSave()"><option>9600</option><option>19200</option><option>38400</option><option>115200</option></select></div>
+    </div>
+    <label style="display:flex;gap:10px;align-items:center;font-weight:400;"><input type="checkbox" id="prCut" onchange="prSave()"> Cut the paper after each receipt</label>
+    <div class="btnrow"><button class="btn" onclick="printerConnect('ble')">Connect Bluetooth printer</button><button class="btn btn-outline" onclick="printerConnect('serial')">Connect USB / serial</button></div>
+    <button class="btn btn-outline full" onclick="printerTest()">Print a test receipt</button>
+  </div>
+  <button class="menu-item" onclick="showScreen('monitor')">Scale monitor (see raw scale data)</button>
 </div>
 
 <div id="monitor" class="card hidden">
-  <h1>Scale Monitor</h1>
+  <h2>Scale monitor</h2>
   <div style="display:flex; gap:6px;">
     <select id="mBaud" onchange="monSyncPrefs()">
       <option value="9600">9600</option><option value="4800">4800</option><option value="2400">2400</option><option value="1200">1200</option>
@@ -193,295 +196,312 @@
   </div>
   <button class="secondary" onclick="showScreen('settings')">Back</button>
 </div>
-
-<div id="settings" class="card hidden">
-  <h1>Settings</h1>
-  <p>Paste your own Apps Script web app URL to use a separate sheet.<br>Leave blank for local-only tickets.</p>
-  <input id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-  <button class="primary" onclick="saveSettings()">Save Settings</button>
-  <button class="secondary" onclick="showScreen('monitor')">Scale Monitor (see raw incoming data)</button>
-  <button class="secondary" onclick="showScreen('home')">Back</button>
-  <p style="font-size:0.8rem; color:var(--muted); margin-top:20px;">Paste your Apps Script URL to load and save tickets to a sheet.</p>
 </div>
 
-<script>
-const DEFAULT_SCRIPT = '';
-const PASSWORD = 'knight';
+<div class="overlay" id="shareOv"><div class="sheet" id="shareBox"></div></div>
 
+<script>
+/* ============================== tickets ==============================
+   A ticket is one row: [Ticket, Product, Customer, Source, Tare, Gross, Net, Purchase, Sale, Time, Notes]
+   (the same columns Dispatch and Billing read). */
+const PASSWORD = 'knight';                     // only for a device on the old separate scripts
 let SCRIPT_URL = localStorage.getItem('scriptUrl') || '';
 let tickets = [];
 let liveWeight = 0;
 let serialPort = null;
-let editing = -1;
+let editing = -1;                              // index in tickets[] while editing
+let editingOriginal = null;                    // the ticket number when the edit started
+const el = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => (+v || 0).toLocaleString();
+const money = v => '$' + (+v || 0).toFixed(2);
 
 function doLogin() {
-  const pass = document.getElementById('passInput').value;
-  if (pass === PASSWORD) {
-    localStorage.setItem('loggedIn', 'true');
-    document.getElementById('login').classList.add('hidden');
-    showScreen('home');
-    loadTickets();
-  } else {
-    alert('Wrong password');
-  }
+  if (el('passInput').value === PASSWORD) { localStorage.setItem('loggedIn', 'true'); el('login').classList.add('hidden'); showScreen('home'); loadTickets(); }
+  else alert('Wrong password');
 }
-
 // phone back button (nav.js): one level at a time
 window.kfBack = function () {
-  const vis = id => { const el = document.getElementById(id); return el && !el.classList.contains('hidden'); };
+  const vis = id => { const e = el(id); return e && !e.classList.contains('hidden'); };
+  if (el('shareOv').classList.contains('show')) { closeShare(); return true; }
   if (vis('login')) return false;
   if (vis('monitor')) { showScreen('settings'); return true; }
-  if (vis('ticket')) { showScreen(editing >= 0 ? 'history' : 'home'); return true; }
+  if (vis('ticket')) { cancelTicket(); return true; }
   if (vis('history') || vis('settings')) { showScreen('home'); return true; }
   return false;
 };
+let screen = 'home';
 function showScreen(id) {
-  ['home','ticket','history','settings','monitor'].forEach(s => {
-    const el = document.getElementById(s);
-    if (el) el.classList.add('hidden');
-  });
-  const target = document.getElementById(id);
-  if (target) target.classList.remove('hidden');
-  if (id === 'history') renderHistory();
+  ['home', 'ticket', 'history', 'settings', 'monitor'].forEach(s => { const e = el(s); if (e) e.classList.add('hidden'); });
+  const t = el(id); if (t) t.classList.remove('hidden');
+  screen = id; window.scrollTo(0, 0);
+  if (id === 'history') { renderHistory(); loadTickets(); }
+  if (id === 'home') updateCount();
   if (id === 'monitor') monitorOpened();
-  if (id === 'settings') {
-    document.getElementById('scriptUrlInput').value = localStorage.getItem('scriptUrl') || '';
-  }
+  if (id === 'settings') { kfLinks.card(el('tkLinks'), ['scriptUrl'], () => { SCRIPT_URL = kfLinks.get('scriptUrl'); loadTickets(true); }); prShow(); }
 }
+function updateCount() { el('homeCount').textContent = tickets.length ? '· ' + tickets.length : ''; }
 
-function saveSettings() {
-  const url = document.getElementById('scriptUrlInput').value.trim();
-  if (url) {
-    localStorage.setItem('scriptUrl', url);
-    SCRIPT_URL = url;
-  } else {
-    localStorage.removeItem('scriptUrl');
-    SCRIPT_URL = '';
-  }
-  localStorage.setItem('scriptUrlAt', String(Date.now()));   // lets company sync tell which copy is newer
-  localStorage.setItem('kfDirty', '1');                        // Quote → Company Sync: "not saved to company yet"
-  alert(url ? 'Settings saved. Reloading history...' : 'Sheet link cleared. Tickets stay local.');
-  if (SCRIPT_URL) loadTickets();
-  showScreen('home');
+/* ---------- numbering: same prefix as Dispatch (company initials-YYYY-MMDD-NN) ---------- */
+function companyInitials() {
+  let name = ''; try { name = (JSON.parse(localStorage.getItem('kfCompany') || '{}').name) || (JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}').companyName) || ''; } catch (e) {}
+  const parts = (name || 'Company').replace(/ltd|inc|llc|corp/gi, '').trim().split(/\s+/);
+  return (((parts[0] || '')[0] || '') + ((parts[1] || '')[0] || '')).toUpperCase() || 'CO';
 }
-
 function generateTicketNumber() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,'0');
-  const d = String(now.getDate()).padStart(2,'0');
-  const prefix = `KF-${y}-${m}${d}-`;
-  const todayTickets = tickets.filter(t => (t[0]||'').startsWith(prefix));
-  const seq = String(todayTickets.length + 1).padStart(2,'0');
-  return prefix + seq;
+  const now = new Date(), prefix = `${companyInitials()}-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-`;
+  const used = tickets.map(t => String(t[0] || '')).filter(t => t.startsWith(prefix)).map(t => parseInt(t.slice(prefix.length), 10) || 0);
+  return prefix + String((used.length ? Math.max.apply(null, used) : 0) + 1).padStart(2, '0');
 }
 
 function newTicket() {
-  editing = -1;
-  document.getElementById('formTitle').textContent = 'New Ticket';
-  document.getElementById('deleteBtn').style.display = 'none';
-  document.getElementById('tm9').value = generateTicketNumber();
-  document.getElementById('customer').value = '';
-  document.getElementById('source').value = '';
-  document.getElementById('tare').value = '';
-  document.getElementById('gross').value = '';
-  document.getElementById('purchase').value = '';
-  document.getElementById('sale').value = '';
-  document.getElementById('notes').value = '';
-  updateCalcs();
-  showScreen('ticket');
+  editing = -1; editingOriginal = null;
+  el('formTitle').textContent = 'New ticket'; el('deleteBtn').style.display = 'none'; el('tkErr').textContent = '';
+  el('tm9').value = generateTicketNumber();
+  ['customer', 'source', 'tare', 'gross', 'purchase', 'sale', 'notes'].forEach(id => el(id).value = '');
+  updateCalcs(); showScreen('ticket');
 }
-
-function captureTare() {
-  if (liveWeight > 0) document.getElementById('tare').value = liveWeight;
-  updateCalcs();
-}
-function captureGross() {
-  if (liveWeight > 0) document.getElementById('gross').value = liveWeight;
-  updateCalcs();
-}
-
+function cancelTicket() { const back = editing >= 0 ? 'history' : 'home'; editing = -1; editingOriginal = null; showScreen(back); }
+function captureTare() { if (liveWeight > 0) el('tare').value = liveWeight; updateCalcs(); }
+function captureGross() { if (liveWeight > 0) el('gross').value = liveWeight; updateCalcs(); }
 function updateCalcs() {
-  const tare = +document.getElementById('tare').value || 0;
-  const gross = +document.getElementById('gross').value || 0;
-  const net = gross - tare;
-  const buy = +document.getElementById('purchase').value || 0;
-  const sell = +document.getElementById('sale').value || 0;
-  const profit = sell - buy;
-  document.getElementById('netDisplay').textContent = 'Net: ' + (net > 0 ? net.toLocaleString() : '—');
-  document.getElementById('profitDisplay').textContent = 'Profit: ' + ((buy || sell) ? '$' + profit.toFixed(2) : '—');
+  const tare = +el('tare').value || 0, gross = +el('gross').value || 0, net = gross - tare;
+  const buy = +el('purchase').value || 0, sell = +el('sale').value || 0;
+  el('netDisplay').textContent = 'Net: ' + (net > 0 ? net.toLocaleString() : '—');
+  el('profitDisplay').textContent = 'Profit: ' + ((buy || sell) ? '$' + (sell - buy).toFixed(2) : '—');
   return net;
 }
 
-async function loadTickets() {
-  if (!SCRIPT_URL) { console.log('No sheet URL set'); return; }
+/* ---------- talking to the sheet ---------- */
+// Tickets not yet confirmed by the sheet wait here and are sent again automatically.
+function queue() { try { return JSON.parse(localStorage.getItem('kfTicketQueue') || '[]'); } catch (e) { return []; } }
+function setQueue(q) { localStorage.setItem('kfTicketQueue', JSON.stringify(q)); }
+async function send(body) {
+  const r = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  let j = {}; try { j = await r.json(); } catch (e) {}
+  if (j.status === 'nokey') throw new Error('This device is not connected to the company.');
+  if (j.status === 'error') throw new Error(j.message || 'Sheet error');
+  return j;
+}
+let flushing = false;
+async function flushQueue() {
+  if (flushing || !SCRIPT_URL || navigator.onLine === false) return;
+  flushing = true;
   try {
-    const res = await fetch(SCRIPT_URL);
+    let q = queue();
+    while (q.length) {
+      try { await send(q[0]); } catch (e) { if (/not connected/.test(e.message)) alert(e.message); break; }
+      q = queue(); q.shift(); setQueue(q);
+    }
+  } finally { flushing = false; }
+}
+let lastLoad = 0;
+async function loadTickets(manual) {
+  if (!SCRIPT_URL) { renderHistory(); return; }
+  await flushQueue();
+  try {
+    const res = await fetch(SCRIPT_URL + (SCRIPT_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
     const data = await res.json();
-    if (Array.isArray(data)) tickets = data.filter(r => r && r[0]);
-    else if (data && data.rows) tickets = data.rows.filter(r => r && r[0]);
-  } catch(e) { console.log(e); }
-  if (document.getElementById('history') && !document.getElementById('history').classList.contains('hidden')) {
-    renderHistory();
-  }
+    if (data && data.status === 'nokey') { el('tkUpdated').textContent = 'This device is not connected to the company. Connect on the Quote page.'; return; }
+    const rows = Array.isArray(data) ? data : (data && data.rows) || [];
+    tickets = rows.filter(r => r && r[0]).reverse();          // newest first
+    lastLoad = Date.now();
+  } catch (e) { if (manual) el('tkUpdated').textContent = 'No signal: showing the tickets saved on this device.'; }
+  // tickets still waiting to be sent stay visible
+  queue().forEach(q => {
+    if (q.action === 'delete') { tickets = tickets.filter(t => String(t[0]) !== String(q.ticket)); return; }
+    const key = String(q.original || q.row[0]), i = tickets.findIndex(t => String(t[0]) === key || String(t[0]) === String(q.row[0]));
+    const row = q.row.slice(); row._pending = true;
+    if (i >= 0) tickets[i] = row; else tickets.unshift(row);
+  });
+  updateCount();
+  if (screen === 'history') renderHistory();
 }
 
 function renderHistory() {
-  const list = document.getElementById('historyList');
-  if (!tickets.length) {
-    list.innerHTML = '<p>No tickets yet</p>';
-  } else {
-    list.innerHTML = tickets.map((r, i) => `
-      <div class="ticket">
-        <b>${r[0]}</b> — ${r[1]||''}<br>
-        ${r[2]||'—'} · ${r[3]||'—'}<br>
-        Tare ${(+r[4]||0).toLocaleString()} | Gross ${(+r[5]||0).toLocaleString()} | <b>Net ${(+r[6]||0).toLocaleString()}</b><br>
-        Buy $${(+r[7]||0).toFixed(2)} &nbsp; Sale $${(+r[8]||0).toFixed(2)}<br>
-        <small>${r[9]||''}</small>
-        <div class="btn-row">
-          <button class="secondary" onclick="editTicket(${i})">Edit</button>
-        </div>
-        <div class="btn-row">
-          <button class="secondary" onclick="shareTicket(${i}, 'customer')">Customer</button>
-          <button class="secondary" onclick="shareTicket(${i}, 'supplier')">Supplier</button>
-          <button class="secondary" onclick="shareTicket(${i}, 'office')">Office</button>
-        </div>
-        <div class="btn-row">
-          <button class="secondary" onclick="printTicket(${i}, 'customer')">Print Customer</button>
-          <button class="secondary" onclick="printTicket(${i}, 'supplier')">Print Supplier</button>
-          <button class="secondary" onclick="printTicket(${i}, 'office')">Print Office</button>
-        </div>
+  const qs = (el('tkSearch').value || '').trim().toLowerCase();
+  const list = tickets.map((r, i) => ({ r, i })).filter(x => !qs || [x.r[0], x.r[1], x.r[2], x.r[3]].some(v => String(v || '').toLowerCase().includes(qs)));
+  el('historyList').innerHTML = list.length ? list.map(({ r, i }) => `
+    <div class="tk">
+      <div class="top"><span class="num">${esc(r[0])}${r._pending ? '<span class="tag">not sent yet</span>' : ''}</span><span class="net">Net ${num(r[6])}</span></div>
+      <div class="small">${esc(r[1] || '')} · ${esc(r[2] || '—')} · from ${esc(r[3] || '—')}</div>
+      <div class="small">Tare ${num(r[4])} · Gross ${num(r[5])}${(+r[7] || +r[8]) ? ` · Buy ${money(r[7])} · Sale ${money(r[8])}` : ''} · ${esc(r[9] || '')}</div>
+      <div class="btnrow">
+        <button class="btn btn-sm" onclick="openShare(${i}, 'client')">Client</button>
+        <button class="btn btn-sm" onclick="openShare(${i}, 'supplier')">Supplier</button>
+        <button class="btn btn-sm" onclick="openShare(${i}, 'office')">Office</button>
+        <button class="btn btn-sm btn-outline" style="flex:0 0 auto;" onclick="editTicket(${i})">Edit</button>
       </div>
-    `).join('');
-  }
-  const totalNet = tickets.reduce((s,r)=>s+(+r[6]||0),0);
-  const totalCost = tickets.reduce((s,r)=>s+(+r[7]||0),0);
-  const totalSale = tickets.reduce((s,r)=>s+(+r[8]||0),0);
-  document.getElementById('summary').innerHTML = `
-    <b>Summary</b><br>
-    Tickets: ${tickets.length}<br>
-    Total Net: ${totalNet.toLocaleString()}<br>
-    Total Cost: $${totalCost.toFixed(2)}<br>
-    Total Sale: $${totalSale.toFixed(2)}<br>
-    <b>Total Profit: $${(totalSale-totalCost).toFixed(2)}</b>
-  `;
+    </div>`).join('') : `<div class="card small">${tickets.length ? 'No tickets match the search.' : 'No tickets yet.'}</div>`;
+  const tn = tickets.reduce((s, r) => s + (+r[6] || 0), 0), tc = tickets.reduce((s, r) => s + (+r[7] || 0), 0), ts = tickets.reduce((s, r) => s + (+r[8] || 0), 0);
+  el('summary').innerHTML = `<h2>Summary</h2><div class="small">Tickets: <b>${tickets.length}</b> · Total net: <b>${tn.toLocaleString()}</b><br>Cost ${money(tc)} · Sale ${money(ts)} · <b>Profit ${money(ts - tc)}</b></div>`;
+  el('tkUpdated').textContent = lastLoad ? 'Updated ' + new Date(lastLoad).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' · refreshes by itself' : '';
 }
 
 function editTicket(i) {
-  const r = tickets[i];
-  if (!r) return;
-  editing = i;
-  document.getElementById('formTitle').textContent = 'Edit Ticket';
-  document.getElementById('tm9').value = r[0] || '';
-  document.getElementById('book').value = r[1] || 'Birch';
-  document.getElementById('customer').value = r[2] || '';
-  document.getElementById('source').value = r[3] || '';
-  document.getElementById('tare').value = r[4] || '';
-  document.getElementById('gross').value = r[5] || '';
-  document.getElementById('purchase').value = r[7] || '';
-  document.getElementById('sale').value = r[8] || '';
-  document.getElementById('notes').value = r[10] || '';
-  document.getElementById('deleteBtn').style.display = 'block';
-  updateCalcs();
-  showScreen('ticket');
-}
-
-async function deleteTicket() {
-  if (editing < 0) return;
-  if (!confirm('Delete this ticket?')) return;
-  const ticketNum = tickets[editing] && tickets[editing][0];
-  tickets.splice(editing, 1);
-  editing = -1;
-  document.getElementById('deleteBtn').style.display = 'none';
-  if (SCRIPT_URL && ticketNum) {
-    try {
-      await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', ticket: ticketNum }) });
-    } catch (e) {}
-  }
-  alert('Ticket deleted.');
-  showScreen('history');
-}
-
-function shareTicket(i, mode) {
-  const r = tickets[i];
-  if (!r) return;
-  const base = `Ticket: ${r[0]}\nTime: ${r[9]||'—'}\nProduct: ${r[1]||'—'}\n`;
-  let text = base;
-  if (mode === 'customer') {
-    text += `Customer: ${r[2]||'—'}\nTare: ${r[4]||'—'}\nGross: ${r[5]||'—'}\nNET: ${r[6]||'—'}\nNotes: ${r[10]||''}`;
-  } else if (mode === 'supplier') {
-    text += `Source: ${r[3]||'—'}\nTare: ${r[4]||'—'}\nGross: ${r[5]||'—'}\nNET: ${r[6]||'—'}\nPurchase: $${r[7]||0}\nNotes: ${r[10]||''}`;
-  } else {
-    text += `Customer: ${r[2]||'—'}\nSource: ${r[3]||'—'}\nTare: ${r[4]||'—'}\nGross: ${r[5]||'—'}\nNET: ${r[6]||'—'}\nPurchase: $${r[7]||0}\nSale: $${r[8]||0}\nNotes: ${r[10]||''}`;
-  }
-  if (navigator.share) {
-    navigator.share({ title: 'Scale Ticket', text });
-  } else {
-    prompt('Copy ticket:', text);
-  }
-}
-
-function printTicket(i, mode) {
-  const r = tickets[i];
-  if (!r) return;
-  const win = window.open('', '_blank');
-  let h = `<html><head><title>${r[0]}</title><style>body{font-family:Arial;padding:24px;} .line{margin:8px 0;font-size:16px;} .net{font-weight:bold;font-size:18px;}</style></head><body>`;
-  h += `<h2>SI Scale Ticket</h2>`;
-  h += `<div class="line"><b>Ticket:</b> ${r[0]}</div>`;
-  h += `<div class="line"><b>Time:</b> ${r[9]||'—'}</div>`;
-  h += `<div class="line"><b>Product:</b> ${r[1]||'—'}</div>`;
-  if (mode === 'customer') {
-    h += `<div class="line"><b>Customer:</b> ${r[2]||'—'}</div>`;
-    h += `<div class="line">Tare: ${r[4]||'—'}</div>`;
-    h += `<div class="line">Gross: ${r[5]||'—'}</div>`;
-    h += `<div class="line net">NET: ${r[6]||'—'}</div>`;
-  } else if (mode === 'supplier') {
-    h += `<div class="line"><b>Source:</b> ${r[3]||'—'}</div>`;
-    h += `<div class="line">Tare: ${r[4]||'—'}</div>`;
-    h += `<div class="line">Gross: ${r[5]||'—'}</div>`;
-    h += `<div class="line net">NET: ${r[6]||'—'}</div>`;
-    h += `<div class="line"><b>Purchase:</b> $${r[7]||0}</div>`;
-  } else {
-    h += `<div class="line"><b>Customer:</b> ${r[2]||'—'}</div>`;
-    h += `<div class="line"><b>Source:</b> ${r[3]||'—'}</div>`;
-    h += `<div class="line">Tare: ${r[4]||'—'}</div>`;
-    h += `<div class="line">Gross: ${r[5]||'—'}</div>`;
-    h += `<div class="line net">NET: ${r[6]||'—'}</div>`;
-    h += `<div class="line"><b>Purchase:</b> $${r[7]||0}</div>`;
-    h += `<div class="line"><b>Sale:</b> $${r[8]||0}</div>`;
-  }
-  if (r[10]) h += `<div class="line"><b>Notes:</b> ${r[10]}</div>`;
-  h += `<script>window.print();<\/script></body></html>`;
-  win.document.write(h);
-  win.document.close();
+  const r = tickets[i]; if (!r) return;
+  editing = i; editingOriginal = String(r[0] || '');
+  el('formTitle').textContent = 'Edit ticket'; el('tkErr').textContent = '';
+  el('tm9').value = r[0] || ''; el('book').value = r[1] || 'Birch'; el('customer').value = r[2] || ''; el('source').value = r[3] || '';
+  el('tare').value = r[4] || ''; el('gross').value = r[5] || ''; el('purchase').value = r[7] || ''; el('sale').value = r[8] || ''; el('notes').value = r[10] || '';
+  el('deleteBtn').style.display = 'block'; updateCalcs(); showScreen('ticket');
 }
 
 async function saveTicket() {
-  const net = updateCalcs();
-  const row = [
-    document.getElementById('tm9').value,
-    document.getElementById('book').value,
-    document.getElementById('customer').value,
-    document.getElementById('source').value,
-    document.getElementById('tare').value,
-    document.getElementById('gross').value,
-    net > 0 ? net : '',
-    document.getElementById('purchase').value,
-    document.getElementById('sale').value,
-    new Date().toLocaleString(),
-    document.getElementById('notes').value
-  ];
-  if (editing >= 0) {
-    tickets[editing] = row;
-    editing = -1;
-  } else {
-    tickets.unshift(row);
-  }
-  try {
-    await fetch(SCRIPT_URL, {method:'POST', mode:'no-cors', body: JSON.stringify({action: editing >= 0 ? 'edit' : 'save', row})});
-  } catch(e) {}
-  alert('Ticket saved');
+  const net = updateCalcs(), number = el('tm9').value.trim();
+  if (!number) { el('tkErr').textContent = 'Enter the ticket number.'; return; }
+  const wasEditing = editing >= 0, original = editingOriginal;
+  const clash = tickets.findIndex((t, i) => String(t[0]) === number && i !== editing);
+  if (clash >= 0) { el('tkErr').textContent = 'Ticket ' + number + ' already exists. Change the number, or open that ticket to edit it.'; return; }
+  const row = [number, el('book').value, el('customer').value.trim(), el('source').value.trim(), el('tare').value, el('gross').value, net > 0 ? net : '',
+    el('purchase').value, el('sale').value, wasEditing ? (tickets[editing][9] || new Date().toLocaleString()) : new Date().toLocaleString(), el('notes').value];
+  const body = wasEditing ? { action: 'edit', row, original } : { action: 'save', row };
+  if (wasEditing) tickets[editing] = row; else tickets.unshift(row);
+  editing = -1; editingOriginal = null;
+  el('saveBtn').disabled = true;
+  if (!SCRIPT_URL) { el('saveBtn').disabled = false; alert('Saved on this device only (no sheet link in Settings).'); showScreen('history'); return; }
+  const q = queue(); q.push(body); setQueue(q);
+  await flushQueue();
+  el('saveBtn').disabled = false;
+  if (queue().length) alert('No signal: the ticket is saved on this device and will be sent automatically.');
   showScreen('history');
+}
+
+async function deleteTicket() {
+  if (editing < 0 || !confirm('Delete this ticket?')) return;
+  const ticketNum = editingOriginal || (tickets[editing] && tickets[editing][0]);
+  tickets.splice(editing, 1); editing = -1; editingOriginal = null;
+  if (SCRIPT_URL && ticketNum) { const q = queue(); q.push({ action: 'delete', ticket: ticketNum }); setQueue(q); await flushQueue(); }
+  showScreen('history');
+}
+
+/* ---------- Client / Supplier / Office copies: copy text, share as PDF, print ---------- */
+const COPY_NAME = { client: 'CLIENT COPY', supplier: 'SUPPLIER COPY', office: 'OFFICE COPY' };
+function company() { try { return JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch (e) { return {}; } }
+function receiptLines(r, mode, width) {
+  width = width || 32;
+  const co = company(), line = '-'.repeat(width);
+  const kv = (k, v) => { const left = (k + ':').padEnd(10, ' '), room = width - left.length; const s = String(v == null || v === '' ? '-' : v); return left + (s.length > room ? s.slice(0, room) : s); };
+  const right = (k, v) => { const s = String(v); return (k + ':').padEnd(Math.max(1, width - s.length), ' ') + s; };
+  const center = s => { s = String(s).slice(0, width); const p = Math.floor((width - s.length) / 2); return ' '.repeat(Math.max(0, p)) + s; };
+  const out = [];
+  if (co.name) out.push(center(co.name.toUpperCase()));
+  if (co.phone) out.push(center(co.phone));
+  out.push(center('SCALE TICKET'), center(COPY_NAME[mode]), line);
+  out.push(kv('Ticket', r[0]), kv('Date', r[9]), kv('Product', r[1]));
+  if (mode !== 'supplier') out.push(kv('Customer', r[2]));
+  if (mode !== 'client') out.push(kv('Source', r[3]));
+  out.push(line, right('Gross', num(r[5])), right('Tare', num(r[4])), right('NET', num(r[6])), line);
+  if (mode === 'client' && +r[8]) out.push(right('Amount', money(r[8])), line);
+  if (mode === 'supplier' && +r[7]) out.push(right('Amount', money(r[7])), line);
+  if (mode === 'office') { out.push(right('Purchase', money(r[7])), right('Sale', money(r[8])), right('Profit', money((+r[8] || 0) - (+r[7] || 0))), line); if (r[10]) out.push('Notes: ' + r[10]); }
+  out.push(center('Thank you'));
+  return out;
+}
+let shareCtx = null;
+function openShare(i, mode) {
+  const r = tickets[i]; if (!r) return;
+  shareCtx = { r, mode };
+  const text = receiptLines(r, mode, 32).join('\n');
+  const canPrint = !!(navigator.bluetooth || navigator.serial);
+  el('shareBox').innerHTML = `<h3>${({ client: 'Client', supplier: 'Supplier', office: 'Office' })[mode]} copy · ${esc(r[0])}</h3>
+    <pre class="receipt">${esc(text)}</pre>
+    <button class="btn btn-outline opt" onclick="copyText()">Copy text<small>paste into a text message or email</small></button>
+    <button class="btn btn-outline opt" onclick="sharePdf()">Share as PDF<small>email, text, Drive, or the phone's print screen</small></button>
+    <button class="btn opt" onclick="printReceipt()" ${canPrint ? '' : 'disabled'}>Print<small style="color:inherit;opacity:.85">${canPrint ? (printerName() ? 'to ' + esc(printerName()) : 'to a Bluetooth or USB receipt printer') : 'receipt printers need Chrome on Android or a laptop'}</small></button>
+    <div class="small" id="shMsg" style="min-height:1.2em;margin:4px 0;font-weight:600;"></div>
+    <button class="btn btn-outline full" onclick="closeShare()">Close</button>`;
+  el('shareOv').classList.add('show');
+}
+function closeShare() { el('shareOv').classList.remove('show'); shareCtx = null; }
+el('shareOv').addEventListener('click', e => { if (e.target === el('shareOv')) closeShare(); });
+function say(t, bad) { const m = el('shMsg'); if (m) { m.textContent = t; m.style.color = bad ? 'var(--bad)' : 'var(--good)'; } }
+async function copyText() {
+  const text = receiptLines(shareCtx.r, shareCtx.mode, 32).join('\n');
+  try { await navigator.clipboard.writeText(text); say('Copied.'); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); say('Copied.'); } catch (e2) { prompt('Copy the ticket:', text); } ta.remove(); }
+}
+function loadPdfLib() { return window.html2pdf ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'html2pdf.bundle.min.js'; s.onload = res; s.onerror = () => rej(new Error('PDF tool not available offline')); document.head.appendChild(s); }); }
+async function sharePdf() {
+  const { r, mode } = shareCtx, text = receiptLines(r, mode, 32).join('\n'), name = `Ticket ${r[0]} ${mode}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
+  say('Making the PDF…', false); el('shMsg').style.color = 'var(--muted)';
+  try {
+    await loadPdfLib();
+    const box = document.createElement('div'); box.style.cssText = 'width:300px;background:#fff;';
+    const inner = document.createElement('pre'); inner.style.cssText = 'margin:0;padding:14px;font:13px/1.35 "Courier New",monospace;color:#000;background:#fff;white-space:pre;'; inner.textContent = text;
+    box.appendChild(inner); document.body.appendChild(box);
+    let blob; try { blob = await html2pdf().set({ margin: 2, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, backgroundColor: '#ffffff' }, jsPDF: { unit: 'mm', format: [80, Math.max(90, 10 + text.split('\n').length * 5.2)], orientation: 'portrait' } }).from(box).outputPdf('blob'); } finally { box.remove(); }
+    const file = new File([blob], name, { type: 'application/pdf' });
+    if (window.kfShareFile && await kfShareFile(file, name)) { say('Shared.'); return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); say('Shared.'); return; } catch (e) { if (e.name === 'AbortError') { say(''); return; } } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+    say('PDF downloaded.');
+  } catch (e) { say('Could not make the PDF: ' + e.message, true); }
+}
+
+/* ---------- thermal receipt printer (ESC/POS over Bluetooth LE or USB/serial) ---------- */
+const PRINTER_SERVICES = ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  '0000ff00-0000-1000-8000-00805f9b34fb', '0000ffe0-0000-1000-8000-00805f9b34fb', '0000fee7-0000-1000-8000-00805f9b34fb', '0000ae30-0000-1000-8000-00805f9b34fb', '6e400001-b5a3-f393-e0a9-e50e24dcca9e'];
+let printer = null;      // { kind, name, write(bytes) }
+function prPrefs() { try { return Object.assign({ width: 32, baud: 9600, cut: false }, JSON.parse(localStorage.getItem('kfPrinter') || '{}')); } catch (e) { return { width: 32, baud: 9600, cut: false }; } }
+function prSave() { localStorage.setItem('kfPrinter', JSON.stringify({ width: +el('prWidth').value, baud: +el('prBaud').value, cut: el('prCut').checked })); }
+function prShow() { const p = prPrefs(); el('prWidth').value = String(p.width); el('prBaud').value = String(p.baud); el('prCut').checked = !!p.cut; el('prStatus').textContent = printer ? 'Connected: ' + printer.name : 'No printer connected.'; }
+function printerName() { return printer && printer.name; }
+async function printerConnect(kind) {
+  try {
+    if (kind === 'serial') {
+      if (!navigator.serial) throw new Error('USB / serial printing needs Chrome on a laptop or Android.');
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: prPrefs().baud });
+      const w = port.writable.getWriter();
+      printer = { kind, name: 'USB / serial printer', write: async b => { await w.write(b); } };
+    } else {
+      if (!navigator.bluetooth) throw new Error('Bluetooth printing needs Chrome on Android or a laptop.');
+      const dev = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: PRINTER_SERVICES });
+      const srv = await dev.gatt.connect();
+      let ch = null;
+      for (const s of await srv.getPrimaryServices()) {
+        for (const c of await s.getCharacteristics()) { if (c.properties.write || c.properties.writeWithoutResponse) { ch = c; break; } }
+        if (ch) break;
+      }
+      if (!ch) throw new Error('No printing channel found on "' + (dev.name || 'this device') + '". Is it a receipt printer?');
+      dev.addEventListener('gattserverdisconnected', () => { printer = null; if (screen === 'settings') prShow(); });
+      printer = { kind, name: dev.name || 'Bluetooth printer', write: async b => {
+        for (let i = 0; i < b.length; i += 20) { const part = b.slice(i, i + 20); if (ch.properties.writeWithoutResponse && ch.writeValueWithoutResponse) await ch.writeValueWithoutResponse(part); else await ch.writeValue(part); await new Promise(r => setTimeout(r, 8)); }
+      } };
+    }
+    if (screen === 'settings') prShow();
+    return true;
+  } catch (e) {
+    if (e && e.name !== 'NotFoundError') alert('Printer: ' + e.message);
+    return false;
+  }
+}
+function escpos(lines, opts) {
+  const ascii = s => String(s).normalize('NFKD').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x0a\x20-\x7e]/g, '');
+  const out = [0x1b, 0x40];                                       // initialise
+  lines.forEach(l => {
+    const big = /^NET:/.test(l);
+    if (big) out.push(0x1b, 0x45, 1);                             // bold
+    for (const ch of ascii(l)) out.push(ch.charCodeAt(0));
+    out.push(0x0a);
+    if (big) out.push(0x1b, 0x45, 0);
+  });
+  out.push(0x0a, 0x0a, 0x0a);
+  if (opts && opts.cut) out.push(0x1d, 0x56, 0x42, 0x00);         // partial cut
+  return new Uint8Array(out);
+}
+async function printReceipt() {
+  if (!printer) { say('Choose your printer…', false); if (!(await printerConnect('ble'))) { say('No printer connected. Settings → Receipt printer has USB / serial too.', true); return; } }
+  const p = prPrefs();
+  try { await printer.write(escpos(receiptLines(shareCtx.r, shareCtx.mode, p.width), p)); say('Sent to ' + printer.name + '.'); }
+  catch (e) { printer = null; say('Printing failed: ' + e.message + '. Tap Print again to reconnect.', true); }
+}
+async function printerTest() {
+  if (!printer && !(await printerConnect('ble'))) return;
+  const p = prPrefs();
+  const lines = receiptLines(['TEST-0001', 'Birch', 'Test customer', 'Test source', 15000, 25200, 10200, 500, 800, new Date().toLocaleString(), 'Test print'], 'office', p.width);
+  try { await printer.write(escpos(lines, p)); el('prStatus').textContent = 'Test sent to ' + printer.name + '.'; } catch (e) { printer = null; alert('Printing failed: ' + e.message); prShow(); }
 }
 
 /* ================= Scale connection: USB / Serial and Bluetooth (BLE) =================
@@ -803,14 +823,15 @@ function monFallbackCopy(text, done) {
   ta.remove();
 }
 
+
 // Boot
 initScale();
-if (localStorage.getItem('loggedIn') === 'true') {
-  document.getElementById('login').classList.add('hidden');
-  showScreen('home');
-  loadTickets();
-}
-</script>
+const unifiedDevice = window.kfCo && kfCo.unified();
+if (unifiedDevice || localStorage.getItem('loggedIn') === 'true') { el('login').classList.add('hidden'); showScreen('home'); loadTickets(); }
+else el('login').classList.remove('hidden');
+// keep the list current: other devices' tickets appear by themselves
+if (window.kfLive) kfLive(() => loadTickets(), { ms: 20000, when: () => screen === 'history' || screen === 'home' });
+window.addEventListener('online', () => loadTickets());
 </script>
 </body>
 </html>
