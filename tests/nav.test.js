@@ -12,9 +12,9 @@ const B = 'http://localhost:8124/';
 (async () => {
   await new Promise(r => server.listen(8124, r));
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ ...devices['Pixel 5'] });
+  const ctx = await browser.newContext({ ...devices[process.env.DEVICE || 'Pixel 5'] });
   await ctx.route('https://**', r => r.abort());
-  const page = await ctx.newPage(); const errors = []; page.on('pageerror', e => errors.push(page.url() + ': ' + e.message));
+  const page = await ctx.newPage(); const errors = []; page.on('pageerror', e => { if (!page.url().startsWith('about:')) errors.push(page.url() + ': ' + e.message); });
   page.on('dialog', d => d.accept());
   await page.addInitScript(() => { if (!localStorage.getItem('t')) { localStorage.setItem('t', '1'); localStorage.setItem('kfSkipConnect', '1'); localStorage.setItem('loggedIn', 'true'); } });
   const back = async () => { await page.evaluate(() => history.back()); await page.waitForTimeout(400); };
@@ -25,8 +25,12 @@ const B = 'http://localhost:8124/';
   ok(await vis('#view-settings'), 'quote settings open');
   ok(!(await page.$('#setTicketsUrl')) && await page.$('#setSheetsUrl') && await page.$('#setSyncUrl'), 'Quote keeps sync + load log, other links moved');
   await back(); ok(await vis('#view-quote') && page.url().includes('index.html'), 'back: settings -> quote');
-  await back(); ok(page.url().includes('index.html') && await vis('#view-quote'), 'back on home page stays in the app');
-  ok(await vis('#kfBackHint'), 'home page hint shown');
+  if (!process.env.DEVICE || /Pixel|iPhone|Galaxy/.test(process.env.DEVICE)) {
+    await back(); ok(page.url().includes('index.html') && await vis('#view-quote'), 'phone: back on home page stays in the app');
+    ok(await vis('#kfBackHint'), 'home page hint shown');
+  } else {
+    await back(); await page.waitForTimeout(300); ok(!page.url().includes('index.html'), 'laptop: back on the home page leaves the site as usual');
+  }
 
   // ---- Invoices ----
   await page.goto(B + 'invoices.html'); await page.click('#menu button:nth-child(3)');

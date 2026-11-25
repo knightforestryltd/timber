@@ -39,7 +39,7 @@ const U = id => 'https://script.google.com/macros/s/' + id + '/exec';
     });
     await ctx.route(/googleapis|gstatic|cdnjs/, rt => rt.abort());
   };
-  const phone = async (init) => { const ctx = await browser.newContext({ ...devices['Pixel 5'] }); await route(ctx); if (init) await ctx.addInitScript(init.fn, init.arg); const p = await ctx.newPage(); p.errors = []; p.on('pageerror', e => p.errors.push(p.url() + ' ' + e.message)); p.on('dialog', d => { p.lastDialog = d.message(); d.accept(); }); return p; };
+  const phone = async (init) => { const ctx = await browser.newContext({ ...devices[process.env.DEVICE || 'Pixel 5'] }); await route(ctx); if (init) await ctx.addInitScript(init.fn, init.arg); const p = await ctx.newPage(); p.errors = []; p.on('pageerror', e => p.errors.push(p.url() + ' ' + e.message)); p.on('dialog', d => { p.lastDialog = d.message(); d.accept(); }); return p; };
 
   // ======== A) a brother's brand-new phone ========
   let p = await phone();

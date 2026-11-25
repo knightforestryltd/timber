@@ -18,7 +18,7 @@ const server = http.createServer((req, res) => {
   call({ action: 'adminSaveConfig', password: 'boss1', config: { units: [{ name: 'T1' }] } });
   call({ action: 'adminSaveDriver', password: 'boss1', driver: { name: 'Sam', passcode: '1111' } });
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ ...devices['Pixel 5'], geolocation: { latitude: 53.2, longitude: -114.9 }, permissions: ['geolocation'] });
+  const ctx = await browser.newContext({ ...devices[process.env.DEVICE || 'Pixel 5'], geolocation: { latitude: 53.2, longitude: -114.9 }, permissions: ['geolocation'] });
   await ctx.route('https://script.google.com/**', async route => { const req = route.request(); g.reset(); const out = req.method() === 'POST' ? g.post(JSON.parse(req.postData())) : g.get(Object.fromEntries(new URL(req.url()).searchParams)); route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(out) }); });
   await ctx.addInitScript(() => {
     window.__bg = { watchers: [], removed: [] }; window.__shared = [];

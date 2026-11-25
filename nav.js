@@ -16,6 +16,9 @@
   ['pointerup', 'touchend', 'click', 'keydown'].forEach(function (t) { window.addEventListener(t, function () { touched = true; arm(); }, { capture: true, passive: true }); });
 
   var leaving = false;
+  function appLike() {
+    try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || matchMedia('(display-mode: standalone)').matches || matchMedia('(pointer: coarse)').matches; } catch (e) { return true; }
+  }
   window.addEventListener('popstate', function () {
     if (leaving) return;
     var handled = false;
@@ -24,6 +27,9 @@
       else handled = typeof window.kfBack === 'function' && window.kfBack() === true;
     } catch (e) { handled = false; }
     if (!handled && !isHome()) { leaving = true; location.replace(HOME); return; }
+    // On the home page: phones and the installed app stay put (so the app never closes by accident);
+    // a laptop browser tab lets Back leave the site as usual.
+    if (!handled && !appLike()) { leaving = true; history.back(); return; }
     arm();
     if (!handled) hint('You are on the home page. Use the menu to switch pages.');
   });

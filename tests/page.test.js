@@ -22,7 +22,7 @@ const server = http.createServer((req, res) => {
   call({ action: 'adminSaveDriver', password: 'boss1', driver: { name: 'Sam Driver', phone: '780-555-0100', passcode: '2468', licenseNo: 'AB123' } });
 
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ ...devices['Pixel 5'], geolocation: { latitude: 53.223, longitude: -114.977, accuracy: 10 }, permissions: ['geolocation'] });
+  const ctx = await browser.newContext({ ...devices[process.env.DEVICE || 'Pixel 5'], geolocation: { latitude: 53.223, longitude: -114.977, accuracy: 10 }, permissions: ['geolocation'] });
   let offline = false;
   await ctx.route('https://script.google.com/**', async route => {
     if (offline) return route.abort('internetdisconnected');
