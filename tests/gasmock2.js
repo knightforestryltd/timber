@@ -65,7 +65,11 @@ function makeEnv(opts) {
       base64Decode: s => Array.from(Buffer.from(s, 'base64')), newBlob: (bytes, type, name) => ({ bytes, type, name })
     },
     MailApp: { sendEmail: o => mails.push(o) },
-    Maps: { newGeocoder: () => ({ reverseGeocode: () => ({ status: 'OK', results: [{ types: ['locality'], address_components: [{ long_name: 'Breton' }, { short_name: 'AB', types: ['administrative_area_level_1'] }], geometry: { location: { lat: 53.1, lng: -114.47 } } }] }) }) },
+    Maps: { newGeocoder: () => ({ setRegion() { return this; },
+      geocode: addr => /blackie/i.test(addr) ? { status: 'OK', results: [{ address_components: [{ long_name: 'Blackie', types: ['locality'] }, { short_name: 'AB', types: ['administrative_area_level_1'] }], geometry: { location: { lat: 50.6, lng: -113.62 } } }] }
+        : /calgary/i.test(addr) ? { status: 'OK', results: [{ address_components: [{ long_name: 'Calgary', types: ['locality'] }, { short_name: 'AB', types: ['administrative_area_level_1'] }], geometry: { location: { lat: 51.05, lng: -114.06 } } }] }
+        : { status: 'ZERO_RESULTS', results: [] },
+      reverseGeocode: () => ({ status: 'OK', results: [{ types: ['locality'], address_components: [{ long_name: 'Breton' }, { short_name: 'AB', types: ['administrative_area_level_1'] }], geometry: { location: { lat: 53.1, lng: -114.47 } } }] }) }) },
     ScriptApp: { getProjectTriggers: () => triggers.map(h => ({ getHandlerFunction: () => h })), newTrigger: h => chain({ create() { triggers.push(h); return this; } }) },
     DriveApp: {
       getFilesByName: n => { const list = Object.values(spreadsheets).filter(x => x._name === n); let i = 0; return { hasNext: () => i < list.length, next: () => ({ getId: () => list[i++].getId() }) }; },

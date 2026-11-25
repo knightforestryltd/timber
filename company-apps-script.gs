@@ -34,7 +34,8 @@ var TABS = {   // keyed tabs (row 1 = these keys)
   Shifts:   ['shiftId', 'driverId', 'driverName', 'date', 'unit', 'startedAt', 'submittedAt', 'status', 'startOdo', 'endOdo', 'onDutyHrs', 'drivingHrs', 'remarks', 'json', 'signature', 'editedAt'],
   Pretrips: ['shiftId', 'driverName', 'unit', 'at', 'result', 'json', 'signature'],
   Positions: ['at', 'driverName', 'unit', 'lat', 'lon', 'place', 'status', 'shiftId', 'kph', 'driverId'],
-  Log:      ['at', 'svc', 'action', 'ref', 'detail']
+  Log:      ['at', 'svc', 'action', 'ref', 'detail'],
+  Places:   ['address', 'place', 'lat', 'lon', 'at']        // delivery addresses already looked up (village + nearest city)
 };
 
 /* =============================== basics =============================== */
@@ -226,6 +227,7 @@ function syncPost_(p, d) {
     LINK_KEYS.forEach(function (k) { delete inc[k]; });
     delete inc._meta;
     if (!inc.profile && cur.profile) inc.profile = cur.profile;        // company profile is saved separately (Billing → Settings)
+    if (!inc.dispatch && cur.dispatch) inc.dispatch = cur.dispatch;    // customer-text settings are saved from Dispatch → Settings
     if (!inc.apiKey && cur.apiKey) inc.apiKey = cur.apiKey;            // a blank Maps key never erases the saved one
     writeSettings_(inc);
     var r2 = bumpRev_(); log_('sync', 'settings saved', 'rev ' + r2, '');
@@ -242,6 +244,15 @@ function syncPost_(p, d) {
     writeSettings_(s);
     var r3 = bumpRev_(); log_('sync', 'company info saved', s.profile.name, '');
     return json_({ status: 'saved', rev: r3, profile: s.profile, v: SCRIPT_VERSION });
+  }
+  if (a === 'saveDispatch') {
+    if (hasPassword_()) { var c6 = checkPw_(d.password); if (!c6.ok) return pwFail_(c6); }
+    var ds = d.dispatch || {}, s2 = readSettings_();
+    s2.dispatch = { texts: !!ds.texts, template: cap_(ds.template, 600) };
+    if (!Array.isArray(s2.locations)) s2.locations = [];
+    writeSettings_(s2);
+    var r6 = bumpRev_(); log_('sync', 'customer texts ' + (ds.texts ? 'on' : 'off'), '', '');
+    return json_({ status: 'saved', rev: r6, dispatch: s2.dispatch, v: SCRIPT_VERSION });
   }
   if (a === 'nextInvoice') {
     if (!keyOk_(p.k || d.k)) return json_({ status: 'nokey' });
@@ -267,11 +278,55 @@ function syncPost_(p, d) {
 function loadRows_() {
   var sh = sheet_('Loads'), last = sh.getLastRow();
   if (last < 5) return [];
-  return sh.getRange(5, 1, last - 4, 20).getValues().filter(function (r) { return r[1]; }).map(function (r) {
+  var rows = sh.getRange(5, 1, last - 4, 20).getValues().filter(function (r) { return r[1]; }).map(function (r) {
     return { timestamp: r[0], customerName: r[1], phone: r[2], address: r[3], location: r[4], species: r[5], truck: r[6], tonnes: r[7], cords: r[8],
       km: r[9], duration: r[10], driveHours: r[11], totalHours: r[12], fuelLitres: r[13], total: r[14],
       status: r[15] || 'Pending', loadId: r[16] || '', netTonnes: r[17] || '', invoiceData: r[18] || '', notes: r[19] || '' };
   });
+  try { addPlaces_(rows); } catch (e) {}
+  return rows;
+}
+
+/* =============================== delivery place: "Blackie, AB · 55 km S of Calgary" =============================== */
+var MAJOR_CITIES = [['Calgary', 51.045, -114.057], ['Edmonton', 53.546, -113.491], ['Red Deer', 52.268, -113.811], ['Lethbridge', 49.694, -112.833],
+  ['Medicine Hat', 50.04, -110.677], ['Grande Prairie', 55.171, -118.795], ['Fort McMurray', 56.727, -111.381], ['Lloydminster', 53.278, -110.006],
+  ['Saskatoon', 52.134, -106.67], ['Regina', 50.445, -104.619], ['Prince Albert', 53.203, -105.753], ['Kelowna', 49.888, -119.496], ['Kamloops', 50.674, -120.327],
+  ['Prince George', 53.917, -122.749], ['Dawson Creek', 55.761, -120.236], ['Cranbrook', 49.512, -115.769]];
+function km_(a, b, c, d) { var R = 6371, t = function (x) { return x * Math.PI / 180; }, dLa = t(c - a), dLo = t(d - b); var h = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(dLo / 2) * Math.sin(dLo / 2); return 2 * R * Math.asin(Math.sqrt(h)); }
+function dir_(a, b, c, d) { var t = function (x) { return x * Math.PI / 180; }, y = Math.sin(t(d - b)) * Math.cos(t(c)), x = Math.cos(t(a)) * Math.sin(t(c)) - Math.sin(t(a)) * Math.cos(t(c)) * Math.cos(t(d - b)); var deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8]; }
+function describePlace_(town, prov, lat, lon) {
+  var best = null, bd = 1e9;
+  MAJOR_CITIES.forEach(function (c) { var k = km_(c[1], c[2], lat, lon); if (k < bd) { bd = k; best = c; } });
+  var head = town ? town + (prov ? ', ' + prov : '') : '';
+  if (!best) return head;
+  if (bd < 15) return town && town.toLowerCase() !== best[0].toLowerCase() ? head + ' · ' + best[0] + ' area' : best[0] + (prov ? ', ' + prov : '');
+  return (head ? head + ' · ' : '') + Math.round(bd / 5) * 5 + ' km ' + dir_(best[1], best[2], lat, lon) + ' of ' + best[0];
+}
+function geocodePlace_(address) {
+  var res = Maps.newGeocoder().setRegion('ca').geocode(address);
+  if (!res || res.status !== 'OK' || !res.results.length) return null;
+  var r = res.results[0], comp = r.address_components || [], pick = function (types) { for (var i = 0; i < types.length; i++) for (var j = 0; j < comp.length; j++) if ((comp[j].types || []).indexOf(types[i]) > -1) return comp[j]; return null; };
+  var town = pick(['locality', 'sublocality', 'administrative_area_level_3', 'neighborhood']), prov = pick(['administrative_area_level_1']);
+  var lat = r.geometry.location.lat, lon = r.geometry.location.lng;
+  return { place: describePlace_(town ? town.long_name : '', prov ? prov.short_name : '', lat, lon), lat: lat, lon: lon };
+}
+// Adds .place to each load. Addresses are looked up once (a few new ones per request) and remembered in the Places tab.
+function addPlaces_(rows) {
+  var known = {}, norm = function (a) { return String(a || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+  rows_('Places').forEach(function (p) { known[norm(p.address)] = p; });
+  var added = [], budget = 6;
+  rows.forEach(function (r) {
+    var k = norm(r.address); if (!k) return;
+    var hit = known[k];
+    if (!hit && budget > 0) {
+      budget--;
+      var g = null; try { g = geocodePlace_(r.address); } catch (e) { g = null; }
+      hit = { address: r.address, place: g ? g.place : '', lat: g ? g.lat : '', lon: g ? g.lon : '', at: new Date().toISOString() };
+      known[k] = hit; added.push(hit);
+    }
+    if (hit && hit.place) { r.place = hit.place; r.placeLat = hit.lat; r.placeLon = hit.lon; }
+  });
+  if (added.length) appendMany_('Places', added);
 }
 function loadsPost_(d) {
   var sh = sheet_('Loads');

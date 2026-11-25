@@ -12,6 +12,21 @@
 .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); cursor: pointer; }
 .card:hover { border-color: var(--primary-light); }
 .pending-pay { border-color: var(--amber); }
+/* load cards: status at a glance */
+.ld { border-left: 6px solid var(--border); }
+.ld.started { border-color: #16a34a; background: rgba(22, 163, 74, .10); }
+.ld.delivered { border-color: #d97706; background: rgba(217, 119, 6, .12); }
+.ld.paid { border-color: #2563eb; background: rgba(37, 99, 235, .07); }
+.ld .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.pill { display: inline-block; font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--text); }
+.pill.started { background: #16a34a; color: #fff; } .pill.delivered { background: #d97706; color: #fff; } .pill.paid { background: #2563eb; color: #fff; }
+.ld .where { font-weight: 700; margin-top: 4px; }
+.tabs2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.tabs2 button { padding: 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: .95rem; cursor: pointer; }
+.tabs2 button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
+textarea { width: 100%; padding: 12px; min-height: 90px; font-size: 16px; box-sizing: border-box; }
+.ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: none; align-items: flex-start; justify-content: center; padding: 12px; overflow: auto; }
+.ov.show { display: flex; } .ov .sheet { background: var(--card); color: var(--text); border-radius: 16px; width: 100%; max-width: 520px; padding: 18px; margin: auto 0; }
 .small { font-size: .8rem; color: var(--muted); }
 label { display: block; margin-bottom: 4px; font-size: .9rem; }
 input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
@@ -41,13 +56,31 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
 </header>
 <div class="container">
   <div id="listView">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h2>Pending Delivery</h2><button class="btn btn-outline btn-sm" onclick="loadLoads()" title="Refresh">↻</button></div>
-    <div class="small" id="listUpdated" style="margin:-6px 0 8px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h2>Dispatch</h2><button class="btn btn-outline btn-sm" onclick="loadLoads()" title="Refresh">↻</button></div>
+    <div class="tabs2"><button id="tabPending" class="on" onclick="setListTab('pending')">Pending</button><button id="tabDone" onclick="setListTab('done')">Completed (paid)</button></div>
+    <div class="small" id="listCounts" style="margin:-2px 0 6px;"></div>
+    <div class="small" id="listUpdated" style="margin:0 0 8px;"></div>
     <div id="loadList"></div>
   </div>
   <div id="settingsView" class="hidden">
     <button class="btn btn-outline" onclick="showList()">&larr; Back</button>
     <div class="card" style="cursor:default; margin-top:12px;" id="dispLinks"></div>
+    <div class="card" style="cursor:default;" id="textCard">
+      <h2 style="margin-top:0">Customer texts</h2>
+      <label style="display:flex;gap:10px;align-items:center;font-weight:600;"><input type="checkbox" id="txOn"> Text the customer when their load starts</label>
+      <div class="small" style="margin:6px 0 10px;">When a ticket starts a load, this phone opens its messaging app with the text ready to send to the customer, from the driver's own number. Nothing is sent without tapping Send.</div>
+      <label for="txTpl">Message</label>
+      <textarea id="txTpl"></textarea>
+      <div class="small">Fill-ins: {customer} {species} {eta} {driver} {driverPhone} {company} {loadId}</div>
+      <div id="txPwWrap" class="hidden"><label for="txPw">Company password (saves for every device)</label><input type="password" id="txPw" autocomplete="current-password"></div>
+      <button class="btn" id="txSave" style="margin-top:8px;">Save</button>
+      <div id="txMsg" class="small" style="margin-top:6px;font-weight:600;"></div>
+      <h3 style="margin:16px 0 4px;">This phone's driver</h3>
+      <div class="small" id="txDrvNote" style="margin-bottom:6px;"></div>
+      <label for="txDrvName">Driver name</label><input id="txDrvName" placeholder="e.g. Kevin">
+      <label for="txDrvPhone">Driver phone</label><input id="txDrvPhone" type="tel" placeholder="403 000 0000">
+      <button class="btn btn-outline" id="txDrvSave">Save driver</button>
+    </div>
   </div>
   <div id="detailView" class="hidden">
     <button class="btn btn-outline" onclick="showList()">&larr; Back</button>
@@ -61,6 +94,7 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
       <input id="ticketInput" placeholder="KF-2026-1120-">
       <button class="btn" onclick="checkTicket()">Check Ticket</button>
       <div id="ticketResult" style="margin:12px 0;"></div>
+      <button class="btn btn-outline hidden" id="textBtn" onclick="offerText(true)" style="margin-bottom:10px;">Text the customer</button>
       <button class="btn" id="deliveredBtn" disabled onclick="markDelivered()">Delivered</button>
     </div>
   </div>
@@ -135,6 +169,8 @@ async function loadLoads() {
     const res = await fetch(QUOTE_URL + (QUOTE_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
     const data = await res.json();
     if (data.status === 'nokey') { document.getElementById('loadList').innerHTML = '<p>This device is not connected to the company. Connect on the Quote page.</p>'; return; }
+    const paidAt = r => { try { const j = r.invoiceData ? JSON.parse(r.invoiceData) : null; return (j && +j.paidAt) || new Date(r.timestamp || 0).getTime(); } catch (e) { return new Date(r.timestamp || 0).getTime(); } };
+    doneLoads = (data.rows || []).filter(r => (r.status || '').toLowerCase() === 'paid').sort((a, b) => paidAt(b) - paidAt(a)).slice(0, 100);
     loads = (data.rows || []).filter(r => (r.status || '').toLowerCase() !== 'paid');
     // the sheet is the truth; this phone only remembers changes that have not reached the sheet yet
     const local = getLocalState();
@@ -157,18 +193,27 @@ function daysSince(ts) {
   return diff + ' day' + (diff === 1 ? '' : 's') + ' since quoted';
 }
 
+let listTab = 'pending', doneLoads = [];
+function setListTab(t) { listTab = t; document.getElementById('tabPending').classList.toggle('on', t === 'pending'); document.getElementById('tabDone').classList.toggle('on', t === 'done'); renderList(); }
+function statusOf(l) { const s = String(l.status || '').toLowerCase(); return s === 'paid' ? 'paid' : s === 'delivered' ? 'delivered' : s === 'started' ? 'started' : 'waiting'; }
+const STATUS_LABEL = { waiting: 'Waiting', started: 'Started', delivered: 'Delivered · pending billing', paid: 'Paid' };
+function cycleText(l) { const h = +l.totalHours; return h ? (Math.round(h * 10) / 10) + ' hrs cycle' : (l.duration || ''); }
+function cardHtml(l, i, list) {
+  const st = statusOf(l), t = toTonnes(l.netTonnes) || l.tonnes;
+  return `<div class="card ld ${st}" onclick="openLoad(${i}, '${list}')">
+    <div class="top"><strong>${escHtml(l.customerName || 'No name')}</strong><span class="pill ${st}">${STATUS_LABEL[st]}${l.loadId && st !== 'waiting' ? ' · ' + escHtml(l.loadId) : ''}</span></div>
+    <div class="where">${escHtml(l.place || l.address || 'No address')}</div>
+    <div>${escHtml(l.species || '')}${t ? ' · ' + escHtml(t) + ' t' : ''} · from ${escHtml(l.location || '—')}${l.truck ? ' · ' + escHtml(l.truck) : ''}</div>
+    <div class="small">${escHtml(cycleText(l))}${l.km ? ' · ' + escHtml(l.km) + ' km one way' : ''} · ${escHtml(daysSince(l.timestamp))}${l._pending ? ' · <b>not sent yet</b>' : ''}</div>
+  </div>`;
+}
 function renderList() {
   const el = document.getElementById('loadList');
+  const c = { waiting: 0, started: 0, delivered: 0 }; loads.forEach(l => c[statusOf(l)]++);
+  document.getElementById('listCounts').innerHTML = `<b>${c.waiting}</b> waiting · <b style="color:#16a34a">${c.started}</b> started · <b style="color:#d97706">${c.delivered}</b> delivered, pending billing · <b style="color:#2563eb">${doneLoads.length}</b> paid`;
+  if (listTab === 'done') { el.innerHTML = doneLoads.length ? doneLoads.map((l, i) => cardHtml(l, i, 'done')).join('') : '<p style="color:var(--muted);">No paid loads yet.</p>'; return; }
   if (!loads.length) { el.innerHTML = '<p style="color:var(--muted);">No pending loads.</p>'; return; }
-  el.innerHTML = loads.map((l, i) => `
-    <div class="card ${l.status === 'Delivered' ? 'pending-pay' : ''}" onclick="openLoad(${i})">
-      <strong>${l.customerName || 'No name'}</strong> <span class="small">${(l.timestamp||'').slice(0,10)}</span><br>
-      ${l.species || ''} · ${l.location || ''}<br>
-      <span class="small">${l.duration || ''} · ${l.km || ''} km</span><br>
-      <span class="small">${daysSince(l.timestamp)}</span>
-      ${l.status === 'Delivered' ? '<br><strong style="color:var(--amber);">Pending payment</strong>' : l.status === 'Started' ? '<br><strong style="color:var(--good);">Started' + (l.loadId ? ' · ' + l.loadId : '') + '</strong>' : ''}${l._pending ? ' <span class="small">(not sent yet)</span>' : ''}
-    </div>
-  `).join('');
+  el.innerHTML = loads.map((l, i) => cardHtml(l, i, 'pending')).join('');
 }
 
 function actualCords(l) {
@@ -183,14 +228,15 @@ function actualCords(l) {
   } catch(e) {}
   return Math.round((tonnes / cvf) * 10) / 10;
 }
-function openLoad(i) {
-  current = loads[i];
+function openLoad(i, list) {
+  current = list === 'done' ? doneLoads[i] : loads[i];
+  const isDone = list === 'done';
   document.getElementById('listView').classList.add('hidden');
   document.getElementById('detailView').classList.remove('hidden');
   document.getElementById('dName').textContent = (current.customerName || '') + (current.loadId ? '  ·  ' + current.loadId : '');
   document.getElementById('dInfo').innerHTML = `
     <p><strong>Phone:</strong> ${current.phone || '—'}</p>
-    <p><strong>Address:</strong> ${current.address || '—'}</p>
+    <p><strong>Address:</strong> ${escHtml(current.address || '—')}${current.place ? '<br><span class="small">' + escHtml(current.place) + '</span>' : ''}${current.placeLat ? ` · <a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${current.placeLat},${current.placeLon}">directions</a>` : ''}</p>
     <p><strong>Source:</strong> ${current.location || '—'}</p>
     <p><strong>Species:</strong> ${current.species || '—'}</p>
     <p><strong>Truck:</strong> ${current.truck || '—'}</p>
@@ -206,6 +252,10 @@ function openLoad(i) {
   document.getElementById('ticketInput').value = current.loadId || ticketPrefix();
   document.getElementById('ticketResult').textContent = '';
   document.getElementById('deliveredBtn').disabled = current.status !== 'Started' && !current.loadId;
+  // a paid load is finished: show it, nothing to change
+  ['ticketInput', 'deliveredBtn'].forEach(id => document.getElementById(id).classList.toggle('hidden', isDone));
+  document.querySelector('#detailView .btn[onclick="checkTicket()"]').classList.toggle('hidden', isDone);
+  document.getElementById('textBtn').classList.toggle('hidden', isDone || statusOf(current) !== 'started' || !textSettings().texts || !current.phone);
 }
 
 function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -222,9 +272,88 @@ function showDispatchSettings() {
   ['listView', 'detailView'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('settingsView').classList.remove('hidden');
   kfLinks.card(document.getElementById('dispLinks'), ['sheetsUrl', 'scriptUrl'], () => { TICKET_URL = kfLinks.get('scriptUrl'); });
+  renderTextSettings();
 }
+
+/* ---------- customer texts (sent from the driver's own phone with the messaging app) ---------- */
+const DEFAULT_TEXT = 'Hi {customer}, your load of {species} is loaded and on its way. Estimated arrival around {eta}. Your driver today is {driver} {driverPhone}. - {company}';
+function companySettings() { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch (e) { return {}; } }
+function textSettings() { const d = companySettings().dispatch || {}, local = (() => { try { return JSON.parse(localStorage.getItem('kfTextLocal') || 'null'); } catch (e) { return null; } })(); const x = (window.kfCo && kfCo.unified()) ? d : (local || d); return { texts: !!x.texts, template: x.template || DEFAULT_TEXT }; }
+function driverInfo() {
+  let name = '', phone = '';
+  try { const sess = JSON.parse(localStorage.getItem('kfDrvSession') || 'null'), ctx = JSON.parse(localStorage.getItem('kfDrvCtx') || 'null'); if (sess) name = sess.name || ''; if (ctx && ctx.driver) phone = ctx.driver.phone || ''; } catch (e) {}
+  try { const me = JSON.parse(localStorage.getItem('kfDispatchDriver') || '{}'); if (me.name) name = me.name; if (me.phone) phone = me.phone; } catch (e) {}
+  return { name, phone };
+}
+function renderTextSettings() {
+  const t = textSettings(), me = driverInfo(), uni = !!(window.kfCo && kfCo.unified());
+  document.getElementById('txOn').checked = t.texts; document.getElementById('txTpl').value = t.template;
+  document.getElementById('txPwWrap').classList.toggle('hidden', !uni);
+  document.getElementById('txDrvName').value = me.name; document.getElementById('txDrvPhone').value = me.phone;
+  let sess = null; try { sess = JSON.parse(localStorage.getItem('kfDrvSession') || 'null'); } catch (e) {}
+  document.getElementById('txDrvNote').textContent = sess ? 'Filled in from the Drivers log-in on this phone. Change it here if needed.' : 'Used in the text. Set once per phone (drivers logged in on Drivers fill this in automatically).';
+  document.getElementById('txMsg').textContent = '';
+}
+document.getElementById('txSave').onclick = async () => {
+  const msg = document.getElementById('txMsg'), body = { texts: document.getElementById('txOn').checked, template: document.getElementById('txTpl').value.trim() || DEFAULT_TEXT };
+  if (window.kfCo && kfCo.unified()) {
+    const pw = document.getElementById('txPw').value; if (!pw) { msg.style.color = 'var(--bad)'; msg.textContent = 'Enter the company password.'; return; }
+    try {
+      const r = await kfCo.post('sync', { action: 'saveDispatch', password: pw, dispatch: body });
+      if (r.status !== 'saved') { msg.style.color = 'var(--bad)'; msg.textContent = r.status === 'badpassword' ? 'Wrong company password.' : (r.message || 'Could not save.'); return; }
+      const s = companySettings(); s.dispatch = r.dispatch; localStorage.setItem('knightForestrySettings_v3', JSON.stringify(s)); localStorage.setItem('kfCompanyRev', String(r.rev));
+      document.getElementById('txPw').value = ''; msg.style.color = 'var(--good)'; msg.textContent = 'Saved for every device.';
+    } catch (e) { msg.style.color = 'var(--bad)'; msg.textContent = 'No signal: nothing was saved.'; }
+  } else { localStorage.setItem('kfTextLocal', JSON.stringify(body)); msg.style.color = 'var(--good)'; msg.textContent = 'Saved on this device.'; }
+};
+document.getElementById('txDrvSave').onclick = () => {
+  localStorage.setItem('kfDispatchDriver', JSON.stringify({ name: document.getElementById('txDrvName').value.trim(), phone: document.getElementById('txDrvPhone').value.trim() }));
+  const m = document.getElementById('txMsg'); m.style.color = 'var(--good)'; m.textContent = 'Driver saved on this phone.';
+};
+function etaText(l) {
+  let oneWay = (+l.driveHours || 0) / 2;                       // driveHours is the round trip
+  if (!oneWay && l.km) oneWay = (+l.km) / 80;
+  if (!oneWay) return 'later today';
+  const t = new Date(Date.now() + oneWay * 3600000), m = Math.round(t.getMinutes() / 5) * 5;
+  t.setMinutes(m, 0, 0);
+  return t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+function buildText(l) {
+  const me = driverInfo(); let co = ''; try { co = JSON.parse(localStorage.getItem('kfCompany') || '{}').name || companySettings().companyName || ''; } catch (e) {}
+  const first = String(l.customerName || '').trim().split(/\s+/)[0] || 'there';
+  const map = { customer: first, species: String(l.species || 'wood').toLowerCase(), eta: etaText(l), driver: me.name || 'our driver', driverPhone: me.phone || '', company: co, loadId: l.loadId || '' };
+  return textSettings().template.replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : m)).replace(/\s+([.,])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+}
+function smsLink(phone, text) {
+  let n = String(phone || '').replace(/[^\d+]/g, ''); if (/^\d{10}$/.test(n)) n = '+1' + n; else if (/^1\d{10}$/.test(n)) n = '+' + n;
+  return 'sms:' + n + '?body=' + encodeURIComponent(text);
+}
+function offerText(manual) {
+  if (!current) return;
+  const t = textSettings();
+  if (!t.texts && !manual) return;
+  if (!current.phone) { if (manual) alert('This customer has no phone number on the load.'); return; }
+  const me = driverInfo();
+  document.getElementById('textBox').innerHTML = `<h3 style="margin:0 0 6px;">Text ${escHtml(current.customerName || 'the customer')}?</h3>
+    <div class="small">To ${escHtml(current.phone)}, from this phone's messaging app.</div>
+    ${me.name && me.phone ? '' : `<div class="small" style="color:var(--amber);margin-top:6px;">Add the driver's name and phone so the customer knows who is coming:</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><input id="txN" placeholder="Driver name" value="${escHtml(me.name)}"><input id="txP" type="tel" placeholder="Driver phone" value="${escHtml(me.phone)}"></div>`}
+    <label for="txBody" style="margin-top:8px;">Message</label><textarea id="txBody" style="min-height:140px;">${escHtml(buildText(current))}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-outline" style="flex:1" id="txNo">Not now</button><a class="btn" style="flex:2" id="txGo" href="#">Send text</a></div>`;
+  document.getElementById('textOv').classList.add('show');
+  const upd = () => {
+    const n = document.getElementById('txN'), p = document.getElementById('txP');
+    if (n || p) { localStorage.setItem('kfDispatchDriver', JSON.stringify({ name: (n ? n.value : me.name).trim(), phone: (p ? p.value : me.phone).trim() })); }
+    document.getElementById('txGo').href = smsLink(current.phone, document.getElementById('txBody').value);
+  };
+  ['txN', 'txP'].forEach(id => { const e = document.getElementById(id); if (e) e.oninput = () => { upd(); document.getElementById('txBody').value = buildText(current); upd(); }; });
+  document.getElementById('txBody').oninput = upd; upd();
+  document.getElementById('txNo').onclick = closeText;
+  document.getElementById('txGo').addEventListener('click', () => { upd(); setTimeout(closeText, 400); });
+}
+function closeText() { document.getElementById('textOv').classList.remove('show'); }
 // phone back button (nav.js)
 window.kfBack = function () {
+  if (document.getElementById('textOv').classList.contains('show')) { closeText(); return true; }
   const np = document.getElementById('notesPopup');
   if (np && np.style.display !== 'none') { np.style.display = 'none'; return true; }
   if (!document.getElementById('detailView').classList.contains('hidden') || !document.getElementById('settingsView').classList.contains('hidden')) { showList(); return true; }
@@ -261,6 +390,7 @@ async function checkTicket() {
       document.getElementById('ticketResult').innerHTML = '<span style="color:var(--link);">Ticket found. Net: ' + net + ' t · ~' + newCords + ' cords</span>';
       document.getElementById('deliveredBtn').disabled = false;
       await updateStatus('Started', num, net);
+      offerText(false);
     } else {
       document.getElementById('ticketResult').innerHTML = '<span style="color:var(--bad);">Ticket not found.</span>';
     }
@@ -308,6 +438,7 @@ loadLoads();
 if (window.kfLive) kfLive(loadLoads, { ms: 20000, when: () => !document.getElementById('listView').classList.contains('hidden') });
 </script>
 
+<div class="ov" id="textOv"><div class="sheet" id="textBox"></div></div>
 <div id="notesPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:1000;padding:12px;">
   <div style="background:var(--card);color:var(--text);border-radius:16px;max-width:460px;width:100%;padding:22px;border:1px solid var(--amber);box-shadow:0 20px 40px rgba(0,0,0,.3);">
     <h3 style="margin:0 0 10px;">Special instructions</h3>

@@ -1517,6 +1517,7 @@ function applyCompanyData(data, force) {
   if (data.costFuelPrice != null && data.costFuelPrice !== '') settings.costFuelPrice = +data.costFuelPrice; else delete settings.costFuelPrice;
   if (data.gst != null && data.gst !== '') settings.gst = +data.gst;
   if (data.quoteShow && typeof data.quoteShow === 'object') settings.quoteShow = data.quoteShow;
+  if (data.dispatch && typeof data.dispatch === 'object') settings.dispatch = data.dispatch;
   if (data.apiKey && data.apiKey !== settings.apiKey) { settings.apiKey = data.apiKey; keyChanged = true; }
   if (kfCo.unified()) { saveSettings(); return { keyChanged }; }     // one company link: page links are fixed, not synced
   adoptUrl(data.sheetsUrl, data.sheetsUrlAt, force, () => settings.sheetsUrl, () => settings.sheetsUrlAt,

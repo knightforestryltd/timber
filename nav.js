@@ -165,7 +165,7 @@
     var s = readSettings();
     if (Array.isArray(data.locations) && data.locations.length) s.locations = data.locations;
     if (Array.isArray(data.units) && data.units.length) s.units = data.units;
-    ['companyName', 'quoteShow', 'apiKey'].forEach(function (k) { if (data[k]) s[k] = data[k]; });
+    ['companyName', 'quoteShow', 'apiKey', 'dispatch'].forEach(function (k) { if (data[k]) s[k] = data[k]; });
     ['speed', 'fuelPrice', 'gst'].forEach(function (k) { if (data[k] != null && data[k] !== '') s[k] = +data[k]; });
     if (data.costFuelPrice != null && data.costFuelPrice !== '') s.costFuelPrice = +data.costFuelPrice; else delete s.costFuelPrice;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}

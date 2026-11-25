@@ -115,3 +115,15 @@ New version -> Deploy). Old separate Tickets script: paste tickets-apps-script.g
   tickets saved without signal are sent automatically. Each ticket has Client / Supplier / Office with
   Copy text, Share as PDF and Print (ESC/POS receipt printer over Bluetooth or USB: Tickets -> Settings ->
   Receipt printer). Ticket numbers and columns are unchanged for Dispatch and Billing.
+
+--- v13: Dispatch status colours, places, completed list, customer texts ---
+Upload all files AND update the company script (Manage deployments -> pencil -> New version -> Deploy).
+The script asks to authorize Maps again only if Google requires it.
+- Each load card: delivery place ("Blackie, AB · 60 km SE of Calgary"), cycle time ("10.6 hrs cycle"),
+  one-way km. Places are looked up once per address (new "Places" tab) - single company script only.
+- Green card = Started, amber = Delivered (pending billing), blue = Paid. Counts at the top.
+- Tabs: Pending, and Completed (paid, newest 100).
+- Dispatch -> Settings -> Customer texts: on/off + message (company password, applies to every device).
+  When a ticket starts a load, the phone's messaging app opens with the text ready to the customer, from the
+  driver's own number (driver name/phone from the Drivers log-in, or set once per phone). "Text the customer"
+  button on a started load to send it again.
