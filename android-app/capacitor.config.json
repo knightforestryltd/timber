@@ -3,7 +3,7 @@
   "appName": "Knight Forestry",
   "webDir": "www",
   "server": {
-    "url": "https://REPLACE-WITH-YOUR-SITE",
+    "url": "https://timber.knightforestryltd.workers.dev",
     "errorPath": "error.html",
     "cleartext": false
   },
