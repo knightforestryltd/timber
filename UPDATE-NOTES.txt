@@ -30,3 +30,19 @@ and bookings still work exactly as before.
 --- Drivers (phase 1) ---
 New page drivers.html + new Apps Script drivers-apps-script.gs (its OWN project and link; creates a "Driver Logs" Google Sheet).
 The Drivers menu button on every page now opens drivers.html. Nothing else on those pages changed.
+
+--- Drivers v2 (update) ---
+1. Upload drivers.html, index.html and sw.js to the site.
+2. Update the DRIVERS script WITHOUT changing its link: open it at script.google.com -> paste
+   drivers-apps-script.gs over the old code -> Save -> Deploy -> Manage deployments -> pencil ->
+   Version: "New version" -> Deploy. Google asks you to authorize again (Maps, for village names).
+   The Driver Logs sheet is upgraded in place (new columns are added on the right).
+3. Quote page -> Settings -> paste the Drivers script link into "Drivers Sheet URL" -> Save Settings ->
+   Save to Company. Every device that syncs then opens Drivers without pasting a link.
+   The quote/sync script does NOT need changing.
+New: Alberta provincial rules (13/15/16), duty status edits with reasons, automatic status from GPS
+(40 km/h = Driving, stopped 15 min = On Duty, 30 min = Off Duty), pre-trip logs 30 min On Duty,
+paper-style daily log (graph + pre-trip) for print/share and emailed to the office as a PDF,
+14-day history, admin map with 15-minute trail, admin edit/delete shift, driver phone numbers,
+records older than 12 months removed automatically.
+An open shift on a phone carries straight over to the new version.

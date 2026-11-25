@@ -53,7 +53,40 @@ table.ev { width: 100%; border-collapse: collapse; font-size: .88rem; } table.ev
 .err { color: var(--bad); font-weight: 600; margin-top: 6px; min-height: 1em; }
 .seg { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; } .seg button { flex: 1; min-width: 90px; padding: 10px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; cursor: pointer; } .seg button.on { background: var(--btn-bg); color: #fff; }
 .li { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--card); }
-@media print { header, .tabs, .btnrow, .noprint { display: none !important; } .overlay { position: static; background: none; display: block; } .sheet { box-shadow: none; } }
+.chip { display: inline-block; font-size: .8rem; font-weight: 700; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; margin: 0 4px 6px 0; }
+.evrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; background: var(--card); }
+.evrow .s { font-weight: 800; } .evrow .ed { font-size: .72rem; color: var(--warn-text); font-weight: 700; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.dot.D { background: #16a34a; } .dot.ON { background: #d97706; } .dot.OFF { background: #64748b; } .dot.SB { background: #2563eb; }
+.toast { position: fixed; left: 10px; right: 10px; bottom: 12px; z-index: 1200; max-width: 640px; margin: 0 auto; background: #0f172a; color: #fff; border-radius: 12px; padding: 12px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); display: none; font-size: .95rem; }
+.toast.show { display: block; } .toast .tb { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.toast button { background: #fff; color: #0f172a; border: 0; border-radius: 8px; padding: 9px 12px; font-weight: 800; cursor: pointer; } .toast button.ghost { background: transparent; color: #cbd5e1; border: 1px solid #475569; }
+#map { height: 380px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 10px; z-index: 0; }
+.paperwrap { overflow-x: auto; background: #d1d5db; padding: 8px; border-radius: 8px; margin: 8px 0; -webkit-overflow-scrolling: touch; }
+.paperwrap .paper { margin: 0 auto 8px; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+/* paper daily log: fixed black-on-white so it prints and emails the same in light or dark theme */
+.paper { background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.3; width: 760px; padding: 16px 18px; box-sizing: border-box; }
+.paper table { border-collapse: collapse; width: 100%; }
+.paper td, .paper th { border: 1px solid #000; padding: 2px 5px; vertical-align: top; text-align: left; color: #000; font-size: 11px; }
+.paper th { background: #eee; font-size: 10px; }
+.paper .lbl { display: block; font-size: 8px; text-transform: uppercase; letter-spacing: .3px; color: #444; }
+.paper .v { font-weight: bold; }
+.paper .ttl { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px; }
+.paper .ttl b { font-size: 17px; letter-spacing: .5px; }
+.paper .sec { font-weight: bold; font-size: 10.5px; text-transform: uppercase; margin: 8px 0 3px; letter-spacing: .3px; }
+.paper .pt { columns: 2; column-gap: 14px; font-size: 9.5px; }
+.paper .pt div { break-inside: avoid; } .paper .pt .g { font-weight: bold; margin-top: 2px; }
+.paper .sig { height: 46px; border-bottom: 1px solid #000; }
+.paper .ed { font-size: 9px; font-style: italic; }
+.paper svg text { font-family: Arial, Helvetica, sans-serif; }
+.paper .avoid { break-inside: avoid; page-break-inside: avoid; }
+#printArea { display: none; }
+@media print {
+  body > *:not(#printArea) { display: none !important; }
+  #printArea { display: block !important; }
+  #printArea .paper { width: 100%; box-shadow: none; page-break-after: always; break-after: page; padding: 0; }
+  @page { size: letter; margin: 10mm; }
+}
 </style>
 </head>
 <body>
@@ -89,6 +122,8 @@ table.ev { width: 100%; border-collapse: collapse; font-size: .88rem; } table.ev
 </div>
 
 <div class="overlay" id="sheetOv"><div class="sheet" id="sheetBox"></div></div>
+<div class="toast" id="toast"><div id="toastMsg"></div><div class="tb" id="toastBtns"></div></div>
+<div id="printArea"></div>
 
 <script>
 /* ============================== helpers ============================== */
@@ -103,113 +138,268 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const pad = n => String(n).padStart(2, '0');
 const hm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
 const dkey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const tms = v => { const t = new Date(v).getTime(); return isNaN(t) ? 0 : t; };
 const r2 = n => Math.round(n * 100) / 100;
 const fmtH = h => { h = Math.max(0, h); const m = Math.round(h * 60); return Math.floor(m / 60) + 'h ' + pad(m % 60) + 'm'; };
-const STATUS = { OFF: 'Off Duty', SB: 'Sleeper', D: 'Driving', ON: 'On Duty' };
+const fmtHH = h => { const m = Math.round(Math.max(0, h) * 60); return Math.floor(m / 60) + ':' + pad(m % 60); };
+const dayStart = key => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
+const nextDay = key => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d + 1).getTime(); };
+const longDate = key => new Date(dayStart(key)).toLocaleDateString('en-CA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+const STATUS = { OFF: 'Off Duty', SB: 'Sleeper Berth', D: 'Driving', ON: 'On Duty (not driving)' };
+const SHORT = { OFF: 'Off Duty', SB: 'Sleeper', D: 'Driving', ON: 'On Duty' };
 const ROW = { OFF: 0, SB: 1, D: 2, ON: 3 };
 const HEARTBEAT_MS = () => window.__kfHeartbeatMs || 15 * 60000;
+const PT_EVERY_MS = () => window.__kfPointMs || 15 * 60000;
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const DEF_RULES = {
+  defaultSet: 'ab',
+  ab: { maxDriving: 13, maxOnDuty: 15, maxElapsed: 16, resetOffHours: 8 },
+  fed: { maxDriving: 13, maxOnDuty: 14, maxElapsed: 16, resetOffHours: 8 },
+  cycleHours: 70, cycleDays: 7, autoStatus: 1, stillMinutes: 15, offMinutes: 30, driveKph: 40, stillMeters: 100
+};
+const SET_NAME = { ab: 'Alberta provincial', fed: 'Federal (Canada)' };
 
-let URL_ = LS.get('kfDrvUrl', '');
+let URL_ = LS.get('kfDrvUrl', '') || syncedDriversUrl();
 let session = LS.get('kfDrvSession', null);     // {name, passcode}
-let ctx = LS.get('kfDrvCtx', null);             // cached login payload (company, units, rules, history, unitOdo)
+let ctx = LS.get('kfDrvCtx', null);             // cached login payload (company, units, rules, history, unitOdo, lastClose)
 let shift = LS.get('kfDrvShift', null);         // the active shift (local first)
-let lastPos = LS.get('kfDrvLastPos', null);     // {lat, lon, at}
-let online = true, dirty = false, tab = 'drivers';
+let lastPos = LS.get('kfDrvLastPos', null);     // {lat, lon, at, kph, acc}
+let online = true, dirty = false, tab = 'drivers', serverV = LS.get('kfDrvServerV', 0);
 
+function syncedDriversUrl() { try { return localStorage.getItem('driversUrl') || ''; } catch (e) { return ''; } }
 function saveShiftLocal() { if (shift) LS.set('kfDrvShift', shift); else LS.del('kfDrvShift'); }
 
 async function api(body, timeoutMs) {
   if (!URL_) return { status: 'nourl' };
-  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), timeoutMs || 20000);
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), timeoutMs || 25000);
   try {
     const r = await fetch(URL_, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow', signal: ctl.signal });
-    const j = await r.json(); online = true; return j;
+    const j = await r.json(); online = true; if (j && j.v) { serverV = j.v; LS.set('kfDrvServerV', j.v); } return j;
   } catch (e) { online = false; return { status: 'offline' }; } finally { clearTimeout(to); }
 }
 async function getJson(qs) {
   if (!URL_) return null;
-  try { const r = await fetch(URL_ + (URL_.includes('?') ? '&' : '?') + qs); return await r.json(); } catch (e) { return null; }
+  try { const r = await fetch(URL_ + (URL_.includes('?') ? '&' : '?') + qs); const j = await r.json(); if (j && j.v) { serverV = j.v; LS.set('kfDrvServerV', j.v); } return j; } catch (e) { return null; }
 }
 function mainSettings() { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch (e) { return {}; } }
+function loadScript(src) { return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) { const t = setInterval(() => { if (src.includes('leaflet') ? window.L : window.html2pdf) { clearInterval(t); res(); } }, 50); setTimeout(() => clearInterval(t), 20000); return; } const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
 
-/* ============================== sheet (pop-up) ============================== */
-function openSheet(html, mount) { $('sheetBox').innerHTML = html; $('sheetOv').classList.add('show'); if (mount) mount($('sheetBox')); $('sheetOv').scrollTop = 0; }
-function closeSheet() { $('sheetOv').classList.remove('show'); $('sheetBox').innerHTML = ''; }
+/* ============================== rules ============================== */
+function rulesAll() {
+  const src = (ctx && ctx.rules) || (admin && admin.cfg && admin.cfg.rules) || {};
+  const r = JSON.parse(JSON.stringify(DEF_RULES));
+  Object.keys(r).forEach(k => { if (typeof r[k] !== 'object' && src[k] != null && src[k] !== '') r[k] = src[k]; });
+  ['ab', 'fed'].forEach(s => { if (src[s]) Object.keys(r[s]).forEach(k => { if (src[s][k] != null) r[s][k] = +src[s][k]; }); });
+  return r;
+}
+function hosSetOf(sh) { return (sh && sh.hosSet) || rulesAll().defaultSet || 'ab'; }
+function limitsFor(sh) {
+  const r = rulesAll(), set = r[hosSetOf(sh)] || DEF_RULES.ab;
+  const cyc = sh && sh.rule === 'c2' ? { h: 120, d: 14, name: 'Cycle 2 (120 h / 14 days)' } : { h: +r.cycleHours, d: +r.cycleDays, name: 'Cycle 1 (' + r.cycleHours + ' h / ' + r.cycleDays + ' days)' };
+  return Object.assign({ set: hosSetOf(sh), setName: SET_NAME[hosSetOf(sh)], cyc }, set);
+}
+function ruleText(sh) { const l = limitsFor(sh); return `${l.setName}: ${l.maxDriving} h driving · ${l.maxOnDuty} h on duty · ${l.maxElapsed} h elapsed · ${l.cyc.name}`; }
+
+/* ============================== sheet (pop-up) + toast ============================== */
+function openSheet(html, mount) { $('sheetBox').innerHTML = html; $('sheetOv').classList.add('show'); if (mount) mount($('sheetBox')); $('sheetOv').scrollTop = 0; fitPapers($('sheetBox')); }
+function closeSheet() { $('sheetOv').classList.remove('show'); $('sheetBox').innerHTML = ''; delete $('sheetOv').dataset.lock; }
 $('sheetOv').addEventListener('mousedown', e => { if (e.target === $('sheetOv') && !$('sheetOv').dataset.lock) closeSheet(); });
+let toastTimer = null;
+function toast(msg, buttons, ms) {
+  $('toastMsg').innerHTML = msg; const tb = $('toastBtns'); tb.innerHTML = '';
+  (buttons || [{ t: 'OK' }]).forEach(b => { const el = document.createElement('button'); el.textContent = b.t; if (b.ghost) el.className = 'ghost'; el.onclick = () => { hideToast(); if (b.fn) b.fn(); }; tb.appendChild(el); });
+  $('toast').classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, ms || 90000);
+}
+function hideToast() { $('toast').classList.remove('show'); }
+function fitPapers(root) {
+  (root || document).querySelectorAll('.paperwrap').forEach(w => { const avail = w.clientWidth - 16; const z = Math.min(1, avail / 760); w.querySelectorAll('.paper').forEach(p => { p.style.zoom = z < 1 ? z.toFixed(3) : ''; }); });
+}
+window.addEventListener('resize', () => fitPapers());
 
 /* ============================== GPS + place names ============================== */
-const TOWNS = [['Drayton Valley',53.223,-114.977],['Edmonton',53.546,-113.491],['Calgary',51.045,-114.057],['Red Deer',52.268,-113.811],['Rocky Mountain House',52.376,-114.919],['Sundre',51.797,-114.633],['Olds',51.792,-114.106],['Hinton',53.401,-117.585],['Edson',53.581,-116.436],['Whitecourt',54.143,-115.686],['Fox Creek',54.401,-116.809],['Grande Prairie',55.171,-118.795],['Lloydminster',53.278,-110.006],['Wetaskiwin',52.969,-113.377],['Camrose',53.017,-112.833],['Leduc',53.259,-113.549],['Stony Plain',53.527,-114.007],['Spruce Grove',53.545,-113.9],['Fort Saskatchewan',53.713,-113.213],['Drumheller',51.463,-112.709],['Lacombe',52.468,-113.737],['Stettler',52.322,-112.719],['Fort McMurray',56.727,-111.381],['Peace River',56.234,-117.289],['High Prairie',55.436,-116.486],['Slave Lake',55.28,-114.769],['Athabasca',54.72,-113.286],['Lac La Biche',54.77,-111.97],['Cold Lake',54.464,-110.182],['Vegreville',53.495,-112.05],['Vermilion',53.356,-110.858],['Wainwright',52.833,-110.856],['Hanna',51.638,-111.902],['Brooks',50.564,-111.899],['Medicine Hat',50.04,-110.677],['Lethbridge',49.694,-112.833],['Pincher Creek',49.486,-113.951],['Cochrane',51.189,-114.467],['Canmore',51.089,-115.359],['Banff',51.178,-115.571],['Jasper',52.873,-118.08],['Valleyview',55.07,-117.285],['Barrhead',54.122,-114.402],['Mayerthorpe',53.95,-115.133],['Evansburg',53.593,-115.071],['Rimbey',52.636,-114.227],['Ponoka',52.677,-113.584],['Bonnyville',54.267,-110.741],['St. Paul',53.99,-111.29],['Westlock',54.15,-113.863],['Swan Hills',54.716,-115.4],['Eckville',52.36,-114.36],['Breton',53.1,-114.47],['Rocky Rapids',53.14,-115.05],['Warburg',53.18,-114.29],['Saskatoon',52.134,-106.67],['Regina',50.445,-104.619],['North Battleford',52.78,-108.29]];
+const TOWNS = [['Drayton Valley',53.223,-114.977],['Edmonton',53.546,-113.491],['Calgary',51.045,-114.057],['Red Deer',52.268,-113.811],['Rocky Mountain House',52.376,-114.919],['Sundre',51.797,-114.633],['Olds',51.792,-114.106],['Hinton',53.401,-117.585],['Edson',53.581,-116.436],['Whitecourt',54.143,-115.686],['Fox Creek',54.401,-116.809],['Grande Prairie',55.171,-118.795],['Lloydminster',53.278,-110.006],['Wetaskiwin',52.969,-113.377],['Camrose',53.017,-112.833],['Leduc',53.259,-113.549],['Stony Plain',53.527,-114.007],['Spruce Grove',53.545,-113.9],['Fort Saskatchewan',53.713,-113.213],['Drumheller',51.463,-112.709],['Lacombe',52.468,-113.737],['Stettler',52.322,-112.719],['Fort McMurray',56.727,-111.381],['Peace River',56.234,-117.289],['High Prairie',55.436,-116.486],['Slave Lake',55.28,-114.769],['Athabasca',54.72,-113.286],['Lac La Biche',54.77,-111.97],['Cold Lake',54.464,-110.182],['Vegreville',53.495,-112.05],['Vermilion',53.356,-110.858],['Wainwright',52.833,-110.856],['Hanna',51.638,-111.902],['Brooks',50.564,-111.899],['Medicine Hat',50.04,-110.677],['Lethbridge',49.694,-112.833],['Pincher Creek',49.486,-113.951],['Cochrane',51.189,-114.467],['Canmore',51.089,-115.359],['Banff',51.178,-115.571],['Jasper',52.873,-118.08],['Valleyview',55.07,-117.285],['Barrhead',54.122,-114.402],['Mayerthorpe',53.95,-115.133],['Evansburg',53.593,-115.071],['Rimbey',52.636,-114.227],['Ponoka',52.677,-113.584],['Bonnyville',54.267,-110.741],['St. Paul',53.99,-111.29],['Westlock',54.15,-113.863],['Swan Hills',54.716,-115.4],['Eckville',52.36,-114.36],['Breton',53.1,-114.47],['Rocky Rapids',53.14,-115.05],['Warburg',53.18,-114.29],['Saskatoon',52.134,-106.67],['Regina',50.445,-104.619],['North Battleford',52.78,-108.29],
+  ['Okotoks',50.725,-113.975],['High River',50.58,-113.871],['Nanton',50.35,-113.77],['Claresholm',50.03,-113.583],['Stavely',50.164,-113.645],['Cayley',50.454,-113.837],['Aldersyde',50.71,-113.88],['Black Diamond',50.688,-114.233],['Turner Valley',50.674,-114.279],['Longview',50.533,-114.24],['Vulcan',50.4,-113.25],['Champion',50.235,-113.155],['Carmangay',50.13,-113.12],['Fort Macleod',49.725,-113.41],['Granum',49.875,-113.51],['Blairmore',49.61,-114.43],['Coleman',49.64,-114.5],['Cardston',49.2,-113.3],['Taber',49.785,-112.15],['Picture Butte',49.88,-112.78],['Coaldale',49.72,-112.62],['Milk River',49.15,-112.08],['Strathmore',51.04,-113.4],['Chestermere',51.05,-113.82],['Airdrie',51.29,-114.01],['Crossfield',51.43,-114.03],['Carstairs',51.56,-114.1],['Didsbury',51.66,-114.13],['Bragg Creek',50.95,-114.57],['Priddis',50.88,-114.33],['De Winton',50.83,-114.02],['Millarville',50.76,-114.31],['Gleichen',50.87,-113.05],['Bassano',50.78,-112.47],['Irricana',51.32,-113.6],['Beiseker',51.38,-113.53],['Three Hills',51.7,-113.26],['Trochu',51.83,-113.23],['Innisfail',52.03,-113.95],['Bowden',51.93,-114.03],['Penhold',52.13,-113.87],['Sylvan Lake',52.31,-114.09],['Bentley',52.47,-114.06],['Blackfalds',52.38,-113.79],['Caroline',52.09,-114.74],['Spruce View',52.08,-114.31],['Markerville',52.12,-114.17],['Delburne',52.2,-113.24],['Elnora',51.99,-113.2],['Alix',52.4,-113.18],['Clive',52.46,-113.45],['Bashaw',52.58,-112.97],['Millet',53.1,-113.47],['Thorsby',53.23,-114.05],['Calmar',53.26,-113.82],['Devon',53.36,-113.73],['Beaumont',53.36,-113.41],['Sherwood Park',53.52,-113.32],['St. Albert',53.63,-113.63],['Morinville',53.8,-113.65],['Gibbons',53.83,-113.33],['Redwater',53.95,-113.11],['Bon Accord',53.83,-113.42],['Legal',53.95,-113.59],['Onoway',53.7,-114.2],['Sangudo',53.89,-114.9],['Entwistle',53.6,-114.98],['Wildwood',53.6,-115.23],['Niton Junction',53.6,-115.73],['Peers',53.66,-116.0],['Wabamun',53.56,-114.47],['Seba Beach',53.56,-114.74],['Tomahawk',53.37,-114.74],['Alder Flats',52.95,-114.93],['Lodgepole',53.1,-115.32],['Cynthia',53.27,-115.38],['Buck Creek',53.05,-114.83],['Winfield',52.95,-114.43],['Leslieville',52.4,-114.6],['Condor',52.43,-114.53],['Nordegg',52.47,-116.08],['Pigeon Lake',53.02,-114.08],['Mulhurst Bay',52.97,-113.9],['Ma-Me-O Beach',52.97,-113.95],['Grande Cache',53.89,-119.13],['Beaverlodge',55.21,-119.43],['Sexsmith',55.35,-118.78],['Spirit River',55.78,-118.83],['Fairview',56.07,-118.39],['Manning',56.92,-117.62],['Grimshaw',56.19,-117.61],['McLennan',55.71,-116.9],['Falher',55.73,-117.2],['Smoky Lake',54.12,-112.47],['Two Hills',53.71,-111.75],['Tofield',53.37,-112.67],['Viking',53.09,-111.78],['Killam',52.78,-111.85],['Sedgewick',52.78,-111.7],['Hardisty',52.67,-111.31],['Provost',52.35,-110.27],['Coronation',52.09,-111.45],['Castor',52.22,-111.9],['Oyen',51.35,-110.47],['Consort',52.01,-110.77],['Kindersley',51.47,-109.16],['Rosetown',51.55,-107.99],['Swift Current',50.29,-107.79],['Moose Jaw',50.39,-105.53],['Prince Albert',53.2,-105.75],['Meadow Lake',54.13,-108.43],['Yorkton',51.21,-102.46],['Estevan',49.14,-102.99],['Weyburn',49.66,-103.85],['Unity',52.44,-109.16],['Maidstone',53.09,-109.3]];
 function hav(a, b, c, d) { const R = 6371000, t = x => x * Math.PI / 180; const dLa = t(c - a), dLo = t(d - b); const h = Math.sin(dLa / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); }
 function bearingWord(a, b, c, d) { const t = x => x * Math.PI / 180; const y = Math.sin(t(d - b)) * Math.cos(t(c)); const x = Math.cos(t(a)) * Math.sin(t(c)) - Math.sin(t(a)) * Math.cos(t(c)) * Math.cos(t(d - b)); const deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8]; }
+function describe(lat, lon, name, plat, plon, prov) {
+  const km = Math.round(hav(plat, plon, lat, lon) / 1000), p = prov ? ', ' + prov : '';
+  return km < 4 ? 'near ' + name + p : km + ' km ' + bearingWord(plat, plon, lat, lon) + ' of ' + name + p;
+}
 function nearestTown(lat, lon) {
   let best = null, bd = 1e12;
   TOWNS.forEach(t => { const d = hav(lat, lon, t[1], t[2]); if (d < bd) { bd = d; best = t; } });
   if (!best) return lat.toFixed(4) + ', ' + lon.toFixed(4);
-  const km = Math.round(bd / 1000);
-  return km < 8 ? 'near ' + best[0] : km + ' km ' + bearingWord(best[1], best[2], lat, lon) + ' of ' + best[0];
+  return describe(lat, lon, best[0], best[1], best[2], '');
 }
+let placeInfo = { source: '', error: '' };
 async function placeFor(lat, lon) {
-  const key = mainSettings().apiKey;
-  if (key && navigator.onLine !== false) {
-    try {
-      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
-      const r = await fetch('https://maps.googleapis.com/maps/api/geocode/json?latlng=' + lat + ',' + lon + '&result_type=locality|sublocality|administrative_area_level_3&key=' + encodeURIComponent(key), { signal: ctl.signal });
-      clearTimeout(to); const j = await r.json();
-      const res = j && j.results && j.results[0];
-      if (res) { const comp = (res.address_components || []).find(c => (c.types || []).includes('locality')) || (res.address_components || [])[0]; if (comp && comp.long_name) return 'near ' + comp.long_name; }
-    } catch (e) {}
-  }
+  if (lat == null || lon == null) return '';
+  const cache = LS.get('kfDrvPlaces', {}), ck = lat.toFixed(2) + ',' + lon.toFixed(2);
+  if (cache[ck]) { const c = cache[ck]; placeInfo = { source: c.source + ' (saved)', error: '' }; return describe(lat, lon, c.name, c.lat, c.lon, c.prov); }
+  const remember = o => { const keys = Object.keys(cache); if (keys.length > 400) keys.slice(0, 100).forEach(k => delete cache[k]); cache[ck] = o; LS.set('kfDrvPlaces', cache); };
+  if (navigator.onLine !== false) {
+    // 1) the Drivers script asks Google Maps (no API key needed, works from any phone)
+    const auth = session ? { name: session.name, passcode: session.passcode } : adminPw() ? { password: adminPw() } : null;
+    if (auth && URL_) {
+      const r = await api(Object.assign({ action: 'place', lat, lon }, auth), 7000);
+      if (r && r.status === 'ok' && r.name) { remember({ name: r.name, lat: r.lat, lon: r.lon, prov: r.prov || '', source: 'Google (Drivers script)' }); placeInfo = { source: 'Google (Drivers script)', error: '' }; return describe(lat, lon, r.name, r.lat, r.lon, r.prov); }
+      placeInfo.error = r && r.status === 'error' ? (r.message || '') : r && r.status === 'offline' ? 'no signal' : (r && r.status) || '';
+      if (r && r.status === 'error' && /Unknown action/.test(r.message || '')) placeInfo.error = 'Drivers script is the old version (update it to get village names)';
+    }
+    // 2) the Maps key from the Quote page settings (works only if the key allows the Geocoding API from a browser)
+    const key = mainSettings().apiKey;
+    if (key) {
+      try {
+        const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 5000);
+        const r = await fetch('https://maps.googleapis.com/maps/api/geocode/json?latlng=' + lat + ',' + lon + '&key=' + encodeURIComponent(key), { signal: ctl.signal });
+        clearTimeout(to); const j = await r.json();
+        if (j.status === 'OK') {
+          const want = ['locality', 'sublocality', 'neighborhood', 'administrative_area_level_3'];
+          let best = null; for (const w of want) { best = (j.results || []).find(x => (x.types || []).includes(w)); if (best) break; }
+          let prov = ''; (j.results || []).some(x => (x.address_components || []).some(c => { if ((c.types || []).includes('administrative_area_level_1')) { prov = c.short_name; return true; } return false; }));
+          if (best) { const nm = best.address_components[0].long_name, g = best.geometry.location; remember({ name: nm, lat: g.lat, lon: g.lng, prov, source: 'Google (Maps key)' }); placeInfo = { source: 'Google (Maps key)', error: '' }; return describe(lat, lon, nm, g.lat, g.lng, prov); }
+        } else placeInfo.error = (placeInfo.error ? placeInfo.error + ' / ' : '') + 'Maps key: ' + j.status + (j.error_message ? ' – ' + j.error_message : '');
+      } catch (e) {}
+    }
+  } else placeInfo.error = 'no signal';
+  placeInfo.source = 'built-in town list';
   return nearestTown(lat, lon);
+}
+function fixFrom(p, prev) {
+  const o = { lat: p.coords.latitude, lon: p.coords.longitude, at: new Date(p.timestamp || Date.now()).toISOString(), acc: Math.round(p.coords.accuracy || 0), kph: null };
+  if (p.coords.speed != null && p.coords.speed >= 0 && !isNaN(p.coords.speed)) o.kph = p.coords.speed * 3.6;
+  else if (prev && prev.lat != null) { const dt = (tms(o.at) - tms(prev.at)) / 1000; if (dt >= 5 && dt <= 180) o.kph = hav(prev.lat, prev.lon, o.lat, o.lon) / dt * 3.6; }
+  return o;
 }
 function getPosition() {
   return new Promise(resolve => {
     if (!navigator.geolocation) return resolve(lastPos);
-    navigator.geolocation.getCurrentPosition(p => { const o = { lat: p.coords.latitude, lon: p.coords.longitude, at: new Date().toISOString() }; lastPos = o; LS.set('kfDrvLastPos', o); resolve(o); }, () => resolve(lastPos), { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
+    navigator.geolocation.getCurrentPosition(p => { const o = fixFrom(p, lastPos); lastPos = o; LS.set('kfDrvLastPos', o); resolve(o); }, () => resolve(lastPos), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
   });
 }
-let watchId = null, anchor = null, stillShown = false;
+let watchId = null, gpsOk = false, lastFixMs = 0;
 function startWatch() {
   if (watchId != null || !navigator.geolocation) return;
   try {
     watchId = navigator.geolocation.watchPosition(p => {
-      lastPos = { lat: p.coords.latitude, lon: p.coords.longitude, at: new Date().toISOString() }; LS.set('kfDrvLastPos', lastPos); gpsBadge(true); checkStill();
-    }, () => gpsBadge(false), { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 });
+      const o = fixFrom(p, lastPos); lastPos = o; lastFixMs = Date.now(); LS.set('kfDrvLastPos', o); gpsOk = true; gpsBadge(); autoCheck(o);
+    }, () => { gpsOk = false; gpsBadge(); }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 60000 });
   } catch (e) {}
 }
 function stopWatch() { if (watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId); watchId = null; anchor = null; }
-function gpsBadge(ok) { const b = $('gpsBadge'); if (b) { b.className = 'badge ' + (ok ? 'on' : 'off'); b.textContent = ok ? 'GPS on' : 'GPS off'; } }
+function gpsBadge() {
+  const b = $('gpsBadge'); if (b) { const ok = gpsOk && Date.now() - lastFixMs < 180000; b.className = 'badge ' + (ok ? 'on' : 'off'); b.textContent = ok ? 'GPS on' : 'GPS off'; }
+  const w = $('wakeBadge'); if (w) { w.className = 'badge ' + (wakeLock ? 'on' : 'off'); w.textContent = wakeLock ? 'Screen kept on' : 'Screen may sleep'; }
+}
 
-function checkStill() {
-  if (!shift || shift.submittedPending || !lastPos || curStatus() !== 'D' || stillShown) { if (curStatus() !== 'D') anchor = null; return; }
-  const rules = (ctx && ctx.rules) || {};
-  const meters = rules.stillMeters || 100, mins = rules.stillMinutes || 15;
-  const now = Date.now();
-  if (!anchor || hav(anchor.lat, anchor.lon, lastPos.lat, lastPos.lon) > meters) { anchor = { lat: lastPos.lat, lon: lastPos.lon, at: now }; return; }
-  if (now - anchor.at >= mins * 60000) showStill(mins, meters);
+/* ---- keep the screen (and GPS) on from shift start to submit ---- */
+let wakeLock = null;
+async function keepAwake() {
+  if (!shift || shift.submittedPending) { if (wakeLock) { try { await wakeLock.release(); } catch (e) {} wakeLock = null; } return; }
+  if (!('wakeLock' in navigator) || wakeLock || document.visibilityState !== 'visible') return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; gpsBadge(); }); } catch (e) { wakeLock = null; }
+  gpsBadge();
 }
-function showStill(mins, meters) {
-  stillShown = true; $('sheetOv').dataset.lock = '1';
-  openSheet(`<h3>Still driving?</h3><p>This phone has stayed within ${meters} m for ${mins} minutes while you are logged as <b>Driving</b>. Change your duty status?</p>
-    <div class="sbtn-grid"><button class="sbtn" data-s="ON">On Duty<small>not driving</small></button><button class="sbtn" data-s="OFF">Off Duty</button><button class="sbtn" data-s="SB">Sleeper</button><button class="sbtn cur" data-s="D">Still driving<small>keep Driving</small></button></div>`, box => {
-    box.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
-      const s = b.dataset.s; delete $('sheetOv').dataset.lock; stillShown = false; anchor = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: Date.now() } : null; closeSheet();
-      if (s !== 'D') changeStatus(s);
-    });
-  });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (shift && !shift.submittedPending) LS.set('kfDrvHiddenAt', Date.now()); return; }
+  const hid = LS.get('kfDrvHiddenAt', 0); LS.del('kfDrvHiddenAt');
+  if (shift && !shift.submittedPending) {
+    keepAwake(); startWatch();
+    if (hid && Date.now() - hid > 3 * 60000) {
+      shift.gpsGaps = shift.gpsGaps || []; shift.gpsGaps.push({ from: new Date(hid).toISOString(), to: new Date().toISOString() }); saveShiftLocal();
+      toast(`The app was closed or in the background for ${fmtH((Date.now() - hid) / 3600000)}. GPS was not recorded in that time. Keep this app open on the screen during your shift.`);
+    }
+    if (dirty) pushShift();
+  }
+});
+
+/* ---- automatic duty status from GPS ---- */
+let anchor = LS.get('kfDrvAnchor', null), fastCount = 0;
+function saveAnchor() { LS.set('kfDrvAnchor', anchor); }
+function canAuto() { return shift && !shift.submittedPending && session && +rulesAll().autoStatus !== 0; }
+function addEvent(ev) { ev.id = ev.id || newId(); ev.hm = hm(new Date(ev.t)); shift.events.push(ev); normalize(shift); queuePoint(true, ev.s); return ev; }
+function lastEvent() { return shift.events[shift.events.length - 1]; }
+async function fillPlace(ev) { if (ev.lat == null) return; const p = await placeFor(ev.lat, ev.lon); if (!shift) return; const e = shift.events.find(x => x.id === ev.id); if (e && !e.place) { e.place = p; saveShiftLocal(); if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderShiftHome(); } }
+function autoCheck(fix) {
+  if (!canAuto() || !fix) return;
+  const r = rulesAll(), now = Date.now(), st = curStatus();
+  const goodFix = !fix.acc || fix.acc <= 150;
+  // moving faster than the driving speed on two readings in a row = Driving
+  if (goodFix && fix.kph != null && fix.kph > +r.driveKph) fastCount++; else if (fix.kph != null) fastCount = 0;
+  if (fastCount >= 2) {
+    anchor = { lat: fix.lat, lon: fix.lon, at: now }; saveAnchor();
+    if (st !== 'D') {
+      const ev = addEvent({ t: new Date(now).toISOString(), s: 'D', label: 'Driving', lat: fix.lat, lon: fix.lon, place: '', note: 'Auto: moving ' + Math.round(fix.kph) + ' km/h', auto: 'move' });
+      stamp(shift, now); saveShiftLocal(); fillPlace(ev); pushShift(); renderIfHome();
+      const noPre = !shift.pretrip || !shift.pretrip.done;
+      toast(`<b>Driving</b> logged automatically (${Math.round(fix.kph)} km/h).` + (noPre ? '<br><b>No pre-trip inspection is recorded for this shift.</b>' : ''),
+        noPre ? [{ t: 'Do pre-trip', fn: openPretrip }, { t: 'OK', ghost: true }] : [{ t: 'Not me driving', ghost: true, fn: () => undoAuto(ev.id) }, { t: 'OK' }]);
+    }
+    return;
+  }
+  if (!goodFix) return;
+  if (!anchor || hav(anchor.lat, anchor.lon, fix.lat, fix.lon) > +r.stillMeters) { anchor = { lat: fix.lat, lon: fix.lon, at: now }; saveAnchor(); return; }
+  stoppedCheck(now);
 }
+function stoppedCheck(now) {
+  if (!canAuto() || !anchor) return;
+  const r = rulesAll(), st = curStatus(), le = lastEvent(), stoppedMin = (now - anchor.at) / 60000;
+  if (st === 'D' && stoppedMin >= +r.stillMinutes) {
+    const t = Math.max(anchor.at, tms(le.t) + 1000);
+    const ev = addEvent({ t: new Date(t).toISOString(), s: 'ON', label: 'On Duty (not driving)', lat: anchor.lat, lon: anchor.lon, place: '', note: `Auto: stopped ${r.stillMinutes} min`, auto: 'stop', stopAt: anchor.at });
+    stamp(shift, now); saveShiftLocal(); fillPlace(ev); pushShift(); renderIfHome();
+    toast(`Stopped ${r.stillMinutes} minutes: logged <b>On Duty (not driving)</b> from ${ev.hm}. After ${r.offMinutes} minutes stopped it changes to Off Duty.`, [{ t: 'Still driving', ghost: true, fn: () => undoAuto(ev.id) }, { t: 'Off Duty now', ghost: true, fn: () => changeStatus('OFF') }, { t: 'OK' }]);
+    return;
+  }
+  if (st === 'ON' && le.auto === 'stop' && !le.keep && le.stopAt === anchor.at && stoppedMin >= +r.offMinutes) {
+    const before = { t: le.t, s: le.s };
+    le.s = 'OFF'; le.label = 'Off Duty'; le.note = `Auto: stopped ${r.offMinutes} min`; le.auto = 'stopoff';
+    stamp(shift, now); saveShiftLocal(); pushShift(); renderIfHome();
+    toast(`Stopped ${r.offMinutes} minutes: logged <b>Off Duty</b> from ${le.hm}.`, [{ t: 'Keep On Duty', ghost: true, fn: () => { const e = shift.events.find(x => x.id === le.id); if (e) { e.s = before.s; e.label = 'On Duty (not driving)'; e.note = 'Auto: stopped, kept on duty'; e.auto = 'stop'; e.keep = true; stamp(shift, Date.now()); saveShiftLocal(); pushShift(); renderIfHome(); } } }, { t: 'OK' }]);
+  }
+}
+function undoAuto(id) {
+  if (!shift) return; const i = shift.events.findIndex(x => x.id === id); if (i < 0) return;
+  shift.events.splice(i, 1); anchor = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: Date.now() } : null; saveAnchor(); fastCount = 0;
+  stamp(shift, Date.now()); saveShiftLocal(); pushShift(); renderIfHome();
+}
+function renderIfHome() { if (tab === 'drivers' && shift && !$('sheetOv').classList.contains('show')) renderShiftHome(); }
+
+/* ---- 15-minute GPS trail (kept on the phone until it reaches the office) ---- */
+function queuePoint(force, s) {
+  if (!shift || !lastPos || shift.submittedPending) return;
+  const last = LS.get('kfDrvPtAt', 0), now = Date.now();
+  if (!force && now - last < PT_EVERY_MS()) return;
+  const q = LS.get('kfDrvPts', []);
+  q.push({ t: new Date(now).toISOString(), lat: lastPos.lat, lon: lastPos.lon, kph: lastPos.kph == null ? null : Math.round(lastPos.kph), s: s || curStatus(), shiftId: shift.id, unit: shift.unit, acc: lastPos.acc });
+  LS.set('kfDrvPts', q.slice(-3000)); LS.set('kfDrvPtAt', now);
+}
+setInterval(async () => {
+  if (!shift || shift.submittedPending || !session) return;
+  if (Date.now() - lastFixMs > 60000) { const p = await getPosition(); if (p && p.at && Date.now() - tms(p.at) < 60000) { lastFixMs = Date.now(); gpsOk = true; autoCheck(p); } }
+  stoppedCheck(Date.now()); queuePoint(false); gpsBadge(); keepAwake();
+}, window.__kfAutoTickMs || 20000);
 
 /* ============================== shift model + hours ============================== */
-function curStatus() { if (!shift || !shift.events.length) return 'OFF'; return shift.events[shift.events.length - 1].s; }
+function normalize(sh) {
+  sh.events = (sh.events || []).filter(e => e && e.t).sort((a, b) => tms(a.t) - tms(b.t));
+  sh.events.forEach(e => { e.id = e.id || newId(); e.hm = hm(new Date(e.t)); });
+  ['trips', 'fuel', 'edits', 'gpsGaps'].forEach(k => { if (!Array.isArray(sh[k])) sh[k] = []; });
+  delete sh._status; delete sh._submittedAt;
+  return sh;
+}
+function curStatus() { if (!shift || !shift.events.length) return 'OFF'; return lastEvent().s; }
+function endOf(sh, nowMs) { return sh.closedAt ? tms(sh.closedAt) : nowMs; }
 function segments(sh, nowMs) {
-  const ev = (sh.events || []).slice().sort((a, b) => new Date(a.t) - new Date(b.t)), out = [];
+  const ev = (sh.events || []).slice().sort((a, b) => tms(a.t) - tms(b.t)), out = [];
   for (let i = 0; i < ev.length; i++) {
-    let s = new Date(ev[i].t).getTime(), e = i + 1 < ev.length ? new Date(ev[i + 1].t).getTime() : nowMs;
+    const s = tms(ev[i].t), e = i + 1 < ev.length ? tms(ev[i + 1].t) : nowMs;
     if (e <= s) continue;
     let cur = s;
     while (cur < e) {
       const d = new Date(cur), mid = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime(), end = Math.min(e, mid);
       const day0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      out.push({ day: dkey(d), s: ev[i].s, a: (cur - day0) / 60000, b: (end - day0) / 60000, ms: end - cur });
+      out.push({ day: dkey(d), s: ev[i].s, a: (cur - day0) / 60000, b: (end - day0) / 60000, ms: end - cur, t0: cur, t1: end });
       cur = end;
     }
   }
@@ -221,30 +411,51 @@ function dayTotals(segs) {
   return m;
 }
 function stamp(sh, nowMs) {
-  const t = dayTotals(segments(sh, nowMs)); let d = 0, on = 0; const days = [];
-  Object.keys(t).sort().forEach(k => { d += t[k].D; on += t[k].D + t[k].ON; days.push({ date: k, onDuty: r2(t[k].D + t[k].ON), driving: r2(t[k].D) }); });
+  const t = dayTotals(segments(sh, endOf(sh, nowMs))); let d = 0, on = 0; const days = [];
+  Object.keys(t).sort().forEach(k => { d += t[k].D; on += t[k].D + t[k].ON; if (t[k].D + t[k].ON > 0) days.push({ date: k, onDuty: r2(t[k].D + t[k].ON), driving: r2(t[k].D) }); });
   sh.drivingHrs = r2(d); sh.onDutyHrs = r2(on); sh.days = days; return t;
 }
+// Work-shift meters: time since the last qualifying off-duty rest (off duty + sleeper back to back)
 function hos(nowMs) {
-  const rules = (ctx && ctx.rules) || { cycleHours: 70, cycleDays: 7, maxDriving: 13, maxWindow: 14, maxElapsed: 16, resetOffHours: 8 };
-  const cyc = shift.rule === 'c2' ? { h: 120, d: 14 } : { h: rules.cycleHours, d: rules.cycleDays };
-  const segs = segments(shift, nowMs), t = dayTotals(segs), today = dkey(new Date(nowMs));
-  let wStart = new Date(shift.events[0].t).getTime();
-  const evs = shift.events.slice().sort((a, b) => new Date(a.t) - new Date(b.t));
-  evs.forEach((e, i) => { if (e.s !== 'OFF' && e.s !== 'SB') return; const a = new Date(e.t).getTime(), b = i + 1 < evs.length ? new Date(evs[i + 1].t).getTime() : nowMs; if (b - a >= rules.resetOffHours * 3600000) wStart = Math.max(wStart, b); });
-  const elapsed = (nowMs - wStart) / 3600000;
-  const tt = t[today] || { D: 0, ON: 0 };
-  const hist = Object.assign({}, (ctx && ctx.history) || {}), per = {};
+  const L = limitsFor(shift), segs = segments(shift, nowMs);
+  const merged = []; segs.forEach(g => { const off = g.s === 'OFF' || g.s === 'SB'; const last = merged[merged.length - 1]; if (last && last.off === off && last.t1 === g.t0) last.t1 = g.t1; else merged.push({ off, t0: g.t0, t1: g.t1 }); });
+  let resetEnd = 0; merged.forEach(m => { if (m.off && m.t1 - m.t0 >= L.resetOffHours * 3600000 && m.t1 < nowMs) resetEnd = Math.max(resetEnd, m.t1); });
+  const work = segs.filter(g => g.t0 >= resetEnd && (g.s === 'D' || g.s === 'ON'));
+  const wStart = work.length ? work[0].t0 : null;
+  let drv = 0, on = 0; work.forEach(g => { on += g.ms / 3600000; if (g.s === 'D') drv += g.ms / 3600000; });
+  const elapsed = wStart ? (nowMs - wStart) / 3600000 : 0;
+  // cycle: on-duty hours in the last N days (office history + this phone's recent logs + this shift)
+  const per = {}; const hist = Object.assign({}, (ctx && ctx.history) || {});
   Object.keys(hist).forEach(k => { per[k] = (hist[k].onDuty || 0); });
-  Object.keys(t).forEach(k => { per[k] = (per[k] || 0) + t[k].D + t[k].ON; });
+  const local = localDone().filter(s => s.id !== shift.id && !(ctx && ctx.historyIds || []).includes(s.id));
+  if (!Object.keys(hist).length) local.forEach(s => (s.days || []).forEach(x => { per[x.date] = (per[x.date] || 0) + (+x.onDuty || 0); }));
+  const t = dayTotals(segs); Object.keys(t).forEach(k => { per[k] = (per[k] || 0) + t[k].D + t[k].ON; });
   let used = 0; const base = new Date(nowMs);
-  for (let i = 0; i < cyc.d; i++) { const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i); used += per[dkey(d)] || 0; }
+  for (let i = 0; i < L.cyc.d; i++) { const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i); used += per[dkey(d)] || 0; }
   return [
-    { k: 'Driving today', used: tt.D, max: rules.maxDriving },
-    { k: 'On-duty window', used: elapsed, max: rules.maxWindow },
-    { k: 'Elapsed (16 h rule)', used: elapsed, max: rules.maxElapsed },
-    { k: 'Cycle ' + cyc.h + ' h / ' + cyc.d + ' d', used: used, max: cyc.h }
+    { k: 'Driving (' + L.maxDriving + ' h)', used: drv, max: L.maxDriving },
+    { k: 'On duty (' + L.maxOnDuty + ' h)', used: on, max: L.maxOnDuty },
+    { k: 'Elapsed (' + L.maxElapsed + ' h)', used: elapsed, max: L.maxElapsed },
+    { k: 'Cycle ' + L.cyc.h + ' h / ' + L.cyc.d + ' d', used, max: L.cyc.h }
   ];
+}
+
+/* ---- this phone's own recent logs (so the 14-day view works without signal) ---- */
+function localDone() { const all = LS.get('kfDrvDone', []); const me = (session && session.name || '').toLowerCase(); return all.filter(s => !me || String(s.driverName || '').toLowerCase() === me); }
+function rememberDone(sh) {
+  const all = LS.get('kfDrvDone', []).filter(s => s.id !== sh.id && tms(s.closedAt || s.startedAt) > Date.now() - 16 * 86400000);
+  const c = JSON.parse(JSON.stringify(sh)); all.push(c); LS.set('kfDrvDone', all.slice(-30));
+}
+async function getHistory(force) {
+  const cached = LS.get('kfDrvHist', null), me = session && session.name;
+  let list = cached && cached.name === me ? cached.shifts : [];
+  if ((force || !cached || Date.now() - cached.at > 10 * 60000) && session) {
+    const r = await api({ action: 'driverHistory', name: session.name, passcode: session.passcode, days: 16 });
+    if (r.status === 'ok' && Array.isArray(r.shifts)) { list = r.shifts.map(normalize); LS.set('kfDrvHist', { at: Date.now(), name: me, shifts: list }); }
+  }
+  const byId = {}; localDone().forEach(s => byId[s.id] = s); list.forEach(s => byId[s.id] = s);
+  if (shift) byId[shift.id] = shift;
+  return Object.values(byId).map(s => normalize(JSON.parse(JSON.stringify(s))));
 }
 
 /* ============================== tabs ============================== */
@@ -259,8 +470,9 @@ document.addEventListener('click', e => { const a = e.target.closest('[data-home
 /* ============================== DRIVERS tab ============================== */
 async function renderDrivers() {
   const v = $('view-drivers');
+  if (!URL_) URL_ = syncedDriversUrl();
   if (!URL_) {
-    v.innerHTML = `<div class="card"><h2 style="margin-top:0">Connect this phone</h2><p class="small">Paste the Drivers script link your office gave you. You only do this once per phone.</p>
+    v.innerHTML = `<div class="card"><h2 style="margin-top:0">Connect this phone</h2><p class="small">Paste the Drivers script link your office gave you. You only do this once per phone. (If this phone uses Company Sync on the Quote page, the link is filled in for you after a sync.)</p>
       <label>Drivers script link</label><input id="urlIn" placeholder="https://script.google.com/macros/s/.../exec" autocapitalize="off" autocorrect="off"><div class="err" id="urlErr"></div>
       <button class="btn" id="urlSave" style="width:100%;margin-top:8px">Save</button></div>`;
     $('urlSave').onclick = async () => {
@@ -282,99 +494,226 @@ async function renderLogin(msg) {
     <div class="err" id="lgErr"></div><button class="btn" id="lgGo" style="width:100%;margin-top:8px">Log in</button></div>`;
   const fill = list => { $('lgName').innerHTML = '<option value="">Select your name</option>' + list.map(n => `<option>${esc(n)}</option>`).join(''); };
   fill(names);
-  getJson('action=drivers').then(g => { if (g && g.drivers) { LS.set('kfDrvNames', g.drivers); const cur = $('lgName') && $('lgName').value; fill(g.drivers); if (cur && $('lgName')) $('lgName').value = cur; } });
+  getJson('action=drivers').then(g => { if (g && g.drivers) { LS.set('kfDrvNames', g.drivers); const cur = $('lgName') && $('lgName').value; if ($('lgName')) { fill(g.drivers); if (cur) $('lgName').value = cur; } } });
   $('lgGo').onclick = async () => {
     const name = $('lgName').value, pass = $('lgPass').value; if (!name || !pass) { $('lgErr').textContent = 'Select your name and enter your passcode.'; return; }
     $('lgGo').disabled = true; $('lgErr').textContent = 'Logging in…';
     const r = await api({ action: 'driverLogin', name, passcode: pass });
     $('lgGo').disabled = false;
-    if (r.status === 'ok') { session = { name, passcode: pass }; LS.set('kfDrvSession', session); ctx = r; LS.set('kfDrvCtx', r); if (r.openShift && !shift) { shift = r.openShift; saveShiftLocal(); } if (r.unitOdo) { const lo = LS.get('kfDrvLastOdo', {}); Object.assign(lo, r.unitOdo); LS.set('kfDrvLastOdo', lo); } renderDrivers(); }
+    if (r.status === 'ok') { session = { name, passcode: pass }; LS.set('kfDrvSession', session); setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } renderDrivers(); }
     else $('lgErr').textContent = r.status === 'badpassword' ? 'Wrong name or passcode.' : r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal. You need signal to log in the first time.' : (r.message || 'Could not log in.');
   };
 }
+function setCtx(r) {
+  ctx = r; delete ctx.openShift; LS.set('kfDrvCtx', ctx);
+  if (r.unitOdo) { const lo = LS.get('kfDrvLastOdo', {}); Object.assign(lo, r.unitOdo); LS.set('kfDrvLastOdo', lo); }
+  if (r.lastClose && tms(r.lastClose) > tms(LS.get('kfDrvLastClose', ''))) LS.set('kfDrvLastClose', r.lastClose);
+}
 
 function renderStart() {
-  const v = $('view-drivers'), units = (ctx && ctx.units) || [], lo = LS.get('kfDrvLastOdo', {});
-  v.innerHTML = `<div class="card"><h2 style="margin-top:0">Hi ${esc(session.name)}</h2><p class="small">Start your shift. You must submit this shift before you can start another.</p>
+  const v = $('view-drivers'), units = (ctx && ctx.units) || [], lo = LS.get('kfDrvLastOdo', {}), R = rulesAll();
+  v.innerHTML = `<div class="card"><h2 style="margin-top:0">Hi ${esc(session.name)}</h2><p class="small">Start your shift. You stay <b>Off Duty</b> until your pre-trip; saving the pre-trip logs 30 minutes On Duty. You must submit this shift before you can start another.</p>
     <label>Unit</label><select id="stUnit"><option value="">Select unit</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}${u.plate ? ' · ' + esc(u.plate) : ''}</option>`).join('')}</select>
     <div class="row2"><div><label>Trailer plate A</label><input id="stTa"></div><div><label>Trailer plate B</label><input id="stTb"></div></div>
-    <label>Starting odometer (km)</label><input id="stOdo" type="number" inputmode="decimal" placeholder="loads from last log">
-    <label>Hours rule</label><select id="stRule"><option value="c1">Alberta / Canada Cycle 1 — 70 h / 7 days</option><option value="c2">Cycle 2 — 120 h / 14 days</option></select>
+    <label>Starting odometer (km)</label><input id="stOdo" type="number" inputmode="decimal" placeholder="loads from the last log on this unit"><div class="small" id="stOdoHint">Select the unit to load the last recorded km.</div>
+    <label style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="stOdoOk" style="width:24px;min-height:24px;margin:0"> I checked this against the odometer on the dash</label>
+    <label>Hours of service rules</label><select id="stSet"><option value="ab">Alberta provincial — ${R.ab.maxDriving} h driving · ${R.ab.maxOnDuty} h on duty</option><option value="fed">Federal (Canada) — ${R.fed.maxDriving} h driving · ${R.fed.maxOnDuty} h on duty</option></select>
+    <label>Cycle</label><select id="stRule"><option value="c1">Cycle 1 — ${R.cycleHours} h / ${R.cycleDays} days</option><option value="c2">Cycle 2 — 120 h / 14 days</option></select>
     <div class="err" id="stErr"></div><button class="btn" id="stGo" style="width:100%;margin-top:8px">Start shift</button>
+    <button class="btn btn-outline" id="stHist" style="width:100%;margin-top:8px">My logs (last 14 days)</button>
     <button class="btn btn-outline" id="stOut" style="width:100%;margin-top:8px">Log out</button></div>`;
-  $('stUnit').onchange = () => { const u = units.find(x => x.name === $('stUnit').value); if (u) { $('stTa').value = u.trailerA || ''; $('stTb').value = u.trailerB || ''; } const o = lo[$('stUnit').value]; if (o !== undefined && o !== '') $('stOdo').value = o; };
-  $('stOut').onclick = logout;
+  $('stSet').value = R.defaultSet === 'fed' ? 'fed' : 'ab';
+  const last = LS.get('kfDrvLastSetup', {}); if (last.rule) $('stRule').value = last.rule; if (last.set) $('stSet').value = last.set;
+  $('stUnit').onchange = () => {
+    const u = units.find(x => x.name === $('stUnit').value); if (u) { $('stTa').value = u.trailerA || ''; $('stTb').value = u.trailerB || ''; }
+    const o = lo[$('stUnit').value]; $('stOdoOk').checked = false;
+    if (o !== undefined && o !== '') { $('stOdo').value = o; $('stOdoHint').innerHTML = `Last log on this unit ended at <b>${esc(o)} km</b>. Check the dash and correct it if it is different.`; }
+    else { $('stOdo').value = ''; $('stOdoHint').textContent = 'No earlier log for this unit. Enter the km from the dash.'; }
+  };
+  $('stOdo').oninput = () => { $('stOdoOk').checked = false; };
+  $('stOut').onclick = logout; $('stHist').onclick = openHistory;
   $('stGo').onclick = async () => {
     const un = $('stUnit').value, odo = $('stOdo').value;
     if (!un) { $('stErr').textContent = 'Select your unit.'; return; }
     if (odo === '' || isNaN(+odo)) { $('stErr').textContent = 'Enter the starting odometer.'; return; }
+    if (!$('stOdoOk').checked) { $('stErr').textContent = 'Check the km on the dash, then tick the box.'; return; }
+    const prevKm = lo[un]; if (prevKm !== undefined && prevKm !== '' && +odo < +prevKm && !confirm(`The last log on ${un} ended at ${prevKm} km, which is more than ${odo} km. Start with ${odo} km anyway?`)) return;
+    $('stGo').disabled = true;
     const u = units.find(x => x.name === un) || {}; const now = new Date();
-    shift = { id: 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: dkey(now), startedAt: now.toISOString(), driverName: session.name, unit: un, plate: u.plate || '', trailerA: $('stTa').value.trim(), trailerB: $('stTb').value.trim(), rule: $('stRule').value, startOdo: +odo, endOdo: '', events: [], trips: [], fuel: [], pretrip: null, remarks: '', signature: '' };
-    const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
-    shift.events.push({ t: now.toISOString(), hm: hm(now), s: 'ON', label: 'On Duty (start of shift)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place, note: '' });
-    stamp(shift, Date.now()); saveShiftLocal(); await pushShift(); renderDrivers();
+    LS.set('kfDrvLastSetup', { rule: $('stRule').value, set: $('stSet').value });
+    shift = { id: 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: dkey(now), startedAt: now.toISOString(), driverName: session.name, unit: un, plate: u.plate || '', trailerA: $('stTa').value.trim(), trailerB: $('stTb').value.trim(), rule: $('stRule').value, hosSet: $('stSet').value, startOdo: +odo, endOdo: '', events: [], trips: [], fuel: [], edits: [], gpsGaps: [], pretrip: null, remarks: '', signature: '' };
+    // Off duty from the end of the last shift (or midnight) until the pre-trip
+    const lc = tms(LS.get('kfDrvLastClose', '')), midnight = dayStart(dkey(now)), yesterday = midnight - 86400000;
+    const offFrom = lc && lc < now.getTime() ? Math.max(lc, yesterday) : midnight;
+    const pos = await getPosition();
+    const ev = { id: newId(), t: new Date(Math.min(offFrom, now.getTime())).toISOString(), s: 'OFF', label: 'Off Duty' + (lc ? ' (since last shift)' : ''), lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: '', note: '' };
+    shift.events.push(ev); normalize(shift);
+    anchor = pos ? { lat: pos.lat, lon: pos.lon, at: Date.now() } : null; saveAnchor(); LS.set('kfDrvPtAt', 0);
+    stamp(shift, Date.now()); saveShiftLocal(); queuePoint(true, 'OFF'); renderDrivers(); keepAwake();
+    if (pos) { ev.place = await placeFor(pos.lat, pos.lon); const e = shift && shift.events.find(x => x.id === ev.id); if (e) e.place = ev.place; saveShiftLocal(); renderIfHome(); }
+    await pushShift();
   };
 }
 
 async function logout() {
   if (shift) { alert('Submit your open shift first.'); return; }
-  session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); stopWatch(); renderDrivers();
+  session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); LS.del('kfDrvHist'); stopWatch(); renderDrivers();
 }
 
 function pretripTag() { return !shift.pretrip ? ['todo', 'Required'] : shift.pretrip.defects ? ['bad', 'Defects'] : ['ok', 'Done']; }
 let tick = null;
 function renderShiftHome() {
-  const v = $('view-drivers'), now = Date.now(); stamp(shift, now);
-  const st = curStatus(), last = shift.events[shift.events.length - 1], since = fmtH((now - new Date(last.t).getTime()) / 3600000);
+  const v = $('view-drivers'), now = Date.now(); normalize(shift); stamp(shift, now);
+  const st = curStatus(), last = lastEvent(), since = fmtH((now - tms(last.t)) / 3600000);
   if (shift.submittedPending) {
     v.innerHTML = `<div class="card"><h2 style="margin-top:0">Waiting for signal</h2><div class="notice">Your log is signed and saved on this phone. It will submit automatically as soon as you have signal. Do not clear the browser data.</div><button class="btn" id="retry" style="width:100%">Try again now</button></div>`;
     $('retry').onclick = () => submitNow(); return;
   }
-  const ms = hos(now), pt = pretripTag();
-  v.innerHTML = `<div class="small" style="margin-bottom:8px"><span class="badge ${online ? 'on' : 'off'}" id="netBadge">${online ? 'Online' : 'Offline'}</span><span class="badge" id="gpsBadge">GPS…</span>${dirty ? '<span class="badge off">Not yet synced</span>' : ''} ${esc(shift.driverName)} · ${esc(shift.unit)} ${shift.plate ? '· ' + esc(shift.plate) : ''}</div>
-    <div class="stat ${st}"><div class="small">Current duty status · since ${esc(last.hm)}</div><div class="big">${STATUS[st]}</div><div class="sub">${esc(last.place || 'location not recorded')} · ${since}</div></div>
-    <div class="sbtn-grid">${['D', 'ON', 'OFF', 'SB'].map(s => `<button class="sbtn ${s === st ? 'cur' : ''}" data-st="${s}">${STATUS[s]}${s === 'D' ? '<small>pre-trip first</small>' : ''}</button>`).join('')}</div>
+  const ms = hos(now), pt = pretripTag(), L = limitsFor(shift), edits = (shift.edits || []).length;
+  const oldScript = serverV && serverV < 2;
+  v.innerHTML = `<div class="small" style="margin-bottom:8px"><span class="badge ${online ? 'on' : 'off'}" id="netBadge">${online ? 'Online' : 'Offline'}</span><span class="badge" id="gpsBadge">GPS…</span><span class="badge" id="wakeBadge">…</span>${dirty ? '<span class="badge off">Not yet synced</span>' : ''} ${esc(shift.driverName)} · ${esc(shift.unit)} ${shift.plate ? '· ' + esc(shift.plate) : ''}</div>
+    ${oldScript ? '<div class="notice">The office Drivers script is the old version. Logging works, but edits sync, village names, history and the map need the update (Settings has the steps).</div>' : ''}
+    <div class="stat ${st}"><div class="small">Current duty status · since ${esc(last.hm)}${last.auto ? ' · set by GPS' : ''}</div><div class="big">${STATUS[st]}</div><div class="sub">${esc(last.place || 'location not recorded')} · ${since}</div></div>
+    <div class="sbtn-grid">${['D', 'ON', 'OFF', 'SB'].map(s => `<button class="sbtn ${s === st ? 'cur' : ''}" data-st="${s}">${SHORT[s]}${s === 'D' ? '<small>pre-trip first</small>' : s === 'ON' ? '<small>not driving</small>' : ''}</button>`).join('')}</div>
+    <div><span class="chip" id="ruleChip">${esc(L.setName)} · ${L.maxOnDuty} h on duty · ${esc(L.cyc.name)}</span></div>
     <div class="meters">${ms.map(m => { const p = Math.min(100, m.used / m.max * 100), left = m.max - m.used, cls = left <= 0 ? 'over' : left <= 1 ? 'warn' : ''; return `<div class="meter ${cls}"><div class="lab">${m.k}</div><div class="val">${fmtH(Math.abs(left))} ${left < 0 ? 'over' : 'left'}</div><div class="bar"><i style="width:${p}%"></i></div></div>`; }).join('')}</div>
     <button class="act" id="aPre"><span>Pre-trip inspection</span><span class="tag ${pt[0]}">${pt[1]}</span></button>
+    <button class="act" id="aEdit"><span>Edit duty status<br><span class="small">fix a time or a status you forgot to change</span></span><span class="tag">${shift.events.length}${edits ? ' · ' + edits + ' edited' : ''}</span></button>
+    <button class="act" id="aOdo"><span>Odometer</span><span class="tag">start ${esc(shift.startOdo)} km</span></button>
     <button class="act" id="aTrips"><span>Trips from Dispatch</span><span class="tag">${shift.trips.length}</span></button>
     <button class="act" id="aFuel"><span>Fuel</span><span class="tag">${shift.fuel.length}</span></button>
-    <button class="act" id="aLog"><span>View my log sheet</span><span class="tag">24 h</span></button>
-    <button class="btn" id="aClose" style="width:100%;margin-top:6px;min-height:54px">Close shift &amp; submit</button>`;
+    <button class="act" id="aLog"><span>View today's log sheet</span><span class="tag">24 h</span></button>
+    <button class="act" id="aHist"><span>My logs (last 14 days)</span><span class="tag">view</span></button>
+    <button class="act" id="aPrint"><span>Print / share</span><span class="tag">today · 14 days</span></button>
+    <button class="btn" id="aClose" style="width:100%;margin-top:6px;min-height:54px">Close shift &amp; submit</button>
+    <details class="card" style="margin-top:12px"><summary><b>Keep GPS on during your shift</b> (Samsung / Android)</summary><div class="small" style="margin-top:8px;line-height:1.5">
+      Phones only allow web apps to use GPS while the app is open on the screen. This app keeps the screen on from shift start until you submit.<br>
+      1. Plug the phone into the truck charger and leave this app open.<br>
+      2. Samsung: Settings → Apps → Chrome → Battery → <b>Unrestricted</b>.<br>
+      3. Samsung: Settings → Battery → Background usage limits → make sure Chrome is <b>not</b> in "Sleeping apps" or "Deep sleeping apps".<br>
+      4. Chrome: tap ⋮ → Add to Home screen → Install, and open the log from that icon.<br>
+      If the app is closed or in the background, the log notes the gap and tells you when you come back.</div></details>`;
   v.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st !== curStatus()) changeStatus(b.dataset.st); });
-  $('aPre').onclick = openPretrip; $('aTrips').onclick = openTrips; $('aFuel').onclick = openFuel; $('aLog').onclick = () => openSheet(logSheetHtml(shift, (ctx && ctx.company) || {}, Date.now()) + '<div class="btnrow"><button class="btn btn-outline" onclick="window.print()">Print</button><button class="btn" id="cls">Close</button></div>', b => b.querySelector('#cls').onclick = closeSheet);
-  $('aClose').onclick = openClose; gpsBadge(watchId != null && !!lastPos);
-  startWatch(); clearInterval(tick); tick = setInterval(() => { if (tab === 'drivers' && shift && !shift.submittedPending && !$('sheetOv').classList.contains('show')) renderShiftHome(); checkStill(); }, 60000);
+  $('aPre').onclick = openPretrip; $('aTrips').onclick = openTrips; $('aFuel').onclick = openFuel; $('aEdit').onclick = () => openEventsEditor(shift, 'driver', afterDriverEdit);
+  $('aOdo').onclick = openOdometer; $('ruleChip').onclick = openRuleChange; $('aHist').onclick = openHistory; $('aPrint').onclick = openPrintChoice;
+  $('aLog').onclick = async () => { const shifts = await getHistory(false); const k = dkey(new Date()); openSheet(`<h3>Today's log</h3><div class="paperwrap">${dayPageHtml(buildDay(k, shifts, Date.now()))}</div><div class="btnrow"><button class="btn btn-outline" id="lgPr">Print / share</button><button class="btn" id="cls">Close</button></div>`, b => { b.querySelector('#cls').onclick = closeSheet; b.querySelector('#lgPr').onclick = () => printDays([k], shifts); }); };
+  $('aClose').onclick = openClose; gpsBadge();
+  startWatch(); keepAwake(); clearInterval(tick); tick = setInterval(() => { if (tab === 'drivers' && shift && !shift.submittedPending && !$('sheetOv').classList.contains('show')) renderShiftHome(); }, 60000);
 }
+function afterDriverEdit() { stamp(shift, Date.now()); saveShiftLocal(); renderShiftHome(); pushShift(); }
 
 async function changeStatus(s) {
   if (s === 'D' && (!shift.pretrip || !shift.pretrip.done)) { alert('Complete the pre-trip inspection before you start driving.'); return openPretrip(); }
   const pos = await getPosition(); const place0 = pos ? await placeFor(pos.lat, pos.lon) : '';
-  openSheet(`<h3>Change to ${STATUS[s]}</h3><label>Location (nearest town)</label><input id="csPlace" value="${esc(place0)}" placeholder="type a location if GPS is unavailable"><label>Note (optional)</label><input id="csNote" placeholder="e.g. loading at Barmac, fuel stop"><div class="btnrow"><button class="btn btn-outline" id="csNo">Cancel</button><button class="btn" id="csOk">Confirm</button></div>`, box => {
+  openSheet(`<h3>Change to ${STATUS[s]}</h3><label>Location (nearest town)</label><input id="csPlace" value="${esc(place0)}" placeholder="type a location if GPS is unavailable"><label>Note (optional)</label><input id="csNote" placeholder="e.g. loading at Barmac, fuel stop"><div class="small">Forgot to change earlier? Use <b>Edit duty status</b> to set the right time.</div><div class="btnrow"><button class="btn btn-outline" id="csNo">Cancel</button><button class="btn" id="csOk">Confirm</button></div>`, box => {
     $('csNo').onclick = closeSheet;
     $('csOk').onclick = async () => {
       if (s === 'D' && shift.pretrip && shift.pretrip.defects && !confirm('The pre-trip reported defects. Drive anyway? The office will be told.')) return;
       const now = new Date();
-      shift.events.push({ t: now.toISOString(), hm: hm(now), s, label: STATUS[s], lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: $('csPlace').value.trim(), note: $('csNote').value.trim() });
-      anchor = pos ? { lat: pos.lat, lon: pos.lon, at: Date.now() } : null; stamp(shift, Date.now()); saveShiftLocal(); closeSheet(); renderShiftHome(); await pushShift();
+      addEvent({ t: now.toISOString(), s, label: STATUS[s], lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: $('csPlace').value.trim(), note: $('csNote').value.trim() });
+      anchor = pos ? { lat: pos.lat, lon: pos.lon, at: Date.now() } : null; saveAnchor(); fastCount = 0;
+      stamp(shift, Date.now()); saveShiftLocal(); closeSheet(); renderShiftHome(); await pushShift();
     };
   });
 }
+function openRuleChange() {
+  const R = rulesAll();
+  openSheet(`<h3>Hours of service rules</h3><label>Rules</label><select id="rcSet"><option value="ab">Alberta provincial — ${R.ab.maxDriving} h driving · ${R.ab.maxOnDuty} h on duty · ${R.ab.maxElapsed} h elapsed</option><option value="fed">Federal (Canada) — ${R.fed.maxDriving} h driving · ${R.fed.maxOnDuty} h on duty · ${R.fed.maxElapsed} h elapsed</option></select>
+    <label>Cycle</label><select id="rcCyc"><option value="c1">Cycle 1 — ${R.cycleHours} h / ${R.cycleDays} days</option><option value="c2">Cycle 2 — 120 h / 14 days</option></select>
+    <div class="small">Use Alberta provincial only when the whole trip stays inside Alberta.</div><div class="btnrow"><button class="btn btn-outline" id="rcNo">Cancel</button><button class="btn" id="rcOk">Save</button></div>`, () => {
+    $('rcSet').value = hosSetOf(shift); $('rcCyc').value = shift.rule === 'c2' ? 'c2' : 'c1';
+    $('rcNo').onclick = closeSheet; $('rcOk').onclick = () => { shift.hosSet = $('rcSet').value; shift.rule = $('rcCyc').value; LS.set('kfDrvLastSetup', { rule: shift.rule, set: shift.hosSet }); saveShiftLocal(); closeSheet(); renderShiftHome(); pushShift(); };
+  });
+}
+function openOdometer() {
+  openSheet(`<h3>Odometer</h3><label>Starting odometer (km)</label><input id="odS" type="number" inputmode="decimal" value="${esc(shift.startOdo)}"><div class="small">Change it if the km you started with was wrong. The change is noted on the log.</div><div class="err" id="odErr"></div><div class="btnrow"><button class="btn btn-outline" id="odNo">Cancel</button><button class="btn" id="odOk">Save</button></div>`, () => {
+    $('odNo').onclick = closeSheet;
+    $('odOk').onclick = () => { const v = $('odS').value; if (v === '' || isNaN(+v)) { $('odErr').textContent = 'Enter the km.'; return; } if (+v !== +shift.startOdo) { shift.edits.push({ at: new Date().toISOString(), by: 'driver', action: 'odometer', before: { startOdo: shift.startOdo }, after: { startOdo: +v }, reason: 'start km corrected' }); shift.startOdo = +v; } saveShiftLocal(); closeSheet(); renderShiftHome(); pushShift(); };
+  });
+}
+
+/* ---------- duty status editor (drivers and admin) ---------- */
+function toLocalInputs(t) { const d = new Date(t); return { date: dkey(d), time: hm(d) }; }
+function openEventsEditor(sh, by, done, backTo) {
+  normalize(sh);
+  const rows = () => sh.events.map(e => `<div class="evrow"><div><span class="dot ${e.s}"></span><span class="s">${esc(e.hm)} ${esc(SHORT[e.s])}</span> <span class="small">${esc(dkey(new Date(e.t)) !== sh.date ? dkey(new Date(e.t)) : '')}</span><br><span class="small">${esc(e.place || '')}${e.note ? ' · ' + esc(e.note) : ''}</span>${e.edited ? `<br><span class="ed">edited: ${esc(e.editReason || '')}</span>` : ''}</div><button class="btn btn-sm btn-outline" data-ev="${esc(e.id)}">Edit</button></div>`).join('');
+  openSheet(`<h3>Edit duty status</h3><p class="small">Times are 24-hour. Every change is kept on the log with your reason${by === 'admin' ? ' (marked as an office edit)' : ''}.</p><div id="evList">${rows()}</div>
+    <div class="btnrow" style="justify-content:space-between"><button class="btn btn-outline" id="evAdd">+ Add a status change</button><button class="btn" id="evDone">Done</button></div>`, box => {
+    box.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => eventForm(sh, sh.events.find(x => x.id === b.dataset.ev), by, () => { done && done(); openEventsEditor(sh, by, done, backTo); }));
+    $('evAdd').onclick = () => eventForm(sh, null, by, () => { done && done(); openEventsEditor(sh, by, done, backTo); });
+    $('evDone').onclick = () => { if (backTo) backTo(); else closeSheet(); };
+  });
+}
+function eventForm(sh, ev, by, after) {
+  const isNew = !ev, now = new Date(), li = toLocalInputs(ev ? ev.t : now);
+  openSheet(`<h3>${isNew ? 'Add a status change' : 'Edit status change'}</h3>
+    <div class="row2"><div><label>Date</label><input id="efD" type="date" value="${li.date}"></div><div><label>Time (24 h)</label><input id="efT" type="time" value="${li.time}"></div></div>
+    <label>Status</label><select id="efS">${['OFF', 'SB', 'D', 'ON'].map(s => `<option value="${s}" ${ev && ev.s === s ? 'selected' : ''}>${STATUS[s]}</option>`).join('')}</select>
+    <label>Location</label><input id="efP" value="${esc(ev ? ev.place : '')}" placeholder="nearest town"><label>Note</label><input id="efN" value="${esc(ev ? ev.note : '')}">
+    <label>Reason for the ${isNew ? 'addition' : 'change'} — required</label><input id="efR" placeholder="e.g. forgot to change to Driving at 07:30">
+    <div class="err" id="efE"></div><div class="btnrow">${!isNew && sh.events.length > 1 ? '<button class="btn btn-outline" id="efDel" style="margin-right:auto;color:var(--bad)">Delete</button>' : ''}<button class="btn btn-outline" id="efNo">Back</button><button class="btn" id="efOk">Save</button></div>`, () => {
+    if (isNew) { $('efS').value = curStatusOf(sh) === 'D' ? 'ON' : 'D'; if (lastPos) placeFor(lastPos.lat, lastPos.lon).then(p => { if ($('efP') && !$('efP').value) $('efP').value = p; }); }
+    $('efNo').onclick = after;
+    const reason = () => { const r = $('efR').value.trim(); if (!r) { $('efE').textContent = 'Enter the reason.'; return null; } return r; };
+    if ($('efDel')) $('efDel').onclick = () => {
+      const r = reason(); if (!r) return; if (!confirm('Delete this status change?')) return;
+      sh.edits.push({ at: new Date().toISOString(), by, action: 'delete', before: { t: ev.t, s: ev.s, place: ev.place, note: ev.note }, after: null, reason: r });
+      sh.events = sh.events.filter(x => x.id !== ev.id); normalize(sh); after();
+    };
+    $('efOk').onclick = () => {
+      const r = reason(); if (!r) return;
+      const t = new Date($('efD').value + 'T' + $('efT').value); if (isNaN(t)) { $('efE').textContent = 'Enter a date and time.'; return; }
+      if (t.getTime() > Date.now() + 60000) { $('efE').textContent = 'That time is in the future.'; return; }
+      const closed = sh.closedAt ? tms(sh.closedAt) : 0;
+      if (by !== 'admin') {
+        const first = sh.events.filter(x => !ev || x.id !== ev.id)[0];
+        if (first && t.getTime() < tms(first.t) && (!ev || sh.events[0].id !== ev.id)) { $('efE').textContent = 'That is before the start of this log (' + hm(new Date(first.t)) + '). Edit the first entry instead.'; return; }
+        if (closed && t.getTime() > closed) { $('efE').textContent = 'That is after this shift was closed.'; return; }
+      }
+      const s = $('efS').value;
+      if (s === 'D' && by !== 'admin' && (!sh.pretrip || !sh.pretrip.done) && !confirm('No pre-trip is recorded. Log Driving anyway?')) return;
+      const after1 = { t: t.toISOString(), s, place: $('efP').value.trim(), note: $('efN').value.trim() };
+      if (isNew) {
+        sh.events.push(Object.assign({ id: newId(), label: STATUS[s], lat: lastPos && by !== 'admin' ? lastPos.lat : null, lon: lastPos && by !== 'admin' ? lastPos.lon : null, edited: true, editReason: r, addedBy: by }, after1));
+        sh.edits.push({ at: new Date().toISOString(), by, action: 'add', before: null, after: after1, reason: r });
+      } else {
+        const before = { t: ev.t, s: ev.s, place: ev.place, note: ev.note };
+        if (before.t === after1.t && before.s === after1.s && before.place === after1.place && before.note === after1.note) { after(); return; }
+        Object.assign(ev, after1); if (before.s !== s) { ev.label = STATUS[s]; delete ev.auto; } ev.edited = true; ev.editReason = r; ev.editedBy = by;
+        sh.edits.push({ at: new Date().toISOString(), by, action: 'edit', before, after: after1, reason: r });
+      }
+      normalize(sh); after();
+    };
+  });
+}
+function curStatusOf(sh) { const e = (sh.events || []); return e.length ? e[e.length - 1].s : 'OFF'; }
 
 /* ---------- sync ---------- */
 function payloadShift() { const c = JSON.parse(JSON.stringify(shift)); stamp(c, Date.now()); return c; }
+let pushing = null;
 async function pushShift(opts) {
   if (!shift || !session) return; opts = opts || {};
-  const last = shift.events[shift.events.length - 1];
-  const pos = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: lastPos.at, place: (last && last.place) || '', status: curStatus() } : null;
-  const r = await api({ action: opts.submit ? 'submitShift' : 'saveShift', name: session.name, passcode: session.passcode, shift: payloadShift(), pos });
-  if (r.status === 'ok') { dirty = false; } else if (r.status === 'offline') { dirty = true; }
-  else if (r.status === 'blocked') { if (r.openShift && r.openShift.id !== shift.id) { alert('You already have an open shift (started on another phone). Opening it now. Submit it before starting a new one.'); shift = r.openShift; saveShiftLocal(); renderDrivers(); } }
-  else if (r.status === 'badpassword' || r.status === 'locked') { dirty = true; }
-  const b = $('netBadge'); if (b) { b.className = 'badge ' + (online ? 'on' : 'off'); b.textContent = online ? 'Online' : 'Offline'; }
-  return r;
+  if (pushing && !opts.submit) return pushing;
+  const run = (async () => {
+    const last = lastEvent();
+    const pos = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: lastPos.at, place: (last && last.place) || '', status: curStatus() } : null;
+    const pts = LS.get('kfDrvPts', []).slice(0, 400);
+    const body = { action: opts.submit ? 'submitShift' : 'saveShift', name: session.name, passcode: session.passcode, shift: payloadShift(), pos, pts };
+    if (opts.pdfBase64) body.pdfBase64 = opts.pdfBase64;
+    const r = await api(body, opts.submit ? 60000 : 25000);
+    if (r.status === 'ok') { dirty = false; const q = LS.get('kfDrvPts', []); LS.set('kfDrvPts', q.slice(pts.length)); }
+    else if (r.status === 'offline') { dirty = true; }
+    else if (r.status === 'blocked') { if (r.openShift && r.openShift.id !== shift.id) { alert('You already have an open shift (started on another phone). Opening it now. Submit it before starting a new one.'); shift = normalize(r.openShift); saveShiftLocal(); renderDrivers(); } }
+    else if (r.status === 'replaced') { const q = LS.get('kfDrvPts', []); LS.set('kfDrvPts', q.slice(pts.length)); const pend = shift.submittedPending; shift = normalize(r.shift); if (pend) shift.submittedPending = false; saveShiftLocal(); dirty = false; alert('The office edited this shift, so this phone now shows the office copy. Check it' + (pend ? ' and submit again.' : '.')); renderDrivers(); }
+    else if (r.status === 'deleted') { alert('The office deleted this shift. It has been removed from this phone.'); shift = null; saveShiftLocal(); LS.del('kfDrvPts'); keepAwake(); renderDrivers(); }
+    else if (r.status === 'badpassword' || r.status === 'locked') { dirty = true; }
+    const b = $('netBadge'); if (b) { b.className = 'badge ' + (online ? 'on' : 'off'); b.textContent = online ? 'Online' : 'Offline'; }
+    return r;
+  })();
+  if (!opts.submit) pushing = run;
+  try { return await run; } finally { if (pushing === run) pushing = null; }
 }
 window.addEventListener('online', () => { if (shift) { if (shift.submittedPending) submitNow(); else pushShift().then(() => { if (tab === 'drivers') renderDrivers(); }); } });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && shift && !shift.submittedPending && dirty) pushShift(); });
 setInterval(() => { if (shift && !shift.submittedPending && !document.hidden) pushShift(); }, HEARTBEAT_MS());
 setInterval(() => { if (shift && shift.submittedPending) submitNow(); }, 60000);
 
@@ -392,9 +731,10 @@ function companyHeaderHtml(sh, company) {
   return `<div class="hdrgrid"><div><b>${esc(company.name || '')}</b><br>${esc(company.address || '')}</div><div>Driver: <b>${esc(sh.driverName)}</b><br>Unit: <b>${esc(sh.unit)}</b> · Plate ${esc(sh.plate || '—')}<br>Trailer A: ${esc(sh.trailerA || '—')} · B: ${esc(sh.trailerB || '—')}</div></div>`;
 }
 function openPretrip() {
-  const company = (ctx && ctx.company) || {}; const p = shift.pretrip || { items: {}, defectNote: '', signature: '' };
-  const all = PRETRIP.flatMap(g => g[1]);
+  const company = (ctx && ctx.company) || {}; const p = shift.pretrip || { items: {}, defectNote: '', signature: '' }; p.items = p.items || {};
+  const first = !shift.pretrip || !shift.pretrip.done;
   const html = `<h3>Pre-trip inspection</h3><div class="logsheet">${companyHeaderHtml(shift, company)}</div><div class="small">Odometer ${esc(shift.startOdo)} km · ${esc(shift.date)} ${esc(hm(new Date()))}</div>
+    ${first && curStatus() !== 'ON' && curStatus() !== 'D' ? '<div class="notice">Saving the pre-trip logs <b>On Duty (not driving)</b> starting 30 minutes ago. You stay On Duty until you change status.</div>' : ''}
     <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="ptAll">Mark all OK</button></div>
     ${PRETRIP.map((g, gi) => `<div class="grp">${esc(g[0])}</div>${g[1].map((q, qi) => { const k = gi + '.' + qi; return `<div class="chk" data-k="${k}"><div class="q">${esc(q)}</div><button class="ok ${p.items[k] === 'ok' ? 'on' : ''}" data-v="ok">OK</button><button class="df ${p.items[k] === 'df' ? 'on' : ''}" data-v="df">Defect</button></div>`; }).join('')}`).join('')}
     <label>Defect notes (required if any defect)</label><textarea id="ptNote" placeholder="Describe the defect">${esc(p.defectNote)}</textarea>
@@ -413,15 +753,24 @@ function openPretrip() {
       if (defects && !note) { $('ptErr').textContent = 'Describe the defect.'; return; }
       if (sig.blank()) { $('ptErr').textContent = 'Sign the pre-trip.'; return; }
       const list = []; PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => { if (items[gi + '.' + qi] === 'df') list.push(q); }));
-      shift.pretrip = { done: true, at: new Date().toISOString(), items, defects, defectNote: note, defectList: list, signature: sig.data() };
-      saveShiftLocal(); closeSheet(); renderShiftHome(); await pushShift();
+      $('ptSave').disabled = true; $('ptErr').textContent = 'Saving…';
+      const fresh = await getPosition(); const now = Date.now();
+      shift.pretrip = { done: true, at: new Date(now).toISOString(), items, defects, defectNote: note, defectList: list, signature: sig.data(), place: (lastEvent() && lastEvent().place) || '', odo: shift.startOdo };
+      // the pre-trip itself is 30 minutes on duty; stay on duty afterwards
+      if (first && curStatus() !== 'ON' && curStatus() !== 'D') {
+        const le = lastEvent(), t = Math.max(now - 30 * 60000, le ? tms(le.t) + 1000 : 0);
+        const pos = fresh && now - tms(fresh.at) < 600000 ? fresh : null;
+        const ev = addEvent({ t: new Date(t).toISOString(), s: 'ON', label: 'On Duty (pre-trip inspection)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: '', note: 'Pre-trip inspection' + (defects ? ' – defects' : '') });
+        shift.pretrip.place = ''; fillPlace(ev).then(() => { if (shift && shift.pretrip) { const e = shift.events.find(x => x.id === ev.id); shift.pretrip.place = (e && e.place) || ''; saveShiftLocal(); } });
+      }
+      stamp(shift, now); saveShiftLocal(); closeSheet(); renderShiftHome(); await pushShift();
     };
   });
 }
 
 /* ---------- signature pad ---------- */
 function makeSig(cv, existing) {
-  const dpr = 1; cv.width = 600; cv.height = 200; const g = cv.getContext('2d'); g.lineWidth = 3; g.lineCap = 'round'; g.strokeStyle = '#0f172a'; let drawing = false, dirtyS = false;
+  cv.width = 600; cv.height = 200; const g = cv.getContext('2d'); g.lineWidth = 3; g.lineCap = 'round'; g.strokeStyle = '#0f172a'; let drawing = false, dirtyS = false;
   const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
   if (existing) { const im = new Image(); im.onload = () => { g.drawImage(im, 0, 0, cv.width, cv.height); dirtyS = true; }; im.src = existing; }
   cv.addEventListener('pointerdown', e => { drawing = true; dirtyS = true; const [x, y] = pt(e); g.beginPath(); g.moveTo(x, y); g.lineTo(x + .1, y + .1); g.stroke(); try { cv.setPointerCapture(e.pointerId); } catch (_) {} e.preventDefault(); });
@@ -442,6 +791,7 @@ async function openTrips() {
     const dayTag = new Date(); const tag = dayTag.getFullYear() + '-' + pad(dayTag.getMonth() + 1) + pad(dayTag.getDate());
     const shiftDays = (shift.days || []).map(d => d.date.slice(0, 4) + '-' + d.date.slice(5, 7) + d.date.slice(8, 10));
     function draw() {
+      if (!$('tpList')) return;
       const chosen = new Set(shift.trips.map(t => t.loadId)); let html = '';
       if (rows === null || !url) html += '<div class="notice">Could not load Dispatch (offline or no link). You can still add trip IDs by hand.</div>';
       const today = (rows || []).filter(x => shiftDays.some(d => String(x.loadId).includes(d)) || String(x.loadId).includes(tag) || String(x.status).toLowerCase() === 'started');
@@ -473,40 +823,55 @@ async function openFuel() {
 /* ---------- close + submit ---------- */
 function openClose() {
   if (!shift.pretrip || !shift.pretrip.done) { if (!confirm('No pre-trip was completed on this shift. Close the shift anyway?')) return; }
-  const t = stamp(shift, Date.now());
+  stamp(shift, Date.now());
   openSheet(`<h3>Close shift &amp; submit</h3><div class="small">Driving ${fmtH(shift.drivingHrs)} · On duty ${fmtH(shift.onDutyHrs)} · Starting odometer ${esc(shift.startOdo)} km</div>
-    <label>Ending odometer (km) — required</label><input id="clOdo" type="number" inputmode="decimal">
+    <div class="notice" style="margin-top:8px">Check your duty status times first. <button class="btn btn-sm btn-outline" id="clEdit">Edit duty status</button></div>
+    <label>Ending odometer (km) — required</label><input id="clOdo" type="number" inputmode="decimal"><div class="small" id="clKm"></div>
     <label>Closing remarks — required</label><textarea id="clRem" placeholder="Anything the office should know (delays, issues, vehicle notes). Write 'none' if nothing."></textarea>
     <label>Driver signature — required</label><canvas class="sig" id="clSig"></canvas><div class="btnrow" style="justify-content:flex-start;margin-top:4px"><button class="btn btn-sm btn-outline" id="clClr">Clear signature</button></div>
-    <div class="small" style="margin-top:8px">I certify this log is true and correct. Submitting sets you Off Duty, emails the office and logs you out.</div>
+    <div class="small" style="margin-top:8px">I certify these entries are true and correct. Submitting sets you Off Duty, sends the log sheet (graph + pre-trip) to the office and logs you out.</div>
     <div class="err" id="clErr"></div><div class="btnrow"><button class="btn btn-outline" id="clNo">Back</button><button class="btn" id="clGo">Submit &amp; log out</button></div>`, box => {
     const sig = makeSig($('clSig')); $('clClr').onclick = () => sig.clear(); $('clNo').onclick = closeSheet;
+    $('clEdit').onclick = () => openEventsEditor(shift, 'driver', afterDriverEditQuiet, openClose);
+    $('clOdo').oninput = () => { const v = +$('clOdo').value; $('clKm').textContent = v ? 'Distance this shift: ' + Math.round(v - shift.startOdo) + ' km' : ''; };
     $('clGo').onclick = async () => {
       const odo = $('clOdo').value, rem = $('clRem').value.trim();
       if (odo === '' || isNaN(+odo)) { $('clErr').textContent = 'Enter the ending odometer.'; return; }
       if (+odo < +shift.startOdo) { $('clErr').textContent = 'Ending odometer is lower than the starting odometer (' + shift.startOdo + ').'; return; }
+      if (+odo - +shift.startOdo > 2500 && !confirm('That is ' + Math.round(+odo - shift.startOdo) + ' km this shift. Is the ending odometer right?')) return;
       if (!rem) { $('clErr').textContent = 'Enter closing remarks (write "none" if nothing).'; return; }
       if (sig.blank()) { $('clErr').textContent = 'Sign the log.'; return; }
       $('clGo').disabled = true; $('clErr').textContent = 'Submitting…';
       const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
       const now = new Date();
-      if (curStatus() !== 'OFF') shift.events.push({ t: now.toISOString(), hm: hm(now), s: 'OFF', label: 'Off Duty (shift closed)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place, note: '' });
+      if (curStatus() !== 'OFF') addEvent({ t: now.toISOString(), s: 'OFF', label: 'Off Duty (shift closed)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place, note: '' });
       shift.endOdo = +odo; shift.remarks = rem; shift.signature = sig.data(); shift.closedAt = now.toISOString(); stamp(shift, now.getTime());
-      shift.submittedPending = true; saveShiftLocal(); closeSheet();
+      shift.submittedPending = true; saveShiftLocal(); closeSheet(); keepAwake();
       await submitNow();
     };
   });
 }
-let submitting = false;
+function afterDriverEditQuiet() { stamp(shift, Date.now()); saveShiftLocal(); pushShift(); }
+let submitting = false, pdfCache = {};
 async function submitNow() {
   if (submitting || !shift || !session) return; submitting = true;
   try {
-    const r = await pushShift({ submit: true });
+    renderDrivers();
+    let pdf = pdfCache.id === shift.id && pdfCache.at === shift.closedAt ? pdfCache.b64 : '';
+    if (!pdf && navigator.onLine !== false) {
+      try {
+        const shifts = await getHistory(false); const keys = (shift.days || []).map(d => d.date); if (!keys.length) keys.push(shift.date);
+        const blob = await Promise.race([makePdf(keys, shifts, shift.closedAt ? tms(shift.closedAt) : Date.now()), new Promise((_, rej) => setTimeout(() => rej(new Error('pdf timeout')), 40000))]);
+        pdf = await blobToBase64(blob); pdfCache = { id: shift.id, at: shift.closedAt, b64: pdf };
+      } catch (e) { pdf = ''; }
+    }
+    const r = await pushShift({ submit: true, pdfBase64: pdf });
     if (r && r.status === 'ok') {
-      const lo = LS.get('kfDrvLastOdo', {}); lo[shift.unit] = shift.endOdo; LS.set('kfDrvLastOdo', lo);
+      const lo = LS.get('kfDrvLastOdo', {}); lo[shift.unit] = shift.endOdo; LS.set('kfDrvLastOdo', lo); LS.set('kfDrvLastClose', shift.closedAt);
+      const done = JSON.parse(JSON.stringify(shift)); delete done.submittedPending; rememberDone(done); LS.del('kfDrvHist');
       const summary = `Driving ${fmtH(shift.drivingHrs)} · On duty ${fmtH(shift.onDutyHrs)}`; const mailed = r.emailed;
-      shift = null; saveShiftLocal(); session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); stopWatch(); clearInterval(tick); dirty = false;
-      $('view-drivers').innerHTML = `<div class="card"><h2 style="margin-top:0">Shift submitted</h2><div class="notice good">${esc(summary)}. ${mailed ? 'The log was emailed to the office.' : 'Saved to the office sheet (no office email is set up yet).'} You are logged out.</div><button class="btn" id="again" style="width:100%">OK</button></div>`; $('again').onclick = renderDrivers;
+      shift = null; saveShiftLocal(); session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); LS.del('kfDrvAnchor'); anchor = null; stopWatch(); clearInterval(tick); dirty = false; keepAwake();
+      $('view-drivers').innerHTML = `<div class="card"><h2 style="margin-top:0">Shift submitted</h2><div class="notice good">${esc(summary)}. ${mailed ? 'The log sheet was emailed to the office.' : 'Saved to the office sheet' + (r.emailError ? ' (the email failed: ' + esc(r.emailError) + ')' : ' (no office email is set up yet)') + '.'} You are logged out.</div><button class="btn" id="again" style="width:100%">OK</button></div>`; $('again').onclick = renderDrivers;
     } else if (r && r.status === 'error') {
       shift.submittedPending = false; saveShiftLocal(); renderDrivers(); alert('The office could not accept this log: ' + (r.message || 'unknown error') + '\nFix it and submit again.'); openClose();
     } else if (r && (r.status === 'badpassword' || r.status === 'locked')) {
@@ -515,36 +880,161 @@ async function submitNow() {
   } finally { submitting = false; }
 }
 
-/* ============================== log sheet rendering ============================== */
-function gridSvg(day, segs) {
-  const W = 960, L = 74, R = 12, H = 150, T = 18, rowH = 30, plot = W - L - R;
+/* ============================== paper daily log ============================== */
+// the "Off duty since last shift" entry a new shift starts with
+function isLeadOff(sh, e) { return sh.events && sh.events[0] && sh.events[0].id === e.id && e.s === 'OFF' && tms(e.t) < tms(sh.startedAt) - 60000; }
+// Everything needed for one calendar day (00:00–24:00), from every shift that touches it.
+function buildDay(key, shifts, nowMs, extra) {
+  const d0 = dayStart(key), d1 = nextDay(key), endMs = Math.min(d1, nowMs), lim = Math.max(0, (endMs - d0) / 60000);
+  let segs = [];
+  const involved = shifts.filter(sh => { const ss = segments(sh, endOf(sh, nowMs)).filter(g => g.day === key); if (ss.length) { segs = segs.concat(ss); return ss.some(g => g.s !== 'OFF') || (sh.events || []).some(e => tms(e.t) >= d0 && tms(e.t) < d1 && !isLeadOff(sh, e)); } return false; })
+    .sort((a, b) => tms(a.startedAt) - tms(b.startedAt));
+  segs.sort((a, b) => a.a - b.a);
+  const filled = []; let cur = 0;
+  segs.forEach(g => { const a = Math.max(g.a, cur); if (a > cur) filled.push({ s: 'OFF', a: cur, b: a, gap: true }); if (g.b > a) { filled.push({ s: g.s, a, b: g.b }); cur = g.b; } });
+  if (cur < lim) filled.push({ s: 'OFF', a: cur, b: lim, gap: true });
+  const tot = { OFF: 0, SB: 0, D: 0, ON: 0 }; filled.forEach(g => tot[g.s] += (g.b - g.a) / 60);
+  const events = []; involved.forEach(sh => (sh.events || []).forEach(e => { const t = tms(e.t); if (t >= d0 && t < d1 && !(isLeadOff(sh, e) && key < dkey(new Date(tms(sh.startedAt))))) events.push(Object.assign({ _unit: sh.unit }, e)); }));
+  events.sort((a, b) => tms(a.t) - tms(b.t));
+  const main = involved.find(sh => sh.unit) || shifts[0] || {};
+  const uniq = arr => [...new Set(arr.filter(Boolean))].join(', ');
+  const odoStart = involved.length ? involved[0].startOdo : '', lastSh = involved[involved.length - 1] || {};
+  const odoEnd = lastSh.endOdo != null && lastSh.endOdo !== '' ? lastSh.endOdo : '';
+  const per = {}; shifts.forEach(sh => { const t = dayTotals(segments(sh, endOf(sh, nowMs))); Object.keys(t).forEach(k => per[k] = (per[k] || 0) + t[k].D + t[k].ON); });
+  if (ctx && ctx.history && session && String(main.driverName || session.name).toLowerCase() === session.name.toLowerCase()) Object.keys(ctx.history).forEach(k => { if (per[k] == null) per[k] = ctx.history[k].onDuty || 0; });
+  const L = limitsFor(main); let cyc = 0; for (let i = 0; i < L.cyc.d; i++) { const k = dkey(new Date(d0 - i * 86400000 + 43200000)); cyc += per[k] || 0; }
+  return {
+    key, partial: endMs < d1, lim, segs: filled, tot, events, involved, main, cycUsed: cyc, L,
+    driverName: main.driverName || (session && session.name) || '', units: uniq(involved.map(s => s.unit)), plates: uniq(involved.map(s => s.plate)), trailers: uniq(involved.flatMap(s => [s.trailerA, s.trailerB])),
+    odoStart, odoEnd, distance: odoStart !== '' && odoEnd !== '' ? Math.round(odoEnd - odoStart) : '',
+    pretrips: involved.filter(s => s.pretrip && s.pretrip.done && (!s.pretrip.at || (tms(s.pretrip.at) >= d0 && tms(s.pretrip.at) < d1))).map(s => Object.assign({ _unit: s.unit, _odo: s.startOdo }, s.pretrip)),
+    trips: involved.flatMap(s => (s.trips || []).map(t => Object.assign({ _date: s.date }, t))).filter(t => t._date === key || involved.length === 1),
+    fuel: involved.flatMap(s => s.fuel || []).filter(f => !f.at || (tms(f.at) >= d0 && tms(f.at) < d1)),
+    closed: involved.filter(s => s.closedAt && tms(s.closedAt) >= d0 && tms(s.closedAt) < d1),
+    gaps: involved.flatMap(s => s.gpsGaps || []).filter(g => tms(g.to) >= d0 && tms(g.from) < d1),
+    company: (extra && extra.company) || (ctx && ctx.company) || (admin.cfg && admin.cfg.company) || {},
+    licence: (extra && extra.licence) || (ctx && ctx.driver && ctx.driver.licenseNo) || ''
+  };
+}
+function paperGrid(day) {
+  const W = 724, L = 96, R = 56, T = 22, rowH = 26, plot = W - L - R, H = T + rowH * 4 + 4;
   const x = m => L + m / 1440 * plot, y = r => T + r * rowH + rowH / 2;
-  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Duty status graph for ${esc(day)}"><rect x="${L}" y="${T}" width="${plot}" height="${rowH * 4}" fill="none" stroke="currentColor" opacity=".5"/>`;
-  for (let h = 0; h <= 24; h++) { const xx = x(h * 60); s += `<line x1="${xx}" y1="${T}" x2="${xx}" y2="${T + rowH * 4}" stroke="currentColor" opacity="${h % 6 === 0 ? .5 : .18}"/>`; if (h % 2 === 0 || h === 24) s += `<text x="${xx}" y="12" font-size="14" text-anchor="middle" fill="currentColor">${pad(h % 24 === 0 && h ? 24 : h)}</text>`; }
-  ['Off Duty', 'Sleeper', 'Driving', 'On Duty'].forEach((n, i) => { s += `<line x1="${L}" y1="${T + (i + 1) * rowH}" x2="${W - R}" y2="${T + (i + 1) * rowH}" stroke="currentColor" opacity=".35"/><text x="${L - 6}" y="${y(i) + 4}" font-size="14" text-anchor="end" fill="currentColor">${n}</text>`; });
-  let d = ''; segs.filter(g => g.day === day).sort((a, b) => a.a - b.a).forEach((g, i) => { const yy = y(ROW[g.s]); d += (i === 0 ? 'M' : 'L') + x(g.a) + ' ' + yy + ' L' + x(g.b) + ' ' + yy + ' '; });
-  if (d) s += `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round"/>`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">`;
+  s += `<rect x="${L}" y="${T}" width="${plot}" height="${rowH * 4}" fill="#fff" stroke="#000" stroke-width="1.2"/>`;
+  for (let h = 0; h <= 24; h++) {
+    const xx = x(h * 60); s += `<line x1="${xx}" y1="${T}" x2="${xx}" y2="${T + rowH * 4}" stroke="#000" stroke-width="${h % 6 === 0 ? 1 : .6}"/>`;
+    const lab = h === 0 || h === 24 ? 'Mid' : h === 12 ? 'Noon' : String(h);
+    s += `<text x="${xx}" y="${T - 7}" font-size="${h === 0 || h === 12 || h === 24 ? 8 : 9.5}" text-anchor="middle" fill="#000" font-weight="bold">${lab}</text>`;
+    if (h < 24) for (let q = 1; q < 4; q++) { const qx = x(h * 60 + q * 15), len = q === 2 ? 9 : 5; for (let r = 0; r < 4; r++) s += `<line x1="${qx}" y1="${T + r * rowH}" x2="${qx}" y2="${T + r * rowH + len}" stroke="#000" stroke-width=".5"/>`; }
+  }
+  ['1. Off Duty', '2. Sleeper Berth', '3. Driving', '4. On Duty (not driving)'].forEach((n, i) => {
+    s += `<line x1="${L}" y1="${T + (i + 1) * rowH}" x2="${L + plot}" y2="${T + (i + 1) * rowH}" stroke="#000" stroke-width="1"/>`;
+    const parts = i === 3 ? ['4. On Duty', '(not driving)'] : [n];
+    parts.forEach((p, j) => { s += `<text x="4" y="${y(i) + (parts.length > 1 ? (j === 0 ? -2 : 8) : 3.5)}" font-size="${j ? 8 : 10}" fill="#000" font-weight="${j ? 'normal' : 'bold'}">${p}</text>`; });
+    const code = ['OFF', 'SB', 'D', 'ON'][i];
+    s += `<rect x="${L + plot + 4}" y="${T + i * rowH + 3}" width="${R - 6}" height="${rowH - 6}" fill="#fff" stroke="#000" stroke-width=".8"/><text x="${L + plot + R / 2 + 1}" y="${y(i) + 4}" font-size="11" text-anchor="middle" fill="#000" font-weight="bold">${fmtHH(day.tot[code])}</text>`;
+  });
+  s += `<text x="${L + plot + R / 2 + 1}" y="${T - 7}" font-size="8.5" text-anchor="middle" fill="#000" font-weight="bold">TOTAL</text>`;
+  let d = '', prevY = null;
+  day.segs.forEach(g => { const yy = y(ROW[g.s]); if (prevY == null) d += `M${x(g.a)} ${yy}`; else if (prevY !== yy) d += ` L${x(g.a)} ${yy}`; d += ` L${x(g.b)} ${yy}`; prevY = yy; });
+  if (d) s += `<path d="${d}" fill="none" stroke="#000" stroke-width="2.6" stroke-linejoin="miter"/>`;
+  if (day.partial) s += `<rect x="${x(day.lim)}" y="${T}" width="${Math.max(0, x(1440) - x(day.lim))}" height="${rowH * 4}" fill="#000" fill-opacity=".06"/>`;
   return s + '</svg>';
 }
-function logSheetHtml(sh, company, nowMs, extra) {
-  const t = stamp(JSON.parse(JSON.stringify(sh)), nowMs), c = JSON.parse(JSON.stringify(sh)); const segs = segments(c, nowMs); const tot = dayTotals(segs); stamp(c, nowMs);
-  const days = Object.keys(tot).sort();
-  const ruleTxt = sh.rule === 'c2' ? 'Cycle 2 — 120 h / 14 days' : 'Alberta / Canada Cycle 1 — 70 h / 7 days';
-  const evs = (sh.events || []).slice().sort((a, b) => new Date(a.t) - new Date(b.t));
-  return `<div class="logsheet"><h3 style="margin:0 0 6px">Driver Daily Log</h3>${companyHeaderHtml(sh, company)}<div class="small">Rules: ${ruleTxt} · Date ${esc(sh.date)} (24 h clock) · Odometer ${esc(sh.startOdo)} → ${esc(sh.endOdo === '' ? '—' : sh.endOdo)} km</div>
-  ${days.map(dy => `<div style="margin-top:10px"><b>${dy}</b><div class="gw">${gridSvg(dy, segs)}</div><div class="small">Off ${fmtH(tot[dy].OFF)} · Sleeper ${fmtH(tot[dy].SB)} · Driving ${fmtH(tot[dy].D)} · On duty ${fmtH(tot[dy].ON)}</div></div>`).join('')}
-  <h4 style="margin:14px 0 6px">Duty status changes</h4><table class="ev"><tr><th>Time</th><th>Status</th><th>Location</th><th>Note</th></tr>${evs.map(e => `<tr><td>${esc(e.hm)}</td><td>${esc(e.label || STATUS[e.s])}</td><td>${esc(e.place || '')}</td><td>${esc(e.note || '')}</td></tr>`).join('')}</table>
-  ${(sh.trips || []).length ? `<h4 style="margin:14px 0 6px">Trips</h4>${sh.trips.map(x => `<div>${esc(x.loadId)} ${x.customer ? '· ' + esc(x.customer) : ''}</div>`).join('')}` : ''}
-  ${(sh.fuel || []).length ? `<h4 style="margin:14px 0 6px">Fuel</h4>${sh.fuel.map(f => `<div>${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.place || '')} ${esc(f.note || '')}</div>`).join('')}` : ''}
-  <h4 style="margin:14px 0 6px">Pre-trip</h4><div>${sh.pretrip && sh.pretrip.done ? (sh.pretrip.defects ? '<b style="color:var(--bad)">Defects:</b> ' + esc((sh.pretrip.defectList || []).join(', ')) + ' — ' + esc(sh.pretrip.defectNote) : 'Completed, no defects') : 'Not recorded'}</div>${sh.pretrip && sh.pretrip.signature ? `<img src="${esc(sh.pretrip.signature)}" alt="pre-trip signature" style="height:50px;border:1px solid var(--border);background:#fff">` : ''}
-  <h4 style="margin:14px 0 6px">Totals</h4><div>Driving ${fmtH(c.drivingHrs)} · On duty ${fmtH(c.onDutyHrs)}</div>
-  ${sh.remarks ? `<h4 style="margin:14px 0 6px">Closing remarks</h4><div>${esc(sh.remarks)}</div>` : ''}${sh.signature ? `<h4 style="margin:14px 0 6px">Driver signature</h4><img src="${esc(sh.signature)}" alt="signature" style="height:70px;border:1px solid var(--border);background:#fff">` : ''}</div>`;
+function remarksBand(day) {
+  const W = 724, L = 96, R = 56, plot = W - L - R, x = m => L + m / 1440 * plot, d0 = dayStart(day.key);
+  const flags = day.events.map((e, i) => ({ n: i + 1, m: (tms(e.t) - d0) / 60000 }));
+  const H = 30; let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block"><line x1="${L}" y1="1" x2="${L + plot}" y2="1" stroke="#000" stroke-width=".6"/><text x="4" y="12" font-size="10" font-weight="bold" fill="#000">REMARKS</text><text x="4" y="23" font-size="7.5" fill="#000">see numbered list</text>`;
+  let lastX = -99, level = 0;
+  flags.forEach(f => { const xx = x(f.m); level = xx - lastX < 16 ? (level + 1) % 2 : 0; lastX = xx; const yy = 13 + level * 11; s += `<line x1="${xx}" y1="0" x2="${xx}" y2="${yy - 5}" stroke="#000" stroke-width=".8"/><circle cx="${xx}" cy="${yy}" r="5.3" fill="#fff" stroke="#000" stroke-width=".8"/><text x="${xx}" y="${yy + 3}" font-size="7.5" text-anchor="middle" fill="#000" font-weight="bold">${f.n}</text>`; });
+  return s + '</svg>';
+}
+function dayPageHtml(day) {
+  const c = day.company || {}, m = day.main || {}, L = day.L, tot = day.tot;
+  const onToday = tot.D + tot.ON, left = Math.max(0, L.cyc.h - day.cycUsed);
+  const cell = (lbl, v) => `<td><span class="lbl">${lbl}</span><span class="v">${v || '&nbsp;'}</span></td>`;
+  const evRows = day.events.map((e, i) => `<tr><td style="width:20px;text-align:center"><b>${i + 1}</b></td><td style="width:42px">${esc(e.hm)}</td><td style="width:108px">${esc(SHORT[e.s])}</td><td>${esc(e.place || '')}</td><td>${esc(e.note || '')}${e.edited ? `<div class="ed">Edited${e.editedBy === 'admin' || e.addedBy === 'admin' ? ' by office' : ''}: ${esc(e.editReason || '')}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="5">No duty status changes this day.</td></tr>';
+  const pts = day.pretrips.map(p => {
+    const items = p.items || {};
+    const list = PRETRIP.map((g, gi) => `<div class="g">${esc(g[0])}</div>` + g[1].map((q, qi) => { const v = items[gi + '.' + qi]; return `<div>${v === 'df' ? '<b>✗ DEFECT</b>' : v === 'ok' ? '✓' : '–'} ${esc(q)}</div>`; }).join('')).join('');
+    return `<div class="avoid"><div class="sec">Pre-trip inspection report</div><table><tr>${cell('Unit / odometer', esc(p._unit) + ' · ' + esc(p.odo != null ? p.odo : p._odo) + ' km')}${cell('Inspected', p.at ? esc(hm(new Date(p.at))) + ' ' + esc(dkey(new Date(p.at))) : '')}${cell('Location', esc(p.place || ''))}${cell('Result', p.defects ? 'DEFECTS FOUND' : 'No defects')}</tr></table>
+      <div class="pt" style="margin-top:4px">${list}</div>${p.defects ? `<div style="margin-top:4px"><b>Defects:</b> ${esc((p.defectList || []).join(', '))} — ${esc(p.defectNote || '')}</div>` : ''}
+      <table style="margin-top:4px"><tr><td style="width:50%"><span class="lbl">Driver signature (pre-trip)</span>${p.signature ? `<img src="${esc(p.signature)}" style="height:40px">` : ''}</td><td><span class="lbl">Defects corrected / not needing correction — mechanic signature</span></td></tr></table></div>`;
+  }).join('') || '<div class="sec">Pre-trip inspection report</div><div>No pre-trip inspection recorded this day.</div>';
+  const sigSh = day.closed[day.closed.length - 1];
+  const fuel = day.fuel.map(f => `${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.place || '')} ${esc(f.note || '')}`).join('<br>');
+  const trips = day.trips.map(t => esc(t.loadId) + (t.customer ? ' (' + esc(t.customer) + ')' : '')).join(', ');
+  return `<div class="paper">
+    <div class="ttl"><div><b>DRIVER'S DAILY LOG</b><div style="font-size:9px">24-hour period starting at 00:00 (midnight) · all times local</div></div><div style="text-align:right"><span class="lbl">Date</span><span style="font-size:14px;font-weight:bold">${esc(longDate(day.key))}</span>${day.partial ? '<div style="font-size:9px">in progress — up to ' + esc(hm(new Date(dayStart(day.key) + day.lim * 60000))) + '</div>' : ''}</div></div>
+    <table><tr>${cell('Carrier', esc(c.name))}${cell('Principal place of business', esc(c.address))}${cell('Home terminal', esc(c.address))}</tr>
+      <tr>${cell('Driver', esc(day.driverName))}${cell('Driver licence #', esc(day.licence))}${cell('Co-driver', '')}</tr>
+      <tr>${cell('Truck unit / plate', esc(day.units) + (day.plates ? ' · ' + esc(day.plates) : ''))}${cell('Trailer plates', esc(day.trailers))}${cell('Odometer start → end · distance today', (day.odoStart !== '' ? esc(day.odoStart) : '—') + ' → ' + (day.odoEnd !== '' ? esc(day.odoEnd) : '—') + (day.distance !== '' ? ' · <b>' + esc(day.distance) + ' km</b>' : ''))}</tr>
+      <tr>${cell('Hours of service rules', esc(L.setName) + ' · ' + L.maxDriving + ' h driving / ' + L.maxOnDuty + ' h on duty / ' + L.maxElapsed + ' h elapsed')}${cell('Cycle', esc(L.cyc.name))}${cell('Cycle hours used / left (incl. today)', fmtHH(day.cycUsed) + ' used · ' + fmtHH(left) + ' left')}</tr></table>
+    <div style="margin-top:8px">${paperGrid(day)}${remarksBand(day)}</div>
+    <table style="margin-top:2px"><tr><th>#</th><th>Time</th><th>Duty status</th><th>Location</th><th>Note</th></tr>${evRows}</table>
+    <table style="margin-top:6px"><tr>${cell('Total on duty today (lines 3 + 4)', fmtHH(onToday))}${cell('Driving today', fmtHH(tot.D))}${cell('Off duty + sleeper', fmtHH(tot.OFF + tot.SB))}${cell('Total (must equal 24:00 when complete)', fmtHH(tot.OFF + tot.SB + tot.D + tot.ON))}</tr></table>
+    ${trips || fuel ? `<table style="margin-top:6px"><tr>${cell('Trips / load IDs', trips || '—')}${cell('Fuel', fuel || '—')}</tr></table>` : ''}
+    ${day.gaps.length ? `<div style="margin-top:4px;font-size:9px">GPS not recorded (app closed): ${day.gaps.map(g => esc(hm(new Date(g.from))) + '–' + esc(hm(new Date(g.to)))).join(', ')}</div>` : ''}
+    ${pts}
+    <div class="avoid"><table style="margin-top:8px"><tr><td style="width:60%"><span class="lbl">Closing remarks</span>${sigSh ? esc(sigSh.remarks || '') : '&nbsp;'}</td><td><span class="lbl">I certify these entries are true and correct — driver signature</span>${sigSh && sigSh.signature ? `<img src="${esc(sigSh.signature)}" style="height:44px">` : '<div class="sig"></div>'}<div style="font-size:9px">${sigSh ? 'Submitted ' + esc(hm(new Date(sigSh.closedAt))) : 'Not yet submitted'}</div></td></tr></table></div>
+  </div>`;
 }
 
+/* ---------- history (14 days), print and share ---------- */
+function last14() { const out = []; const b = new Date(); for (let i = 0; i < 14; i++) out.push(dkey(new Date(b.getFullYear(), b.getMonth(), b.getDate() - i))); return out; }
+async function openHistory() {
+  openSheet('<h3>My logs — last 14 days</h3><div class="small">Loading…</div>');
+  const shifts = await getHistory(true), now = Date.now();
+  const list = last14().map(k => { const d = buildDay(k, shifts, now); return { k, d }; });
+  openSheet(`<h3>My logs — last 14 days</h3><p class="small">Tap a day to see its log sheet. Days with no shift count as off duty.</p>${list.map(({ k, d }) => `<button class="act" data-k="${k}"><span>${esc(longDate(k))}<br><span class="small">${d.involved.length ? esc(d.units) + ' · on duty ' + fmtH(d.tot.D + d.tot.ON) + ' · driving ' + fmtH(d.tot.D) : 'Off duty'}</span></span><span class="tag ${d.involved.length ? 'ok' : ''}">${d.involved.length ? 'Log' : 'Off'}</span></button>`).join('')}
+    <div class="btnrow"><button class="btn btn-outline" id="hPrint">Print / share all 14 days</button><button class="btn" id="hClose">Close</button></div>`, box => {
+    $('hClose').onclick = closeSheet; $('hPrint').onclick = () => printDays(last14().reverse(), shifts);
+    box.querySelectorAll('[data-k]').forEach(b => b.onclick = () => openSheet(`<h3>${esc(longDate(b.dataset.k))}</h3><div class="paperwrap">${dayPageHtml(buildDay(b.dataset.k, shifts, Date.now()))}</div><div class="btnrow"><button class="btn btn-outline" id="dBack">Back</button><button class="btn btn-outline" id="dPr">Print / share</button><button class="btn" id="dCl">Close</button></div>`, () => { $('dBack').onclick = openHistory; $('dCl').onclick = closeSheet; $('dPr').onclick = () => printDays([b.dataset.k], shifts); }));
+  });
+}
+async function openPrintChoice() {
+  openSheet(`<h3>Print / share</h3><p class="small">Makes a PDF of the paper log sheet (graph, status changes and pre-trip), then opens your phone's share screen so you can print it, email it or save it.</p>
+    <div class="sbtn-grid"><button class="sbtn" id="prToday">Today<small>1 page</small></button><button class="sbtn" id="pr14">Last 14 days<small>one page per day</small></button></div><div class="btnrow"><button class="btn btn-outline" id="prNo">Cancel</button></div>`, () => {
+    $('prNo').onclick = closeSheet;
+    $('prToday').onclick = async () => printDays([dkey(new Date())], await getHistory(false));
+    $('pr14').onclick = async () => printDays(last14().reverse(), await getHistory(true));
+  });
+}
+async function makePdf(keys, shifts, nowMs, extra) {
+  await loadScript('html2pdf.bundle.min.js');
+  const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-12000px;top:0;width:760px;background:#fff;';
+  const inner = document.createElement('div'); inner.style.cssText = 'width:760px;background:#fff;';
+  inner.innerHTML = keys.map((k, i) => `<div${i ? ' class="pb"' : ''}>${dayPageHtml(buildDay(k, shifts, nowMs || Date.now(), extra))}</div>`).join('');
+  host.appendChild(inner); document.body.appendChild(host);
+  try {
+    return await html2pdf().set({ margin: [6, 6, 6, 6], image: { type: 'jpeg', quality: 0.92 }, html2canvas: { scale: keys.length > 4 ? 1.6 : 2, backgroundColor: '#ffffff', useCORS: true, logging: false }, jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }, pagebreak: { mode: ['css', 'legacy'], before: '.pb', avoid: '.avoid' } }).from(inner).outputPdf('blob');
+  } finally { host.remove(); }
+}
+function blobToBase64(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split('base64,')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); }); }
+async function printDays(keys, shifts, extra) {
+  const name = 'Driver log ' + ((extra && extra.driverName) || (session && session.name) || '') + ' ' + (keys.length > 1 ? keys[0] + ' to ' + keys[keys.length - 1] : keys[0]) + '.pdf';
+  openSheet(`<h3>Preparing PDF…</h3><p class="small">${keys.length} page${keys.length > 1 ? 's' : ''}. This takes a few seconds${keys.length > 3 ? ' (longer for 14 days)' : ''}.</p>`);
+  $('sheetOv').dataset.lock = '1';
+  let blob = null, err = '';
+  try { blob = await makePdf(keys, shifts, Date.now(), extra); } catch (e) { err = e && e.message || String(e); }
+  delete $('sheetOv').dataset.lock;
+  const file = blob ? new File([blob], name.replace(/[\\/:*?"<>|]/g, '-'), { type: 'application/pdf' }) : null;
+  const canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+  openSheet(`<h3>${blob ? 'PDF ready' : 'Could not make the PDF'}</h3>${err ? `<div class="notice bad">${esc(err)}. You can still print from the browser.</div>` : ''}
+    <p class="small">${canShare ? 'Tap <b>Share / Print</b> and pick Print, Gmail, Drive or any app.' : blob ? 'This browser cannot open the share screen. Download the PDF or print from the browser.' : ''}</p>
+    <div class="btnrow" style="justify-content:stretch;flex-direction:column">${canShare ? '<button class="btn" id="psShare" style="min-height:54px">Share / Print</button>' : ''}${blob ? '<button class="btn btn-outline" id="psDown">Download PDF</button>' : ''}<button class="btn btn-outline" id="psPrint">Print from the browser</button><button class="btn btn-outline" id="psNo">Close</button></div>`, () => {
+    $('psNo').onclick = closeSheet;
+    if ($('psShare')) $('psShare').onclick = async () => { try { await navigator.share({ files: [file], title: file.name }); } catch (e) { if (e && e.name !== 'AbortError') alert('Share failed: ' + e.message); } };
+    if ($('psDown')) $('psDown').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
+    $('psPrint').onclick = () => { $('printArea').innerHTML = keys.map(k => dayPageHtml(buildDay(k, shifts, Date.now(), extra))).join(''); closeSheet(); setTimeout(() => { window.print(); }, 200); };
+  });
+}
+window.addEventListener('afterprint', () => { $('printArea').innerHTML = ''; });
+
 /* ============================== ADMIN + SETTINGS ============================== */
-let admin = { cfg: null, drivers: [], sub: 'logs' };
+let admin = { cfg: null, drivers: [], sub: 'logs', filter: '', mapDriver: '', mapDate: '' };
 const adminPw = () => SS.get('kfDrvAdmin');
-async function adminApi(action, extra) { return api(Object.assign({ action, password: adminPw() }, extra || {})); }
+async function adminApi(action, extra, ms) { return api(Object.assign({ action, password: adminPw() }, extra || {}), ms); }
 
 async function adminGate(container, title, then) {
   if (!URL_) { container.innerHTML = '<div class="card">Connect this phone first (Drivers tab).</div>'; return; }
@@ -563,35 +1053,132 @@ async function adminGate(container, title, then) {
   };
 }
 async function loadCfg() { const r = await adminApi('adminGetConfig'); if (r.status === 'ok') { admin.cfg = r.config; admin.drivers = r.drivers; } return r; }
+const needV2 = what => `<div class="notice">${what} needs the updated Drivers script. Open it at script.google.com, paste the new drivers-apps-script.gs, then Deploy → Manage deployments → pencil → Version: New version → Deploy. The link stays the same.</div>`;
 
 function renderAdmin() {
   const v = $('view-admin');
   adminGate(v, 'Admin log in', async () => {
     const r = await loadCfg(); if (r.status !== 'ok') { v.innerHTML = '<div class="card"><div class="notice bad">Could not load admin data.</div></div>'; return; }
-    v.innerHTML = `<div class="seg" id="adSeg">${[['logs', 'Logs'], ['map', 'Drivers'], ['units', 'Units'], ['exp', 'Expenses']].map(x => `<button data-s="${x[0]}" class="${admin.sub === x[0] ? 'on' : ''}">${x[1]}</button>`).join('')}</div><div id="adBody"></div><div class="btnrow noprint" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="adLock">Lock admin</button></div>`;
+    v.innerHTML = `${(r.v || serverV) < 2 ? needV2('The map, shift editing and village names') : ''}<div class="seg" id="adSeg">${[['logs', 'Shifts'], ['map', 'Map'], ['units', 'Units'], ['exp', 'Expenses']].map(x => `<button data-s="${x[0]}" class="${admin.sub === x[0] ? 'on' : ''}">${x[1]}</button>`).join('')}</div><div id="adBody"></div><div class="btnrow noprint" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="adLock">Lock admin</button></div>`;
     v.querySelectorAll('#adSeg button').forEach(b => b.onclick = () => { admin.sub = b.dataset.s; renderAdmin(); });
     $('adLock').onclick = () => { SS.del('kfDrvAdmin'); renderAdmin(); };
     const body = $('adBody');
-    if (admin.sub === 'logs') {
-      body.innerHTML = '<div class="small">Loading…</div>'; const l = await adminApi('adminListShifts', { limit: 60 });
-      body.innerHTML = (l.shifts || []).map(s => `<button class="act" data-id="${esc(s.shiftId)}"><span>${esc(s.driverName)} · ${esc(s.date)}<br><span class="small">${esc(s.unit)} · ${esc(s.startOdo)}→${esc(s.endOdo === '' ? '…' : s.endOdo)} km · drive ${esc(s.drivingHrs)} h</span></span><span class="tag ${s.status === 'Submitted' ? 'ok' : 'todo'}">${esc(s.status)}</span></button>`).join('') || '<div class="card small">No logs yet.</div>';
-      body.querySelectorAll('[data-id]').forEach(b => b.onclick = async () => {
-        const g = await adminApi('adminGetShift', { shiftId: b.dataset.id }); if (g.status !== 'ok') return alert(g.message || 'Could not open');
-        const sh = g.shift; if (g.pretrip && !sh.pretrip) sh.pretrip = g.pretrip.data; const end = sh.closedAt ? new Date(sh.closedAt).getTime() : Date.now();
-        openSheet(logSheetHtml(sh, admin.cfg.company, end) + `<div class="small" style="margin-top:8px">Status: ${esc(g.row.status)} ${esc(g.row.submittedAt || '')}</div><div class="btnrow"><button class="btn btn-outline" onclick="window.print()">Print</button><button class="btn" id="vc">Close</button></div>`, bx => bx.querySelector('#vc').onclick = closeSheet);
-      });
-    } else if (admin.sub === 'map') {
-      body.innerHTML = `<div class="notice">The live map comes in the next release. For now, each driver's last known position (sent at every duty change and every 15 minutes while the app is open):</div>` + admin.drivers.map(d => `<div class="li"><b>${esc(d.name)}</b> ${d.lastSeen ? '' : '<span class="small">— never seen</span>'}<br><span class="small">${d.lastSeen ? esc(d.lastPlace || '') + ' · ' + esc(d.lastStatus || '') + ' · ' + esc(d.lastUnit || '') + ' · ' + esc(new Date(d.lastSeen).toLocaleString()) + (d.lastLat ? ` · <a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${d.lastLat},${d.lastLon}">open map</a>` : '') : ''}</span></div>`).join('');
-    } else if (admin.sub === 'units') { renderUnits(body); }
-    else { body.innerHTML = '<div class="card"><b>Driver expense reports</b><p class="small">Expense submissions from drivers (with receipt photos) arrive in the next release. For now fuel entries are in each driver log, and each driver\'s expense notes are kept in Settings → Drivers.</p></div>'; }
+    if (admin.sub === 'logs') renderShiftList(body);
+    else if (admin.sub === 'map') renderMap(body);
+    else if (admin.sub === 'units') renderUnits(body);
+    else body.innerHTML = '<div class="card"><b>Driver expense reports</b><p class="small">Expense submissions from drivers (with receipt photos) arrive in the next release. For now fuel entries are in each driver log, and each driver\'s expense notes are kept in Settings → Drivers.</p></div>';
   });
 }
+async function renderShiftList(body) {
+  body.innerHTML = `<label>Driver</label><select id="slDrv"><option value="">All drivers</option>${admin.drivers.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')}</select><div id="slList" class="small" style="margin-top:10px">Loading…</div>`;
+  $('slDrv').value = admin.filter || ''; $('slDrv').onchange = () => { admin.filter = $('slDrv').value; renderShiftList(body); };
+  const l = await adminApi('adminListShifts', { limit: 120, driverId: admin.filter || undefined });
+  if (!$('slList')) return;
+  $('slList').innerHTML = (l.shifts || []).map(s => `<button class="act" data-id="${esc(s.shiftId)}"><span>${esc(s.driverName)} · ${esc(s.date)}<br><span class="small">${esc(s.unit)} · ${esc(s.startOdo)}→${esc(s.endOdo === '' ? '…' : s.endOdo)} km · drive ${esc(s.drivingHrs)} h · on duty ${esc(s.onDutyHrs)} h${s.edited ? ' · edited by office' : ''}</span></span><span class="tag ${s.status === 'Submitted' ? 'ok' : 'todo'}">${esc(s.status)}</span></button>`).join('') || '<div class="card small">No shifts yet.</div>';
+  $('slList').querySelectorAll('[data-id]').forEach(b => b.onclick = () => openAdminShift(b.dataset.id, body));
+}
+async function openAdminShift(id, body) {
+  openSheet('<h3>Loading…</h3>');
+  const g = await adminApi('adminGetShift', { shiftId: id }); if (g.status !== 'ok') { closeSheet(); return alert(g.message || 'Could not open'); }
+  const sh = normalize(g.shift); if (g.pretrip && (!sh.pretrip || !sh.pretrip.items)) sh.pretrip = g.pretrip.data;
+  const drv = admin.drivers.find(d => d.name === sh.driverName) || {};
+  const extra = { company: admin.cfg.company, licence: drv.licenseNo || '', driverName: sh.driverName };
+  const end = sh.closedAt ? tms(sh.closedAt) : Date.now(); const keys = (stampCopy(sh, end).days || []).map(d => d.date); if (!keys.length) keys.push(sh.date);
+  openSheet(`<h3>${esc(sh.driverName)} · ${esc(sh.date)}</h3><div class="small">${esc(g.row.status)} ${g.row.submittedAt ? '· submitted ' + esc(new Date(g.row.submittedAt).toLocaleString()) : ''}${g.row.editedAt ? ' · edited by office ' + esc(new Date(g.row.editedAt).toLocaleString()) : ''}${drv.phone ? ` · <a href="tel:${esc(drv.phone)}">${esc(drv.phone)}</a>` : ''}</div>
+    <div class="paperwrap">${keys.map(k => dayPageHtml(buildDay(k, [sh], end, extra))).join('')}</div>
+    ${(sh.edits || []).length ? `<details><summary class="small"><b>Edit history (${sh.edits.length})</b></summary><table class="ev">${sh.edits.map(e => `<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(e.by)}</td><td>${esc(e.action)}</td><td>${e.before ? esc((e.before.t ? hm(new Date(e.before.t)) + ' ' : '') + (SHORT[e.before.s] || JSON.stringify(e.before))) : ''} → ${e.after ? esc((e.after.t ? hm(new Date(e.after.t)) + ' ' : '') + (SHORT[e.after.s] || JSON.stringify(e.after))) : 'deleted'}</td><td>${esc(e.reason)}</td></tr>`).join('')}</table></details>` : ''}
+    <div class="btnrow"><button class="btn btn-outline" id="asDel" style="margin-right:auto;color:var(--bad)">Delete shift</button><button class="btn btn-outline" id="asPr">Print / share</button><button class="btn btn-outline" id="asEd">Edit shift</button><button class="btn" id="asCl">Close</button></div>`, () => {
+    $('asCl').onclick = closeSheet; $('asPr').onclick = () => printDays(keys, [sh], extra);
+    $('asEd').onclick = () => adminEditShift(sh, g.row.status, body);
+    $('asDel').onclick = async () => {
+      if (!confirm(`Delete ${sh.driverName}'s shift of ${sh.date} (${sh.unit})? This removes the log, its pre-trip and its GPS trail. It cannot be undone.`)) return;
+      if (prompt('Type DELETE to confirm') !== 'DELETE') return;
+      const r = await adminApi('adminDeleteShift', { shiftId: sh.id }); if (r.status === 'ok') { closeSheet(); renderShiftList(body); } else alert(r.message || 'Could not delete.');
+    };
+  });
+}
+function stampCopy(sh, end) { const c = JSON.parse(JSON.stringify(sh)); stamp(c, end); return c; }
+function adminEditShift(sh, status, body) {
+  const units = (admin.cfg && admin.cfg.units) || [], R = rulesAll();
+  const li = sh.closedAt ? toLocalInputs(sh.closedAt) : { date: '', time: '' };
+  openSheet(`<h3>Edit shift — ${esc(sh.driverName)}</h3><div class="small">Office edits are marked on the log. If the driver still has this shift open, their phone switches to your copy.</div>
+    <div class="row2"><div><label>Log date</label><input id="aeDate" type="date" value="${esc(sh.date)}"></div><div><label>Status</label><select id="aeSt"><option>Open</option><option>Submitted</option></select></div>
+    <div><label>Unit</label><input id="aeUnit" list="aeUnits" value="${esc(sh.unit)}"><datalist id="aeUnits">${units.map(u => `<option value="${esc(u.name)}">`).join('')}</datalist></div><div><label>Truck plate</label><input id="aePlate" value="${esc(sh.plate || '')}"></div>
+    <div><label>Trailer A</label><input id="aeTa" value="${esc(sh.trailerA || '')}"></div><div><label>Trailer B</label><input id="aeTb" value="${esc(sh.trailerB || '')}"></div>
+    <div><label>Start odometer</label><input id="aeOs" type="number" value="${esc(sh.startOdo)}"></div><div><label>End odometer</label><input id="aeOe" type="number" value="${esc(sh.endOdo)}"></div>
+    <div><label>Rules</label><select id="aeSet"><option value="ab">Alberta provincial (${R.ab.maxOnDuty} h)</option><option value="fed">Federal (${R.fed.maxOnDuty} h)</option></select></div><div><label>Cycle</label><select id="aeCyc"><option value="c1">Cycle 1</option><option value="c2">Cycle 2</option></select></div>
+    <div><label>Closed — date</label><input id="aeCd" type="date" value="${li.date}"></div><div><label>Closed — time</label><input id="aeCt" type="time" value="${li.time}"></div></div>
+    <label>Closing remarks</label><textarea id="aeRem">${esc(sh.remarks || '')}</textarea>
+    <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="aeEv">Edit duty status (${sh.events.length})</button><button class="btn btn-outline" id="aeFuel">Fuel (${(sh.fuel || []).length})</button></div>
+    <label>Reason for this edit — required</label><input id="aeWhy"><div class="err" id="aeErr"></div>
+    <div class="btnrow"><button class="btn btn-outline" id="aeNo">Cancel</button><button class="btn" id="aeOk">Save shift</button></div>`, () => {
+    $('aeSt').value = status === 'Submitted' ? 'Submitted' : 'Open'; $('aeSet').value = hosSetOf(sh); $('aeCyc').value = sh.rule === 'c2' ? 'c2' : 'c1';
+    const keep = () => { sh.date = $('aeDate').value || sh.date; sh.unit = $('aeUnit').value.trim(); sh.plate = $('aePlate').value.trim(); sh.trailerA = $('aeTa').value.trim(); sh.trailerB = $('aeTb').value.trim(); sh.startOdo = $('aeOs').value === '' ? '' : +$('aeOs').value; sh.endOdo = $('aeOe').value === '' ? '' : +$('aeOe').value; sh.hosSet = $('aeSet').value; sh.rule = $('aeCyc').value; sh.remarks = $('aeRem').value; const cd = $('aeCd').value, ct = $('aeCt').value; sh.closedAt = cd && ct ? new Date(cd + 'T' + ct).toISOString() : (cd ? sh.closedAt : ''); if (!sh.closedAt) delete sh.closedAt; status = $('aeSt').value; };
+    const back = () => adminEditShift(sh, status, body);
+    $('aeEv').onclick = () => { keep(); openEventsEditor(sh, 'admin', null, back); };
+    $('aeFuel').onclick = () => { keep(); openSheet(`<h3>Fuel</h3>${(sh.fuel || []).map((f, i) => `<div class="li">${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.place || '')} <button class="btn btn-sm btn-outline" data-rm="${i}" style="float:right">Remove</button></div>`).join('') || '<div class="small">No fuel.</div>'}<div class="btnrow"><button class="btn" id="afB">Back</button></div>`, box => { box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { sh.fuel.splice(+b.dataset.rm, 1); sh.edits.push({ at: new Date().toISOString(), by: 'admin', action: 'fuel removed', before: null, after: null, reason: 'office' }); $('aeFuel') ; back(); }); $('afB').onclick = back; }); };
+    $('aeNo').onclick = closeSheet;
+    $('aeOk').onclick = async () => {
+      keep(); const why = $('aeWhy').value.trim(); if (!why) { $('aeErr').textContent = 'Enter the reason for the edit.'; return; }
+      if (status === 'Submitted' && !sh.closedAt) { $('aeErr').textContent = 'A submitted shift needs a closed date and time.'; return; }
+      sh.edits.push({ at: new Date().toISOString(), by: 'admin', action: 'shift saved', before: null, after: null, reason: why });
+      normalize(sh); stamp(sh, sh.closedAt ? tms(sh.closedAt) : Date.now());
+      $('aeOk').disabled = true; $('aeErr').textContent = 'Saving…';
+      const r = await adminApi('adminSaveShift', { shift: sh, status });
+      $('aeOk').disabled = false;
+      if (r.status === 'ok') { closeSheet(); renderShiftList(body); openAdminShift(sh.id, body); } else $('aeErr').textContent = r.message || (r.status === 'error' ? 'Could not save.' : r.status);
+    };
+  });
+}
+
+/* ---------- admin map ---------- */
+const STATUS_COLOR = { D: '#16a34a', ON: '#d97706', OFF: '#64748b', SB: '#2563eb' };
+async function loadLeaflet() {
+  if (window.L && window.L.map) return;
+  if (!document.querySelector('link[data-leaflet]')) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css'; l.dataset.leaflet = '1'; document.head.appendChild(l); }
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js');
+}
+let mapObj = null, mapGen = 0;
+async function renderMap(body) {
+  const gen = ++mapGen; if (mapObj) { try { mapObj.remove(); } catch (e) {} mapObj = null; }
+  if (!admin.mapDate) admin.mapDate = dkey(new Date());
+  body.innerHTML = `<div class="row2"><div><label>Driver</label><select id="mpDrv"><option value="">All drivers — last position</option>${admin.drivers.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')}</select></div><div><label>Day</label><input id="mpDate" type="date" value="${esc(admin.mapDate)}"></div></div>
+    <div id="map"></div><div id="mpInfo" class="small">Loading map…</div>`;
+  $('mpDrv').value = admin.mapDriver; $('mpDrv').onchange = () => { admin.mapDriver = $('mpDrv').value; renderMap(body); }; $('mpDate').onchange = () => { admin.mapDate = $('mpDate').value; renderMap(body); };
+  try { await loadLeaflet(); } catch (e) { $('mpInfo').innerHTML = '<div class="notice">The map needs signal (it loads map tiles from the internet).</div>'; }
+  const info = $('mpInfo'); if (!info || gen !== mapGen) return;
+  let map = null;
+  if (window.L) { map = mapObj = L.map('map').setView([53.2, -114.9], 7); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap contributors' }).addTo(map); }
+  const bounds = [];
+  if (!admin.mapDriver) {
+    admin.drivers.forEach(d => { if (map && d.lastLat !== '' && d.lastLat != null && !isNaN(+d.lastLat)) { const m = L.circleMarker([+d.lastLat, +d.lastLon], { radius: 9, color: '#0f172a', weight: 2, fillColor: STATUS_COLOR[d.lastStatus] || '#64748b', fillOpacity: .9 }).addTo(map).bindPopup(`<b>${esc(d.name)}</b><br>${esc(SHORT[d.lastStatus] || d.lastStatus || '')} · ${esc(d.lastUnit || '')}<br>${esc(d.lastPlace || '')}<br>${esc(d.lastSeen ? new Date(d.lastSeen).toLocaleString() : '')}${d.phone ? `<br><a href="tel:${esc(d.phone)}">${esc(d.phone)}</a>` : ''}`); m.bindTooltip(esc(d.name), { permanent: true, direction: 'right', offset: [8, 0] }); bounds.push([+d.lastLat, +d.lastLon]); } });
+    info.innerHTML = admin.drivers.map(d => `<div class="li"><b>${esc(d.name)}</b>${d.phone ? ` · <a href="tel:${esc(d.phone)}">${esc(d.phone)}</a>` : ''} ${d.lastSeen ? '' : '<span class="small">— never seen</span>'}<br><span class="small">${d.lastSeen ? `<span class="dot ${esc(d.lastStatus)}"></span>` + esc(SHORT[d.lastStatus] || d.lastStatus || '') + ' · ' + esc(d.lastPlace || '') + ' · ' + esc(d.lastUnit || '') + ' · ' + esc(new Date(d.lastSeen).toLocaleString()) : ''}</span></div>`).join('') + '<div class="small">Pick a driver above to see their 15-minute trail and duty status changes for a day.</div>';
+  } else {
+    const from = dayStart(admin.mapDate), to = nextDay(admin.mapDate);
+    const r = await adminApi('adminTrack', { driverId: admin.mapDriver, from: new Date(from).toISOString(), to: new Date(to).toISOString() }, 40000);
+    if (!$('mpInfo') || gen !== mapGen) return;
+    if (r.status !== 'ok') { info.innerHTML = /Unknown action/.test(r.message || '') ? needV2('The driver trail') : `<div class="notice bad">${esc(r.message || r.status)}</div>`; return; }
+    const pts = (r.points || []).filter(p => !isNaN(p.lat)).sort((a, b) => tms(a.at) - tms(b.at));
+    const evs = []; (r.shifts || []).forEach(sh => (sh.events || []).forEach(e => { const t = tms(e.t); if (t >= from && t < to) evs.push(Object.assign({ unit: sh.unit }, e)); })); evs.sort((a, b) => tms(a.t) - tms(b.t));
+    const gaps = []; (r.shifts || []).forEach(sh => (sh.gpsGaps || []).forEach(g => { if (tms(g.to) >= from && tms(g.from) < to) gaps.push(g); }));
+    if (map) {
+      if (pts.length > 1) L.polyline(pts.map(p => [p.lat, p.lon]), { color: '#2563eb', weight: 3, opacity: .7 }).addTo(map);
+      pts.forEach(p => { L.circleMarker([p.lat, p.lon], { radius: 4, color: STATUS_COLOR[p.status] || '#2563eb', fillOpacity: 1 }).addTo(map).bindTooltip(`${hm(new Date(p.at))} · ${SHORT[p.status] || ''}${p.kph != null ? ' · ' + p.kph + ' km/h' : ''}`); bounds.push([p.lat, p.lon]); });
+      evs.forEach((e, i) => { if (e.lat == null || isNaN(+e.lat)) return; L.marker([+e.lat, +e.lon], { icon: L.divIcon({ className: '', html: `<div style="background:${STATUS_COLOR[e.s]};color:#fff;border:2px solid #0f172a;border-radius:50%;width:22px;height:22px;line-height:18px;text-align:center;font-weight:800;font-size:12px">${i + 1}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map).bindPopup(`<b>${i + 1}. ${esc(e.hm)} ${esc(SHORT[e.s])}</b><br>${esc(e.place || '')}<br>${esc(e.note || '')}`); bounds.push([+e.lat, +e.lon]); });
+    }
+    info.innerHTML = `<h4 style="margin:6px 0">Duty status changes — ${esc(r.driver.name)} · ${esc(longDate(admin.mapDate))}</h4>` + (evs.length ? `<table class="ev"><tr><th>#</th><th>Time</th><th>Status</th><th>Location</th><th>Note</th></tr>${evs.map((e, i) => `<tr><td>${i + 1}</td><td>${esc(e.hm)}</td><td><span class="dot ${e.s}"></span>${esc(SHORT[e.s])}</td><td>${esc(e.place || '')}${e.lat != null ? ` <a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${+e.lat},${+e.lon}">map</a>` : ''}</td><td>${esc(e.note || '')}${e.edited ? ' <i>(edited: ' + esc(e.editReason || '') + ')</i>' : ''}</td></tr>`).join('')}</table>` : '<div class="small">No duty status changes this day.</div>')
+      + (gaps.length ? `<div class="notice" style="margin-top:8px">GPS not recorded (app closed): ${gaps.map(g => esc(hm(new Date(g.from))) + '–' + esc(hm(new Date(g.to)))).join(', ')}</div>` : '')
+      + `<details style="margin-top:8px"><summary><b>15-minute positions (${pts.length})</b></summary><table class="ev"><tr><th>Time</th><th>Status</th><th>Speed</th><th>Position</th></tr>${pts.map(p => `<tr><td>${esc(hm(new Date(p.at)))}</td><td>${esc(SHORT[p.status] || p.status || '')}</td><td>${p.kph != null ? esc(p.kph) + ' km/h' : ''}</td><td><a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${p.lat},${p.lon}">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</a></td></tr>`).join('')}</table></details>`;
+  }
+  if (map && bounds.length) { if (bounds.length === 1) map.setView(bounds[0], 11, { animate: false }); else map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13, animate: false }); }
+  if (map) setTimeout(() => { if (mapObj === map) { try { map.invalidateSize(); } catch (e) {} } }, 200);
+}
+
 function renderUnits(body) {
   const units = admin.cfg.units;
   body.innerHTML = `<div id="unList">${units.map((u, i) => `<div class="li"><div class="row2"><div><label>Unit name</label><input data-i="${i}" data-f="name" value="${esc(u.name)}"></div><div><label>Truck plate</label><input data-i="${i}" data-f="plate" value="${esc(u.plate)}"></div></div><div class="row2"><div><label>Trailer plate A</label><input data-i="${i}" data-f="trailerA" value="${esc(u.trailerA)}"></div><div><label>Trailer plate B</label><input data-i="${i}" data-f="trailerB" value="${esc(u.trailerB)}"></div></div><button class="btn btn-sm btn-outline" data-del="${i}" style="margin-top:6px">Remove unit</button></div>`).join('') || '<div class="small">No units yet.</div>'}</div>
     <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="unAdd">Add unit</button><button class="btn" id="unSave">Save units</button></div><div class="err" id="unMsg"></div>`;
-  const sync = () => body.querySelectorAll('[data-f]').forEach(inp => inp.oninput = () => { units[+inp.dataset.i][inp.dataset.f] = inp.value; });
-  sync();
+  body.querySelectorAll('[data-f]').forEach(inp => inp.oninput = () => { units[+inp.dataset.i][inp.dataset.f] = inp.value; });
   body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this unit?')) { units.splice(+b.dataset.del, 1); renderUnits(body); } });
   $('unAdd').onclick = () => { units.push({ id: '', name: '', plate: '', trailerA: '', trailerB: '' }); renderUnits(body); };
   $('unSave').onclick = async () => { const clean = units.filter(u => u.name.trim()); const r = await adminApi('adminSaveConfig', { config: { units: clean } }); $('unMsg').textContent = r.status === 'ok' ? 'Saved.' : (r.message || 'Could not save.'); if (r.status === 'ok') { admin.cfg = r.config; $('unMsg').style.color = 'var(--good)'; } else $('unMsg').style.color = 'var(--bad)'; };
@@ -601,43 +1188,57 @@ function renderSettings() {
   const v = $('view-settings');
   adminGate(v, 'Settings log in', async () => {
     const r = await loadCfg(); if (r.status !== 'ok') { v.innerHTML = '<div class="card"><div class="notice bad">Could not load settings.</div></div>'; return; }
-    const c = admin.cfg.company, ru = admin.cfg.rules;
-    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Company information</h3>
-      <label>Company name</label><input id="coName" value="${esc(c.name)}"><label>Address</label><input id="coAddr" value="${esc(c.address)}"><div class="row2"><div><label>Phone</label><input id="coPhone" value="${esc(c.phone)}"></div><div><label>Office email (logs are sent here)</label><input id="coMail" type="email" value="${esc(c.officeEmail)}"></div></div>
-      <h3>Hours-of-service limits</h3><div class="small">Defaults follow the Canadian federal rules used in Alberta. Change only if your rules differ.</div>
-      <div class="row2"><div><label>Cycle hours</label><input id="ruCH" type="number" value="${ru.cycleHours}"></div><div><label>Cycle days</label><input id="ruCD" type="number" value="${ru.cycleDays}"></div>
-      <div><label>Max driving / day (h)</label><input id="ruMD" type="number" value="${ru.maxDriving}"></div><div><label>On-duty window (h)</label><input id="ruMW" type="number" value="${ru.maxWindow}"></div>
-      <div><label>Max elapsed (h)</label><input id="ruME" type="number" value="${ru.maxElapsed}"></div><div><label>Rest that resets window (h)</label><input id="ruRO" type="number" value="${ru.resetOffHours}"></div>
-      <div><label>"Not moving" minutes</label><input id="ruSM" type="number" value="${ru.stillMinutes}"></div><div><label>"Not moving" metres</label><input id="ruSD" type="number" value="${ru.stillMeters}"></div></div>
-      <div class="btnrow" style="justify-content:flex-start"><button class="btn" id="coSave">Save company &amp; limits</button></div><div class="err" id="coMsg"></div></div>
+    const c = admin.cfg.company, ru = rulesAll(); const sv = r.v || serverV || 1;
+    const lim = (set, k) => `<input id="ru_${set}_${k}" type="number" step="0.5" value="${esc(ru[set][k])}">`;
+    v.innerHTML = `${sv < 2 ? needV2('This version of the Drivers page') : ''}<div class="card"><h3 style="margin-top:0">Company information</h3>
+      <label>Company name</label><input id="coName" value="${esc(c.name)}"><label>Address (printed on the log as principal place of business)</label><input id="coAddr" value="${esc(c.address)}"><div class="row2"><div><label>Phone</label><input id="coPhone" value="${esc(c.phone)}"></div><div><label>Office email (logs are sent here)</label><input id="coMail" type="email" value="${esc(c.officeEmail)}"></div></div>
+      <h3>Hours of service</h3><label>Default rules for new shifts</label><select id="ruDef"><option value="ab">Alberta provincial (inside Alberta only)</option><option value="fed">Federal (Canada)</option></select>
+      <table class="ev" style="margin-top:8px"><tr><th></th><th>Alberta provincial</th><th>Federal</th></tr>
+        <tr><td>Max driving (h)</td><td>${lim('ab', 'maxDriving')}</td><td>${lim('fed', 'maxDriving')}</td></tr>
+        <tr><td>Max on duty (h)</td><td>${lim('ab', 'maxOnDuty')}</td><td>${lim('fed', 'maxOnDuty')}</td></tr>
+        <tr><td>Max elapsed (h)</td><td>${lim('ab', 'maxElapsed')}</td><td>${lim('fed', 'maxElapsed')}</td></tr>
+        <tr><td>Off-duty rest that resets (h)</td><td>${lim('ab', 'resetOffHours')}</td><td>${lim('fed', 'resetOffHours')}</td></tr></table>
+      <div class="row2"><div><label>Cycle 1 hours</label><input id="ruCH" type="number" value="${esc(ru.cycleHours)}"></div><div><label>Cycle 1 days</label><input id="ruCD" type="number" value="${esc(ru.cycleDays)}"></div></div>
+      <h3>Automatic duty status from GPS</h3><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="ruAuto" style="width:24px;min-height:24px;margin:0" ${+ru.autoStatus !== 0 ? 'checked' : ''}> Change duty status automatically</label>
+      <div class="row2"><div><label>Moving faster than (km/h) → Driving</label><input id="ruKph" type="number" value="${esc(ru.driveKph)}"></div><div><label>Stopped (min) → On Duty</label><input id="ruSM" type="number" value="${esc(ru.stillMinutes)}"></div>
+      <div><label>Stopped (min) → Off Duty</label><input id="ruOM" type="number" value="${esc(ru.offMinutes)}"></div><div><label>"Stopped" means within (m)</label><input id="ruSD" type="number" value="${esc(ru.stillMeters)}"></div></div>
+      <div class="btnrow" style="justify-content:flex-start"><button class="btn" id="coSave">Save company &amp; rules</button></div><div class="err" id="coMsg"></div></div>
     <div class="card"><h3 style="margin-top:0">Drivers</h3><div id="drvList"></div><div class="btnrow" style="justify-content:flex-start"><button class="btn" id="drvNew">Add driver</button></div></div>
-    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="pwChg">Change admin password</button></div><div class="err" id="stMsg"></div></div>`;
+    <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="small">Company Sync on the Quote page can fill this in on every phone (Settings → Drivers Sheet URL).</div><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="plTest">Test village names</button><button class="btn btn-outline" id="pwChg">Change admin password</button></div><div class="err" id="stMsg"></div><div class="small">Drivers script version: ${esc(sv)}</div></div>`;
+    $('ruDef').value = ru.defaultSet === 'fed' ? 'fed' : 'ab';
     $('coSave').onclick = async () => {
-      const n = id => +$(id).value;
-      const r = await adminApi('adminSaveConfig', { config: { company: { name: $('coName').value, address: $('coAddr').value, phone: $('coPhone').value, officeEmail: $('coMail').value }, rules: { cycleHours: n('ruCH'), cycleDays: n('ruCD'), maxDriving: n('ruMD'), maxWindow: n('ruMW'), maxElapsed: n('ruME'), resetOffHours: n('ruRO'), stillMinutes: n('ruSM'), stillMeters: n('ruSD') } } });
-      $('coMsg').textContent = r.status === 'ok' ? 'Saved.' : (r.message || 'Could not save.'); $('coMsg').style.color = r.status === 'ok' ? 'var(--good)' : 'var(--bad)'; if (r.status === 'ok') admin.cfg = r.config;
+      const n = id => +$(id).value; const set = s => ({ maxDriving: n(`ru_${s}_maxDriving`), maxOnDuty: n(`ru_${s}_maxOnDuty`), maxElapsed: n(`ru_${s}_maxElapsed`), resetOffHours: n(`ru_${s}_resetOffHours`) });
+      const r = await adminApi('adminSaveConfig', { config: { company: { name: $('coName').value, address: $('coAddr').value, phone: $('coPhone').value, officeEmail: $('coMail').value }, rules: { defaultSet: $('ruDef').value, ab: set('ab'), fed: set('fed'), cycleHours: n('ruCH'), cycleDays: n('ruCD'), autoStatus: $('ruAuto').checked ? 1 : 0, driveKph: n('ruKph'), stillMinutes: n('ruSM'), offMinutes: n('ruOM'), stillMeters: n('ruSD') } } });
+      $('coMsg').textContent = r.status === 'ok' ? 'Saved. Drivers get the new rules the next time they log in.' : (r.message || 'Could not save.'); $('coMsg').style.color = r.status === 'ok' ? 'var(--good)' : 'var(--bad)'; if (r.status === 'ok') admin.cfg = r.config;
     };
     const drawDrivers = () => {
-      $('drvList').innerHTML = admin.drivers.map(d => `<button class="act" data-id="${esc(d.id)}"><span>${esc(d.name)}<br><span class="small">${d.licenseNo ? 'Licence ' + esc(d.licenseNo) : 'no licence # yet'}${d.licenseExpiry ? ' · exp ' + esc(d.licenseExpiry) : ''}</span></span><span class="tag ${d.active ? 'ok' : 'bad'}">${d.active ? 'Active' : 'Inactive'}</span></button>`).join('') || '<div class="small">No drivers yet.</div>';
+      $('drvList').innerHTML = admin.drivers.map(d => `<button class="act" data-id="${esc(d.id)}"><span>${esc(d.name)}<br><span class="small">${d.phone ? esc(d.phone) + ' · ' : ''}${d.licenseNo ? 'Licence ' + esc(d.licenseNo) : 'no licence # yet'}${d.licenseExpiry ? ' · exp ' + esc(d.licenseExpiry) : ''}</span></span><span class="tag ${d.active ? 'ok' : 'bad'}">${d.active ? 'Active' : 'Inactive'}</span></button>`).join('') || '<div class="small">No drivers yet.</div>';
       $('drvList').querySelectorAll('[data-id]').forEach(b => b.onclick = () => driverForm(admin.drivers.find(x => String(x.id) === b.dataset.id)));
     };
     drawDrivers(); $('drvNew').onclick = () => driverForm(null);
     function driverForm(d) {
-      d = d || { name: '', active: true, licenseNo: '', licenseExpiry: '', licenseLink: '', expenseNotes: '' };
-      openSheet(`<h3>${d.id ? 'Edit driver' : 'Add driver'}</h3><label>Driver name</label><input id="dfName" value="${esc(d.name)}"><label>${d.id ? 'New passcode (leave blank to keep)' : 'Create passcode'}</label><input id="dfPass" type="text" autocomplete="off" placeholder="at least 4 characters">
+      d = d || { name: '', active: true, phone: '', licenseNo: '', licenseExpiry: '', licenseLink: '', expenseNotes: '' };
+      openSheet(`<h3>${d.id ? 'Edit driver' : 'Add driver'}</h3><label>Driver name</label><input id="dfName" value="${esc(d.name)}"><label>Phone number</label><input id="dfPhone" type="tel" inputmode="tel" value="${esc(d.phone || '')}" placeholder="780-555-1234"><label>${d.id ? 'New passcode (leave blank to keep)' : 'Create passcode'}</label><input id="dfPass" type="text" autocomplete="off" placeholder="at least 4 characters">
         <div class="row2"><div><label>Licence number</label><input id="dfLic" value="${esc(d.licenseNo)}"></div><div><label>Licence expiry</label><input id="dfExp" type="date" value="${esc(d.licenseExpiry)}"></div></div>
         <label>Licence photo link (Drive link)</label><input id="dfLink" value="${esc(d.licenseLink)}" placeholder="https://drive.google.com/…"><div class="small">Photo upload straight from the phone comes in the next release; paste a Drive link for now.</div>
         <label>Expense notes</label><textarea id="dfNotes">${esc(d.expenseNotes)}</textarea><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="dfAct" style="width:24px;min-height:24px;margin:0" ${d.active !== false ? 'checked' : ''}> Active (can log in)</label>
-        <div class="err" id="dfErr"></div><div class="btnrow"><button class="btn btn-outline" id="dfNo">Cancel</button><button class="btn" id="dfOk">Save driver</button></div>`, box => {
+        <div class="err" id="dfErr"></div><div class="btnrow"><button class="btn btn-outline" id="dfNo">Cancel</button><button class="btn" id="dfOk">Save driver</button></div>`, () => {
         $('dfNo').onclick = closeSheet;
         $('dfOk').onclick = async () => {
-          const r = await adminApi('adminSaveDriver', { driver: { id: d.id, name: $('dfName').value, passcode: $('dfPass').value, licenseNo: $('dfLic').value, licenseExpiry: $('dfExp').value, licenseLink: $('dfLink').value, expenseNotes: $('dfNotes').value, active: $('dfAct').checked } });
+          const r = await adminApi('adminSaveDriver', { driver: { id: d.id, name: $('dfName').value, phone: $('dfPhone').value.trim(), passcode: $('dfPass').value, licenseNo: $('dfLic').value, licenseExpiry: $('dfExp').value, licenseLink: $('dfLink').value, expenseNotes: $('dfNotes').value, active: $('dfAct').checked } });
           if (r.status === 'ok') { admin.drivers = r.drivers; closeSheet(); drawDrivers(); } else $('dfErr').textContent = r.message || 'Could not save.';
         };
       });
     }
     $('urlUpd').onclick = () => { const u = $('urlSet').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('stMsg').textContent = 'That is not a script link.'; return; } URL_ = u; LS.set('kfDrvUrl', u); $('stMsg').textContent = 'Saved on this phone.'; $('stMsg').style.color = 'var(--good)'; };
-    $('pwChg').onclick = () => openSheet(`<h3>Change admin password</h3><label>Current password</label><input id="pcOld" type="password"><label>New password</label><input id="pcNew" type="password"><label>Confirm new password</label><input id="pcNew2" type="password"><div class="err" id="pcErr"></div><div class="btnrow"><button class="btn btn-outline" id="pcNo">Cancel</button><button class="btn" id="pcOk">Change</button></div>`, box => {
+    $('plTest').onclick = async () => {
+      $('stMsg').style.color = ''; $('stMsg').textContent = 'Getting GPS…'; const p = await getPosition();
+      if (!p) { $('stMsg').textContent = 'No GPS position. Allow location for this site.'; return; }
+      const cache = LS.get('kfDrvPlaces', {}); delete cache[p.lat.toFixed(2) + ',' + p.lon.toFixed(2)]; LS.set('kfDrvPlaces', cache);
+      const name = await placeFor(p.lat, p.lon);
+      $('stMsg').innerHTML = `<b>${esc(name)}</b><br>Source: ${esc(placeInfo.source)}${placeInfo.error ? '<br>Problem: ' + esc(placeInfo.error) : ''}`;
+    };
+    $('pwChg').onclick = () => openSheet(`<h3>Change admin password</h3><label>Current password</label><input id="pcOld" type="password"><label>New password</label><input id="pcNew" type="password"><label>Confirm new password</label><input id="pcNew2" type="password"><div class="err" id="pcErr"></div><div class="btnrow"><button class="btn btn-outline" id="pcNo">Cancel</button><button class="btn" id="pcOk">Change</button></div>`, () => {
       $('pcNo').onclick = closeSheet; $('pcOk').onclick = async () => { if ($('pcNew').value !== $('pcNew2').value) { $('pcErr').textContent = 'New passwords do not match.'; return; } const r = await api({ action: 'adminSetPassword', password: $('pcOld').value, newPassword: $('pcNew').value }); if (r.status === 'ok') { SS.set('kfDrvAdmin', $('pcNew').value); closeSheet(); $('stMsg').textContent = 'Admin password changed.'; } else $('pcErr').textContent = r.status === 'badpassword' ? 'Current password is wrong.' : (r.message || 'Could not change.'); };
     });
   });
@@ -645,10 +1246,13 @@ function renderSettings() {
 
 /* ============================== boot ============================== */
 (function boot() {
+  if (shift) normalize(shift);
   const h = (location.hash || '').replace('#', ''); tab = ['admin', 'settings'].includes(h) ? h : 'drivers';
   showTab(tab);
-  if (shift && session && !shift.submittedPending) { pushShift(); }
+  if (shift && session && !shift.submittedPending) { pushShift(); keepAwake(); }
+  if (session && URL_ && navigator.onLine !== false) api({ action: 'driverLogin', name: session.name, passcode: session.passcode }).then(r => { if (r.status === 'ok') { const os = r.openShift; setCtx(r); if (!shift && os) { shift = normalize(os); saveShiftLocal(); } if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderDrivers(); } });
   const n = $('companyNameBanner'); const s = mainSettings(); if (n && s.companyName) n.textContent = s.companyName;
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
 </body>

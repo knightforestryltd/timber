@@ -3,22 +3,38 @@
 // Stores everything in a Google Sheet called "Driver Logs" that is created automatically
 // on first use. Tabs: Drivers, Shifts, Pretrips, Positions.
 // Company info, units and rules live in Script Properties (small JSON).
-// Deploy: Deploy > New deployment > Web app > Execute as: Me > Access: Anyone.
-// Later updates: Deploy > Manage deployments > pencil > New version (never New deployment).
+//
+// FIRST TIME: Deploy > New deployment > Web app > Execute as: Me > Access: Anyone.
+// UPDATING (keeps the same link): paste this over the old code > Save >
+//   Deploy > Manage deployments > pencil > Version: "New version" > Deploy.
+//   The first time after this update Google asks you to authorize again (Maps, for village names).
+//
+// v2: Alberta provincial rules, duty-status edits (logged), 15-minute GPS trail, village names
+//     from Google Maps (no API key needed), 14-day history for drivers, admin map, admin edit /
+//     delete shift, driver phone numbers, PDF log attached to the office email, and automatic
+//     removal of records older than 12 months.
 // This script is separate from the quote / load log / sync scripts and does not touch them.
 // ============================================================================
-var SCRIPT_VERSION = 1;
+var SCRIPT_VERSION = 2;
 var SHEET_NAME = 'Driver Logs';
+var KEEP_DAYS = 365;            // records older than this are removed automatically
 var TABS = {
-  Drivers:  ['id', 'name', 'salt', 'hash', 'active', 'licenseNo', 'licenseExpiry', 'licenseLink', 'expenseNotes', 'lastLat', 'lastLon', 'lastPlace', 'lastSeen', 'lastStatus', 'lastUnit'],
-  Shifts:   ['shiftId', 'driverId', 'driverName', 'date', 'unit', 'startedAt', 'submittedAt', 'status', 'startOdo', 'endOdo', 'onDutyHrs', 'drivingHrs', 'remarks', 'json', 'signature'],
+  Drivers:  ['id', 'name', 'salt', 'hash', 'active', 'licenseNo', 'licenseExpiry', 'licenseLink', 'expenseNotes', 'lastLat', 'lastLon', 'lastPlace', 'lastSeen', 'lastStatus', 'lastUnit', 'phone'],
+  Shifts:   ['shiftId', 'driverId', 'driverName', 'date', 'unit', 'startedAt', 'submittedAt', 'status', 'startOdo', 'endOdo', 'onDutyHrs', 'drivingHrs', 'remarks', 'json', 'signature', 'editedAt'],
   Pretrips: ['shiftId', 'driverName', 'unit', 'at', 'result', 'json', 'signature'],
-  Positions: ['at', 'driverName', 'unit', 'lat', 'lon', 'place', 'status']
+  Positions: ['at', 'driverName', 'unit', 'lat', 'lon', 'place', 'status', 'shiftId', 'kph', 'driverId']
+};
+var DEFAULT_RULES = {
+  defaultSet: 'ab',
+  ab:  { maxDriving: 13, maxOnDuty: 15, maxElapsed: 16, resetOffHours: 8 },   // Alberta provincial (AR 317/2002)
+  fed: { maxDriving: 13, maxOnDuty: 14, maxElapsed: 16, resetOffHours: 8 },   // Canada federal (SOR/2005-313)
+  cycleHours: 70, cycleDays: 7,
+  autoStatus: 1, stillMinutes: 15, offMinutes: 30, driveKph: 40, stillMeters: 100
 };
 var DEFAULT_CONFIG = {
   company: { name: 'Knight Forestry Ltd', address: '', phone: '', officeEmail: '' },
   units: [],
-  rules: { cycleHours: 70, cycleDays: 7, maxDriving: 13, maxWindow: 14, maxElapsed: 16, resetOffHours: 8, stillMinutes: 15, stillMeters: 100 }
+  rules: DEFAULT_RULES
 };
 
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
@@ -30,22 +46,31 @@ function sha_(s) {
 function hashPw_(salt, pw) { return sha_(salt + '|' + pw); }
 
 // ---------- sheet access ----------
+var ss__ = null, tabs__ = {};
 function ss_() {
+  if (ss__) return ss__;
   var id = props_().getProperty('ssId');
-  var ss;
-  if (id) { ss = SpreadsheetApp.openById(id); }
-  else { ss = SpreadsheetApp.create(SHEET_NAME); props_().setProperty('ssId', ss.getId()); }
-  return ss;
+  if (id) { ss__ = SpreadsheetApp.openById(id); }
+  else { ss__ = SpreadsheetApp.create(SHEET_NAME); props_().setProperty('ssId', ss__.getId()); }
+  return ss__;
 }
 function tab_(name) {
-  var ss = ss_();
+  if (tabs__[name]) return tabs__[name];
+  var ss = ss_(), cols = TABS[name];
   var sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
-    sh.getRange(1, 1, 1, TABS[name].length).setValues([TABS[name]]);
-    try { sh.setFrozenRows(1); sh.getRange(1, 1, 1, TABS[name].length).setFontWeight('bold'); } catch (e) {}
+    try { sh.getRange(1, 1, sh.getMaxRows(), cols.length).setNumberFormat('@'); } catch (e) {}
+    sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+    try { sh.setFrozenRows(1); sh.getRange(1, 1, 1, cols.length).setFontWeight('bold'); } catch (e) {}
     try { var d = ss.getSheetByName('Sheet1'); if (d && ss.getSheets().length > 1) ss.deleteSheet(d); } catch (e) {}
+  } else if (sh.getLastColumn() < cols.length) {
+    // v1 sheet: add the new column headings on the right, nothing else moves
+    if (sh.getMaxColumns() < cols.length) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
+    sh.getRange(1, 1, 1, cols.length).setValues([cols]);
+    try { sh.getRange(1, 1, 1, cols.length).setFontWeight('bold'); } catch (e) {}
   }
+  tabs__[name] = sh;
   return sh;
 }
 function rows_(name) {
@@ -58,14 +83,40 @@ function rows_(name) {
     return o;
   });
 }
-function line_(name, o) { return TABS[name].map(function (c) { return o[c] == null ? '' : o[c]; }); }
-function append_(name, o) {
-  var sh = tab_(name);
-  var r = Math.max(sh.getLastRow() + 1, 2);
-  sh.getRange(r, 1, 1, TABS[name].length).setValues([line_(name, o)]);
-  return r;
+function line_(name, o) {
+  return TABS[name].map(function (c) {
+    var v = o[c];
+    if (v == null) return '';
+    if (v instanceof Date) return (c === 'date' || c === 'licenseExpiry') ? day_(v) : v.toISOString();
+    return v;
+  });
 }
-function write_(name, row, o) { tab_(name).getRange(row, 1, 1, TABS[name].length).setValues([line_(name, o)]); }
+function append_(name, o) { appendMany_(name, [o]); }
+function appendMany_(name, list) {
+  if (!list.length) return;
+  var sh = tab_(name), r = Math.max(sh.getLastRow() + 1, 2), cols = TABS[name].length;
+  var rng = sh.getRange(r, 1, list.length, cols);
+  try { rng.setNumberFormat('@'); } catch (e) {}
+  rng.setValues(list.map(function (o) { return line_(name, o); }));
+}
+function write_(name, row, o) {
+  var rng = tab_(name).getRange(row, 1, 1, TABS[name].length);
+  try { rng.setNumberFormat('@'); } catch (e) {}
+  rng.setValues([line_(name, o)]);
+}
+// Keep only the rows for which keep(row) is true (rewrites the tab in one go). Returns rows removed.
+function keepRows_(name, keep) {
+  var sh = tab_(name), all = rows_(name), cols = TABS[name].length;
+  var kept = all.filter(keep);
+  if (kept.length === all.length) return 0;
+  sh.getRange(2, 1, all.length, cols).clearContent();
+  if (kept.length) {
+    var rng = sh.getRange(2, 1, kept.length, cols);
+    try { rng.setNumberFormat('@'); } catch (e) {}
+    rng.setValues(kept.map(function (o) { return line_(name, o); }));
+  }
+  return all.length - kept.length;
+}
 
 // ---------- config ----------
 function readConfig_() {
@@ -73,8 +124,13 @@ function readConfig_() {
   var c = raw ? JSON.parse(raw) : {};
   var out = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   if (c.company) for (var k in c.company) out.company[k] = c.company[k];
-  if (c.rules) for (var r in c.rules) out.rules[r] = c.rules[r];
   if (c.units) out.units = c.units;
+  var r = c.rules || {};
+  ['defaultSet', 'cycleHours', 'cycleDays', 'autoStatus', 'stillMinutes', 'offMinutes', 'driveKph', 'stillMeters'].forEach(function (x) { if (r[x] != null && r[x] !== '') out.rules[x] = r[x]; });
+  ['ab', 'fed'].forEach(function (set) { if (r[set]) for (var y in out.rules[set]) if (r[set][y] != null) out.rules[set][y] = r[set][y]; });
+  if (!r.fed && r.maxWindow) {             // v1 flat rules become the federal set
+    out.rules.fed = { maxDriving: r.maxDriving || 13, maxOnDuty: r.maxWindow || 14, maxElapsed: r.maxElapsed || 16, resetOffHours: r.resetOffHours || 8 };
+  }
   return out;
 }
 
@@ -109,15 +165,82 @@ function authFail_(a) { return json_({ status: a.locked ? 'locked' : 'badpasswor
 function parse_(s) { try { return JSON.parse(s); } catch (e) { return null; } }
 function cap_(s, n) { s = s == null ? '' : String(s); return s.length > n ? s.slice(0, n) : s; }
 function esc_(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+function ms_(v) { if (v instanceof Date) return v.getTime(); var t = Date.parse(v); return isNaN(t) ? 0 : t; }
+function iso_(v) { return v instanceof Date ? v.toISOString() : String(v == null ? '' : v); }
+function day_(v) { return v instanceof Date ? Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(v == null ? '' : v); }
 
 function driverPublic_(d) {
-  return { id: d.id, name: d.name, active: String(d.active) !== 'false', licenseNo: d.licenseNo, licenseExpiry: d.licenseExpiry, licenseLink: d.licenseLink, expenseNotes: d.expenseNotes };
+  return { id: d.id, name: d.name, active: String(d.active) !== 'false', phone: String(d.phone || ''), licenseNo: d.licenseNo, licenseExpiry: day_(d.licenseExpiry), licenseLink: d.licenseLink, expenseNotes: d.expenseNotes };
 }
 function driverAdminView_(d) {
   var o = driverPublic_(d);
-  o.hasPasscode = !!d.hash; o.lastLat = d.lastLat; o.lastLon = d.lastLon; o.lastPlace = d.lastPlace; o.lastSeen = d.lastSeen; o.lastStatus = d.lastStatus; o.lastUnit = d.lastUnit;
+  o.hasPasscode = !!d.hash; o.lastLat = d.lastLat; o.lastLon = d.lastLon; o.lastPlace = d.lastPlace; o.lastSeen = iso_(d.lastSeen); o.lastStatus = d.lastStatus; o.lastUnit = d.lastUnit;
   return o;
 }
+// The full shift (pre-trip detail is stored separately when the shift JSON was too big for one cell).
+function fullShift_(row, pretrips) {
+  var sh = parse_(row.json) || {};
+  if (!sh.pretrip || (sh.pretrip && !sh.pretrip.items)) {
+    var pt = (pretrips || rows_('Pretrips')).filter(function (p) { return String(p.shiftId) === String(row.shiftId); })[0];
+    if (pt) { var pd = parse_(pt.json); if (pd) { sh.pretrip = pd; if (!sh.pretrip.signature) sh.pretrip.signature = pt.signature; } }
+  }
+  if (!sh.signature && row.signature) sh.signature = row.signature;
+  sh.id = sh.id || row.shiftId; sh.driverName = sh.driverName || row.driverName;
+  sh._status = row.status; sh._submittedAt = iso_(row.submittedAt);
+  return sh;
+}
+function tombstones_() { return parse_(props_().getProperty('deletedShifts') || '[]') || []; }
+function addTombstone_(id) { var t = tombstones_(); t.push(String(id)); props_().setProperty('deletedShifts', JSON.stringify(t.slice(-300))); }
+
+// ---------- village names (Google Maps from inside Apps Script: no API key needed) ----------
+function place_(lat, lon) {
+  lat = Number(lat); lon = Number(lon);
+  if (!isFinite(lat) || !isFinite(lon)) return { status: 'error', message: 'bad position' };
+  var key = 'pl_' + lat.toFixed(2) + '_' + lon.toFixed(2), cache = CacheService.getScriptCache();
+  var hit = cache.get(key); if (hit) return parse_(hit);
+  var res = Maps.newGeocoder().reverseGeocode(lat, lon);
+  if (!res || res.status !== 'OK') return { status: 'error', message: 'Google Maps: ' + (res && res.status) };
+  var want = ['locality', 'sublocality', 'neighborhood', 'administrative_area_level_3', 'colloquial_area'], best = null;
+  for (var w = 0; w < want.length && !best; w++) {
+    for (var i = 0; i < res.results.length && !best; i++) {
+      var r = res.results[i];
+      if ((r.types || []).indexOf(want[w]) > -1) best = r;
+    }
+  }
+  var prov = '';
+  res.results.some(function (r) { return (r.address_components || []).some(function (c) { if ((c.types || []).indexOf('administrative_area_level_1') > -1) { prov = c.short_name; return true; } return false; }); });
+  var out;
+  if (best) {
+    var name = best.address_components && best.address_components[0] ? best.address_components[0].long_name : best.formatted_address;
+    out = { status: 'ok', name: name, prov: prov, lat: best.geometry.location.lat, lon: best.geometry.location.lng, source: 'google' };
+  } else {
+    var f = res.results[0];
+    out = { status: 'ok', name: f ? f.formatted_address : '', prov: '', lat: lat, lon: lon, source: 'google-address' };
+  }
+  cache.put(key, JSON.stringify(out), 21600);
+  return out;
+}
+
+// ---------- 12-month clean-up (runs at most once a day, on its own) ----------
+function purgeIfDue_() {
+  var last = Number(props_().getProperty('lastPurge') || 0);
+  if (Date.now() - last < 86400000) return;
+  props_().setProperty('lastPurge', String(Date.now()));
+  purgeOld_();
+}
+function purgeOld_() {
+  var cutoff = Date.now() - KEEP_DAYS * 86400000, gone = {};
+  keepRows_('Shifts', function (s) {
+    var t = ms_(s.submittedAt) || ms_(s.startedAt);
+    var keep = s.status === 'Open' || !t || t >= cutoff;
+    if (!keep) gone[String(s.shiftId)] = 1;
+    return keep;
+  });
+  keepRows_('Pretrips', function (p) { return !gone[String(p.shiftId)] && (!ms_(p.at) || ms_(p.at) >= cutoff); });
+  keepRows_('Positions', function (p) { return !ms_(p.at) || ms_(p.at) >= cutoff; });
+}
+// Optional: run this once from the editor (Run > dailyCleanup) to remove old records right now.
+function dailyCleanup() { purgeOld_(); }
 
 // ---------- entry points ----------
 function doGet(e) {
@@ -132,9 +255,19 @@ function doGet(e) {
 function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
-    lock.waitLock(20000);
     var d = JSON.parse(e.postData.contents);
     var a = d.action;
+
+    // village name lookup: no sheet access, no lock needed
+    if (a === 'place') {
+      var okp = false;
+      if (d.password) okp = adminOk_(d.password).ok;
+      if (!okp && d.name) okp = !!driverAuth_(d.name, d.passcode).ok;
+      if (!okp) return json_({ status: 'badpassword' });
+      try { return json_(place_(d.lat, d.lon)); } catch (err) { return json_({ status: 'error', message: String(err) }); }
+    }
+
+    lock.waitLock(25000);
 
     if (a === 'adminSetPassword') {
       var np = String(d.newPassword || '');
@@ -153,8 +286,8 @@ function doPost(e) {
       if (a === 'adminCheck') return json_({ status: 'ok', v: SCRIPT_VERSION });
 
       if (a === 'adminGetConfig') {
-        var cfg = readConfig_();
-        return json_({ status: 'ok', config: cfg, drivers: rows_('Drivers').map(driverAdminView_) });
+        try { purgeIfDue_(); } catch (err) {}
+        return json_({ status: 'ok', v: SCRIPT_VERSION, config: readConfig_(), drivers: rows_('Drivers').map(driverAdminView_) });
       }
       if (a === 'adminSaveConfig') {
         var cur = readConfig_(), inc = d.config || {};
@@ -164,7 +297,16 @@ function doPost(e) {
             return { id: cap_(u.id, 40) || Utilities.getUuid(), name: cap_(u.name, 60), plate: cap_(u.plate, 20), trailerA: cap_(u.trailerA, 20), trailerB: cap_(u.trailerB, 20), notes: cap_(u.notes, 300) };
           });
         }
-        if (inc.rules) { for (var k in DEFAULT_CONFIG.rules) { var n = Number(inc.rules[k]); if (isFinite(n) && n > 0) cur.rules[k] = n; } }
+        if (inc.rules) {
+          var ir = inc.rules;
+          if (ir.defaultSet === 'ab' || ir.defaultSet === 'fed') cur.rules.defaultSet = ir.defaultSet;
+          ['cycleHours', 'cycleDays', 'stillMinutes', 'offMinutes', 'driveKph', 'stillMeters'].forEach(function (k) { var n = Number(ir[k]); if (isFinite(n) && n > 0) cur.rules[k] = n; });
+          if (ir.autoStatus != null) cur.rules.autoStatus = ir.autoStatus ? 1 : 0;
+          ['ab', 'fed'].forEach(function (set) {
+            if (!ir[set]) return;
+            for (var k in DEFAULT_RULES[set]) { var n = Number(ir[set][k]); if (isFinite(n) && n > 0) cur.rules[set][k] = n; }
+          });
+        }
         props_().setProperty('config', JSON.stringify(cur));
         return json_({ status: 'ok', config: cur });
       }
@@ -178,9 +320,11 @@ function doPost(e) {
         if (dup) return json_({ status: 'error', message: 'A driver with that name already exists.' });
         var rec = existing ? existing : { id: Utilities.getUuid(), active: true };
         rec.name = name;
+        rec.phone = cap_(dr.phone, 30);
         rec.licenseNo = cap_(dr.licenseNo, 40); rec.licenseExpiry = cap_(dr.licenseExpiry, 20);
         rec.licenseLink = cap_(dr.licenseLink, 500); rec.expenseNotes = cap_(dr.expenseNotes, 1000);
         rec.active = dr.active === false ? 'false' : 'true';
+        if (rec.lastSeen instanceof Date) rec.lastSeen = rec.lastSeen.toISOString();
         if (dr.passcode) {
           var pc = String(dr.passcode);
           if (pc.length < 4) return json_({ status: 'error', message: 'Passcode must be at least 4 characters.' });
@@ -190,55 +334,120 @@ function doPost(e) {
         return json_({ status: 'ok', drivers: rows_('Drivers').map(driverAdminView_) });
       }
       if (a === 'adminListShifts') {
-        var all = rows_('Shifts').reverse().slice(0, Math.min(Number(d.limit) || 60, 200));
+        var all = rows_('Shifts').reverse();
+        if (d.driverId) all = all.filter(function (s) { return String(s.driverId) === String(d.driverId); });
+        all = all.slice(0, Math.min(Number(d.limit) || 80, 300));
         return json_({ status: 'ok', shifts: all.map(function (s) {
-          return { shiftId: s.shiftId, driverName: s.driverName, date: s.date, unit: s.unit, status: s.status, startedAt: s.startedAt, submittedAt: s.submittedAt, startOdo: s.startOdo, endOdo: s.endOdo, onDutyHrs: s.onDutyHrs, drivingHrs: s.drivingHrs };
+          var j = parse_(s.json) || {};
+          return { shiftId: s.shiftId, driverId: s.driverId, driverName: s.driverName, date: j.date || day_(s.date), unit: s.unit, status: s.status, startedAt: iso_(s.startedAt), submittedAt: iso_(s.submittedAt), startOdo: s.startOdo, endOdo: s.endOdo, onDutyHrs: s.onDutyHrs, drivingHrs: s.drivingHrs, edited: !!s.editedAt };
         }) });
       }
       if (a === 'adminGetShift') {
         var f = rows_('Shifts').filter(function (s) { return String(s.shiftId) === String(d.shiftId); })[0];
         if (!f) return json_({ status: 'error', message: 'Shift not found.' });
-        var pt = rows_('Pretrips').filter(function (p) { return String(p.shiftId) === String(d.shiftId); })[0];
-        return json_({ status: 'ok', shift: parse_(f.json), row: { status: f.status, submittedAt: f.submittedAt, signature: f.signature }, pretrip: pt ? { data: parse_(pt.json), signature: pt.signature, at: pt.at } : null });
+        var fs = fullShift_(f);
+        return json_({ status: 'ok', shift: fs, row: { status: f.status, submittedAt: iso_(f.submittedAt), signature: f.signature, editedAt: iso_(f.editedAt) }, pretrip: fs.pretrip ? { data: fs.pretrip, signature: fs.pretrip.signature, at: fs.pretrip.at } : null });
+      }
+      if (a === 'adminSaveShift') {
+        var ns = d.shift || {};
+        var row = rows_('Shifts').filter(function (s) { return String(s.shiftId) === String(ns.id); })[0];
+        if (!row) return json_({ status: 'error', message: 'Shift not found (it may have been deleted).' });
+        var st = d.status === 'Open' || d.status === 'Submitted' ? d.status : row.status;
+        ns.adminEditAt = new Date().toISOString();
+        delete ns._status; delete ns._submittedAt;
+        saveShiftRow_(row, ns, { driverId: row.driverId, driverName: row.driverName, status: st, submittedAt: st === 'Submitted' ? (iso_(row.submittedAt) || new Date().toISOString()) : '', editedAt: ns.adminEditAt });
+        return json_({ status: 'ok', editedAt: ns.adminEditAt });
+      }
+      if (a === 'adminDeleteShift') {
+        var sid0 = String(d.shiftId || '');
+        if (!sid0) return json_({ status: 'error', message: 'Missing shift id.' });
+        var n1 = keepRows_('Shifts', function (s) { return String(s.shiftId) !== sid0; });
+        keepRows_('Pretrips', function (p) { return String(p.shiftId) !== sid0; });
+        if (d.withTrail !== false) keepRows_('Positions', function (p) { return String(p.shiftId) !== sid0; });
+        addTombstone_(sid0);
+        return json_({ status: n1 ? 'ok' : 'error', message: n1 ? '' : 'Shift not found.' });
+      }
+      if (a === 'adminTrack') {
+        var from = ms_(d.from), to = ms_(d.to);
+        if (!from || !to) return json_({ status: 'error', message: 'Missing date range.' });
+        var drows = rows_('Drivers'), drv0 = drows.filter(function (x) { return String(x.id) === String(d.driverId); })[0];
+        if (!drv0) return json_({ status: 'error', message: 'Driver not found.' });
+        var pts = rows_('Positions').filter(function (p) {
+          var t = ms_(p.at);
+          return t >= from && t < to && (String(p.driverId) === String(drv0.id) || (!p.driverId && String(p.driverName) === String(drv0.name)));
+        }).map(function (p) { return { at: iso_(p.at), lat: Number(p.lat), lon: Number(p.lon), place: p.place, status: p.status, unit: p.unit, kph: p.kph === '' ? null : Number(p.kph), shiftId: p.shiftId }; });
+        var pret = rows_('Pretrips');
+        var shifts = rows_('Shifts').filter(function (s) {
+          if (String(s.driverId) !== String(drv0.id)) return false;
+          var a0 = ms_(s.startedAt) - 2 * 86400000, b0 = s.status === 'Open' ? Date.now() : (ms_(s.submittedAt) || Date.now());
+          return a0 < to && b0 >= from;
+        }).map(function (s) { return fullShift_(s, pret); });
+        return json_({ status: 'ok', driver: driverAdminView_(drv0), points: pts, shifts: shifts });
       }
       return json_({ status: 'error', message: 'Unknown action: ' + a });
     }
 
     // ----- driver actions -----
-    if (a === 'driverLogin' || a === 'saveShift' || a === 'submitShift') {
+    if (a === 'driverLogin' || a === 'saveShift' || a === 'submitShift' || a === 'driverHistory') {
       var au = driverAuth_(d.name, d.passcode);
       if (!au.ok) return authFail_(au);
       var drv = au.driver, cfg2 = readConfig_();
 
       if (a === 'driverLogin') {
+        try { purgeIfDue_(); } catch (err) {}
         var mine = rows_('Shifts').filter(function (s) { return String(s.driverId) === String(drv.id); });
         var open = mine.filter(function (s) { return s.status === 'Open'; }).pop();
-        var cutoff = Date.now() - 16 * 86400000, days = {}, lastOdo = {};
+        var cutoff = Date.now() - 16 * 86400000, days = {}, lastClose = '';
         mine.forEach(function (s) {
           if (s.status !== 'Submitted') return;
-          if (s.unit && s.endOdo !== '') lastOdo[s.unit] = s.endOdo;
           var sj = parse_(s.json);
+          if (sj && sj.closedAt && ms_(sj.closedAt) > ms_(lastClose)) lastClose = sj.closedAt;
           if (sj && sj.days) sj.days.forEach(function (x) { if (new Date(x.date + 'T12:00:00').getTime() >= cutoff) { days[x.date] = days[x.date] || { onDuty: 0, driving: 0 }; days[x.date].onDuty += Number(x.onDuty) || 0; days[x.date].driving += Number(x.driving) || 0; } });
         });
-        // odometer for units across all drivers (the truck's last km, whoever drove it)
-        var allOdo = {};
-        rows_('Shifts').forEach(function (s) { if (s.status === 'Submitted' && s.unit && s.endOdo !== '') allOdo[s.unit] = s.endOdo; });
+        // the truck's last km, whoever drove it (latest submitted shift per unit)
+        var allOdo = {}, odoAt = {};
+        rows_('Shifts').forEach(function (s) {
+          if (s.status !== 'Submitted' || !s.unit || s.endOdo === '') return;
+          var t = ms_(s.submittedAt);
+          if (!odoAt[s.unit] || t >= odoAt[s.unit]) { allOdo[s.unit] = s.endOdo; odoAt[s.unit] = t; }
+        });
         return json_({
           status: 'ok', v: SCRIPT_VERSION, driver: driverPublic_(drv), company: cfg2.company, units: cfg2.units, rules: cfg2.rules,
-          history: days, unitOdo: allOdo, openShift: open ? parse_(open.json) : null
+          history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? fullShift_(open) : null
         });
+      }
+
+      if (a === 'driverHistory') {
+        var since = Date.now() - (Math.min(Number(d.days) || 15, 31)) * 86400000, pret2 = rows_('Pretrips');
+        var hist = rows_('Shifts').filter(function (s) {
+          if (String(s.driverId) !== String(drv.id)) return false;
+          return s.status === 'Open' || (ms_(s.submittedAt) || ms_(s.startedAt)) >= since;
+        }).map(function (s) { return fullShift_(s, pret2); });
+        return json_({ status: 'ok', v: SCRIPT_VERSION, shifts: hist });
       }
 
       var sh = d.shift || {};
       var sid = cap_(sh.id, 80);
       if (!sid) return json_({ status: 'error', message: 'Missing shift id.' });
+      if (tombstones_().indexOf(sid) > -1) return json_({ status: 'deleted', message: 'The office deleted this shift.' });
       var shifts = rows_('Shifts'), found = null, otherOpen = null;
       shifts.forEach(function (s) {
         if (String(s.shiftId) === sid) found = s;
         else if (String(s.driverId) === String(drv.id) && s.status === 'Open') otherOpen = s;
       });
-      if (!found && otherOpen) return json_({ status: 'blocked', message: 'Submit your open shift before starting a new one.', openShift: parse_(otherOpen.json) });
+      if (!found && otherOpen) return json_({ status: 'blocked', message: 'Submit your open shift before starting a new one.', openShift: fullShift_(otherOpen) });
       if (found && found.status === 'Submitted') return json_({ status: 'ok', alreadySubmitted: true });
+
+      // trail points always go in, even if the office edited the shift
+      savePoints_(drv, d.pts, sid, sh.unit);
+      if (d.pos) updateLastSeen_(drv, d.pos, sh.unit);
+
+      if (found) {
+        var srv = parse_(found.json) || {};
+        if (srv.adminEditAt && srv.adminEditAt !== sh.adminEditAt) {
+          return json_({ status: 'replaced', message: 'The office edited this shift. This phone now has the office copy.', shift: fullShift_(found) });
+        }
+      }
 
       var isSubmit = a === 'submitShift';
       if (isSubmit) {
@@ -248,38 +457,13 @@ function doPost(e) {
         if (!sh.signature) missing.push('signature');
         if (missing.length) return json_({ status: 'error', message: 'Missing: ' + missing.join(', ') + '.' });
       }
-      var js = JSON.stringify(sh);
-      if (js.length > 45000) { sh.signature = ''; sh.pretrip = sh.pretrip ? { done: true, note: 'detail stored in Pretrips tab' } : null; js = JSON.stringify(sh); }
-      var rec2 = {
-        shiftId: sid, driverId: drv.id, driverName: drv.name, date: cap_(sh.date, 12), unit: cap_(sh.unit, 60), startedAt: cap_(sh.startedAt, 40),
-        submittedAt: isSubmit ? new Date().toISOString() : '', status: isSubmit ? 'Submitted' : 'Open', startOdo: sh.startOdo == null ? '' : sh.startOdo, endOdo: sh.endOdo == null ? '' : sh.endOdo,
-        onDutyHrs: Number(sh.onDutyHrs) || 0, drivingHrs: Number(sh.drivingHrs) || 0, remarks: cap_(sh.remarks, 2000), json: js, signature: isSubmit ? cap_(sh.signature, 40000) : ''
-      };
-      if (found) write_('Shifts', found._row, rec2); else append_('Shifts', rec2);
-
-      if (sh.pretrip && sh.pretrip.done) {
-        var pts = rows_('Pretrips'), pfound = null;
-        pts.forEach(function (p) { if (String(p.shiftId) === sid) pfound = p; });
-        var prec = { shiftId: sid, driverName: drv.name, unit: rec2.unit, at: cap_(sh.pretrip.at, 40), result: sh.pretrip.defects ? 'DEFECTS' : 'OK', json: cap_(JSON.stringify(sh.pretrip), 45000), signature: cap_(sh.pretrip.signature, 40000) };
-        if (pfound) write_('Pretrips', pfound._row, prec); else append_('Pretrips', prec);
-      }
-
-      if (d.pos && isFinite(Number(d.pos.lat)) && isFinite(Number(d.pos.lon))) {
-        var drows = rows_('Drivers'), mineRow = null;
-        drows.forEach(function (x) { if (String(x.id) === String(drv.id)) mineRow = x; });
-        if (mineRow) {
-          mineRow.lastLat = Number(d.pos.lat); mineRow.lastLon = Number(d.pos.lon); mineRow.lastPlace = cap_(d.pos.place, 120);
-          mineRow.lastSeen = cap_(d.pos.at, 40) || new Date().toISOString(); mineRow.lastStatus = cap_(d.pos.status, 20); mineRow.lastUnit = rec2.unit;
-          write_('Drivers', mineRow._row, mineRow);
-        }
-        append_('Positions', { at: cap_(d.pos.at, 40) || new Date().toISOString(), driverName: drv.name, unit: rec2.unit, lat: Number(d.pos.lat), lon: Number(d.pos.lon), place: cap_(d.pos.place, 120), status: cap_(d.pos.status, 20) });
-      }
+      saveShiftRow_(found, sh, { driverId: drv.id, driverName: drv.name, status: isSubmit ? 'Submitted' : 'Open', submittedAt: isSubmit ? new Date().toISOString() : '' });
 
       var emailed = false, emailError = '';
       if (isSubmit) {
-        try { emailed = emailLog_(cfg2, drv, sh); } catch (err) { emailError = String(err); }
+        try { emailed = emailLog_(cfg2, drv, sh, d.pdfBase64); } catch (err) { emailError = String(err); }
       }
-      return json_({ status: 'ok', submitted: isSubmit, emailed: emailed, emailError: emailError });
+      return json_({ status: 'ok', v: SCRIPT_VERSION, submitted: isSubmit, emailed: emailed, emailError: emailError });
     }
 
     return json_({ status: 'error', message: 'Unknown action: ' + a });
@@ -290,28 +474,68 @@ function doPost(e) {
   }
 }
 
+function saveShiftRow_(found, sh, meta) {
+  var sid = String(sh.id);
+  var js = JSON.stringify(sh);
+  if (js.length > 45000) {
+    var slim = JSON.parse(js); slim.signature = ''; slim.pretrip = sh.pretrip ? { done: true, at: sh.pretrip.at, defects: sh.pretrip.defects, defectNote: sh.pretrip.defectNote, defectList: sh.pretrip.defectList, note: 'detail stored in Pretrips tab' } : null;
+    js = JSON.stringify(slim);
+  }
+  var rec = {
+    shiftId: sid, driverId: meta.driverId, driverName: meta.driverName, date: cap_(sh.date, 12), unit: cap_(sh.unit, 60), startedAt: cap_(sh.startedAt, 40),
+    submittedAt: meta.submittedAt || '', status: meta.status, startOdo: sh.startOdo == null ? '' : sh.startOdo, endOdo: sh.endOdo == null ? '' : sh.endOdo,
+    onDutyHrs: Number(sh.onDutyHrs) || 0, drivingHrs: Number(sh.drivingHrs) || 0, remarks: cap_(sh.remarks, 2000), json: js,
+    signature: sh.signature ? cap_(sh.signature, 40000) : '', editedAt: meta.editedAt || (found ? iso_(found.editedAt) : '')
+  };
+  if (found) write_('Shifts', found._row, rec); else append_('Shifts', rec);
+
+  if (sh.pretrip && sh.pretrip.done && sh.pretrip.items) {
+    var pfound = rows_('Pretrips').filter(function (p) { return String(p.shiftId) === sid; })[0];
+    var prec = { shiftId: sid, driverName: meta.driverName, unit: rec.unit, at: cap_(sh.pretrip.at, 40), result: sh.pretrip.defects ? 'DEFECTS' : 'OK', json: cap_(JSON.stringify(sh.pretrip), 45000), signature: cap_(sh.pretrip.signature, 40000) };
+    if (pfound) write_('Pretrips', pfound._row, prec); else append_('Pretrips', prec);
+  }
+}
+
+function savePoints_(drv, pts, sid, unit) {
+  if (!pts || !pts.length) return;
+  var list = pts.slice(0, 500).filter(function (p) { return p && isFinite(Number(p.lat)) && isFinite(Number(p.lon)); }).map(function (p) {
+    return { at: cap_(p.t, 40), driverName: drv.name, unit: cap_(p.unit || unit, 60), lat: Number(p.lat), lon: Number(p.lon), place: cap_(p.place, 120), status: cap_(p.s, 4), shiftId: cap_(p.shiftId || sid, 80), kph: p.kph == null ? '' : Math.round(Number(p.kph)), driverId: drv.id };
+  });
+  appendMany_('Positions', list);
+}
+function updateLastSeen_(drv, pos, unit) {
+  if (!isFinite(Number(pos.lat)) || !isFinite(Number(pos.lon))) return;
+  var mineRow = rows_('Drivers').filter(function (x) { return String(x.id) === String(drv.id); })[0];
+  if (!mineRow) return;
+  mineRow.lastLat = Number(pos.lat); mineRow.lastLon = Number(pos.lon); mineRow.lastPlace = cap_(pos.place, 120);
+  mineRow.lastSeen = cap_(pos.at, 40) || new Date().toISOString(); mineRow.lastStatus = cap_(pos.status, 20); mineRow.lastUnit = cap_(unit, 60);
+  if (mineRow.licenseExpiry instanceof Date) mineRow.licenseExpiry = day_(mineRow.licenseExpiry);
+  write_('Drivers', mineRow._row, mineRow);
+}
+
 // ---------- email to office ----------
-function emailLog_(cfg, drv, sh) {
+function emailLog_(cfg, drv, sh, pdfBase64) {
   var to = cfg.company.officeEmail;
   if (!to) return false;
-  var ev = (sh.events || []).map(function (x) {
-    return '<tr><td>' + esc_(x.hm || x.t) + '</td><td>' + esc_(x.label || x.s) + '</td><td>' + esc_(x.place || '') + '</td><td>' + esc_(x.note || '') + '</td></tr>';
+  var ev = (sh.events || []).slice().sort(function (a, b) { return ms_(a.t) - ms_(b.t); }).map(function (x) {
+    return '<tr><td>' + esc_(x.hm || x.t) + '</td><td>' + esc_(x.label || x.s) + (x.edited ? ' *' : '') + '</td><td>' + esc_(x.place || '') + '</td><td>' + esc_(x.note || '') + '</td></tr>';
   }).join('');
-  var trips = (sh.trips || []).map(function (t) { return '<li>' + esc_(t.loadId) + (t.customer ? ' - ' + esc_(t.customer) : '') + '</li>'; }).join('');
-  var fuel = (sh.fuel || []).map(function (f) { return '<li>' + esc_(f.litres) + ' L, $' + esc_(f.cost) + (f.place ? ' at ' + esc_(f.place) : '') + (f.note ? ' (' + esc_(f.note) + ')' : '') + '</li>'; }).join('');
-  var pre = sh.pretrip && sh.pretrip.done ? (sh.pretrip.defects ? 'DEFECTS REPORTED: ' + esc_(sh.pretrip.defectNote || '') : 'Pre-trip completed, no defects') : 'No pre-trip recorded';
+  var pre = sh.pretrip && sh.pretrip.done ? (sh.pretrip.defects ? 'DEFECTS REPORTED: ' + esc_((sh.pretrip.defectList || []).join(', ')) + ' - ' + esc_(sh.pretrip.defectNote || '') : 'Pre-trip completed, no defects') : 'No pre-trip recorded';
   var html = '<div style="font-family:Arial,sans-serif;font-size:14px">' +
     '<h2>' + esc_(cfg.company.name) + ' - Driver Daily Log</h2>' +
+    (pdfBase64 ? '<p>The signed daily log (graph and pre-trip) is attached as a PDF.</p>' : '') +
     '<p><b>Driver:</b> ' + esc_(drv.name) + '<br><b>Unit:</b> ' + esc_(sh.unit) + ' &nbsp; <b>Plate:</b> ' + esc_(sh.plate) + ' &nbsp; <b>Trailers:</b> ' + esc_(sh.trailerA) + ' ' + esc_(sh.trailerB) + '<br>' +
     '<b>Date:</b> ' + esc_(sh.date) + '<br><b>Odometer:</b> ' + esc_(sh.startOdo) + ' to ' + esc_(sh.endOdo) + '<br>' +
     '<b>Driving:</b> ' + esc_(sh.drivingHrs) + ' h &nbsp; <b>On duty:</b> ' + esc_(sh.onDutyHrs) + ' h</p>' +
     '<p><b>Pre-trip:</b> ' + pre + '</p>' +
     '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse"><tr><th>Time</th><th>Status</th><th>Location</th><th>Note</th></tr>' + ev + '</table>' +
-    (trips ? '<p><b>Trips:</b></p><ul>' + trips + '</ul>' : '') + (fuel ? '<p><b>Fuel:</b></p><ul>' + fuel + '</ul>' : '') +
-    '<p><b>Closing remarks:</b> ' + esc_(sh.remarks) + '</p>' +
-    (sh.signature ? '<p><b>Driver signature:</b><br><img src="cid:sig" style="border:1px solid #999;max-width:300px"></p>' : '') + '</div>';
+    ((sh.events || []).some(function (x) { return x.edited; }) ? '<p style="font-size:12px">* edited by the driver or office after it was first recorded</p>' : '') +
+    '<p><b>Closing remarks:</b> ' + esc_(sh.remarks) + '</p></div>';
   var opts = { to: to, subject: 'Driver log - ' + drv.name + ' - ' + sh.date + ' - ' + sh.unit, htmlBody: html, name: cfg.company.name };
-  if (sh.signature && String(sh.signature).indexOf('base64,') > -1) {
+  if (pdfBase64) {
+    opts.attachments = [Utilities.newBlob(Utilities.base64Decode(String(pdfBase64)), 'application/pdf', 'Driver log ' + drv.name + ' ' + sh.date + '.pdf')];
+  } else if (sh.signature && String(sh.signature).indexOf('base64,') > -1) {
+    opts.htmlBody += '<p><b>Driver signature:</b><br><img src="cid:sig" style="border:1px solid #999;max-width:300px"></p>';
     opts.inlineImages = { sig: Utilities.newBlob(Utilities.base64Decode(String(sh.signature).split('base64,')[1]), 'image/png', 'signature.png') };
   }
   MailApp.sendEmail(opts);

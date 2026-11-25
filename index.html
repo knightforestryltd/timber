@@ -308,6 +308,16 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
         <label for="setYardUrl">Inventory (Yards) Sheet URL</label>
         <input type="text" id="setYardUrl" placeholder="https://script.google.com/macros/s/.../exec">
       </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label for="setDriversUrl">Drivers Sheet URL</label>
+        <input type="text" id="setDriversUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <div class="hint">The Drivers script link (driver logs). Company Sync sends it to every device, so drivers do not have to paste it.</div>
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label for="setTrucksUrl">Trucks Sheet URL</label>
+        <input type="text" id="setTrucksUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <div class="hint">For the upcoming Trucks page. Leave blank until it is set up.</div>
+      </div>
       <div class="settings-grid">
         <div>
           <div class="form-group"><label for="setSpeed">Average Speed (km/h)</label><input type="number" id="setSpeed" value="90"></div>
@@ -604,6 +614,8 @@ function renderSettings() {
   $('setSheetsUrl').value = settings.sheetsUrl || '';
   $('setTicketsUrl').value = localStorage.getItem('scriptUrl') || '';
   $('setYardUrl').value = localStorage.getItem('yardUrl') || '';
+  $('setDriversUrl').value = localStorage.getItem('driversUrl') || '';
+  $('setTrucksUrl').value = localStorage.getItem('trucksUrl') || '';
   $('setSpeed').value = settings.speed;
   $('setFuelPrice').value = settings.fuelPrice;
   $('setCostFuelPrice').value = (settings.costFuelPrice === undefined || settings.costFuelPrice === null) ? '' : settings.costFuelPrice;
@@ -643,6 +655,8 @@ $('btnSaveSettings').onclick = () => {
   settings.sheetsUrl = newSheetsUrl;
   setUrlWithStamp('scriptUrl', $('setTicketsUrl').value.trim());
   setUrlWithStamp('yardUrl', $('setYardUrl').value.trim());
+  setUrlWithStamp('driversUrl', $('setDriversUrl').value.trim());
+  setUrlWithStamp('trucksUrl', $('setTrucksUrl').value.trim());
   const cn = $('setCompanyName');
   if (cn) settings.companyName = cn.value.trim() || 'Knight Forestry Ltd';
   settings.speed = +$('setSpeed').value || 90;
@@ -1478,6 +1492,8 @@ function applyCompanyData(data, force) {
     (v, at) => { localStorage.setItem('scriptUrl', v); localStorage.setItem('scriptUrlAt', String(at)); });
   adoptUrl(data.yardUrl, data.yardUrlAt, force, () => localStorage.getItem('yardUrl'), () => localStorage.getItem('yardUrlAt'),
     (v, at) => { localStorage.setItem('yardUrl', v); localStorage.setItem('yardUrlAt', String(at)); });
+  ['driversUrl', 'trucksUrl'].forEach(k => adoptUrl(data[k], data[k + 'At'], force, () => localStorage.getItem(k), () => localStorage.getItem(k + 'At'),
+    (v, at) => { localStorage.setItem(k, v); localStorage.setItem(k + 'At', String(at)); }));
   saveSettings();
   return { keyChanged };
 }
@@ -1534,6 +1550,8 @@ function companyPayload() {
     apiKey: settings.apiKey || '',
     scriptUrl: localStorage.getItem('scriptUrl') || '', scriptUrlAt: +localStorage.getItem('scriptUrlAt') || 0,
     yardUrl: localStorage.getItem('yardUrl') || '', yardUrlAt: +localStorage.getItem('yardUrlAt') || 0,
+    driversUrl: localStorage.getItem('driversUrl') || '', driversUrlAt: +localStorage.getItem('driversUrlAt') || 0,
+    trucksUrl: localStorage.getItem('trucksUrl') || '', trucksUrlAt: +localStorage.getItem('trucksUrlAt') || 0,
     sheetsUrl: settings.sheetsUrl || '', sheetsUrlAt: settings.sheetsUrlAt || 0
   };
   if (settings.costFuelPrice !== undefined && settings.costFuelPrice !== null && settings.costFuelPrice !== '') o.costFuelPrice = settings.costFuelPrice;
@@ -1572,8 +1590,10 @@ async function saveToCompany() {
       if (!password) return setStatus('Enter the company password, then tap Save to Company.', 'bad');
     }
 
+    const payload = companyPayload();
+    ['driversUrl', 'trucksUrl'].forEach(k => { if (!payload[k] && remote[k]) { payload[k] = remote[k]; payload[k + 'At'] = remote[k + 'At'] || 0; } });
     const send = (force) => companyPost(url, {
-      action: 'saveSettings', password, settings: companyPayload(),
+      action: 'saveSettings', password, settings: payload,
       baseRev: companyMeta ? Number(localStorage.getItem(REV_KEY) || 0) : undefined, force: !!force
     });
     let r = await send(false);
