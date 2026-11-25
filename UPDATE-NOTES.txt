@@ -46,3 +46,11 @@ paper-style daily log (graph + pre-trip) for print/share and emailed to the offi
 14-day history, admin map with 15-minute trail, admin edit/delete shift, driver phone numbers,
 records older than 12 months removed automatically.
 An open shift on a phone carries straight over to the new version.
+
+--- Drivers v3 (rule choices) ---
+Same steps as v2: upload drivers.html; paste drivers-apps-script.gs over the Drivers script ->
+Manage deployments -> pencil -> New version -> Deploy (same link).
+One rules list: 70/7 · 120/14 · Alberta provincial (13 driving, 15 on duty, 8 h rest resets, no elapsed
+limit, 24 consecutive hours off in every 24 calendar days) · Saskatchewan provincial (same, without the
+24/24 check, no weekly cap). Every number is editable in Drivers -> Settings (0 = not enforced).
+Rule settings saved with the v2 page are replaced by these defaults once; re-enter any you had changed.
