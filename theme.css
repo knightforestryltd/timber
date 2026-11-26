@@ -1,0 +1,229 @@
+/* Knight Forestry — shared theme. Linked by every page so light/dark always match.
+   Theme is stored in localStorage 'kf_theme' ('light' | 'dark') and applied by theme.js. */
+
+:root {
+  color-scheme: light;
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --surface: #f8fafc;
+  --surface-2: #e2e8f0;
+  --text: #0f172a;
+  --heading: #1e3a5f;
+  --muted: #475569;
+  --border: #cbd5e1;
+  --label: #334155;
+  --link: #1d4ed8;
+  --accent-text: #1565c0;
+
+  --primary: #1e3a5f;
+  --primary-light: #2e75b6;
+  --accent: #1e3a5f;
+  --green: #1e3a5f;
+  --btn-bg: #1e3a5f;
+  --btn-hover: #2a4f7f;
+  --btn2-bg: #e2e8f0;
+  --btn2-text: #0f172a;
+
+  --field-bg: #ffffff;
+  --field-text: #0f172a;
+  --field-border: #94a3b8;
+  --field-placeholder: #64748b;
+
+  --header-bg: #0f172a;
+
+  --chip-bg: #ffffff;
+  --chip-border: #86efac;
+  --mixed-bg: #dcfce7;
+  --mixed-text: #14532d;
+
+  --info-bg: #e0f2fe;
+  --info-text: #0c4a6e;
+  --warn-bg: #fef3c7;
+  --warn-border: #f59e0b;
+  --warn-text: #78350f;
+  --badge-bg: #e0f2fe;
+  --badge-text: #075985;
+
+  --good: #15803d;
+  --bad: #b91c1c;
+  --amber: #b45309;
+  --out-bg: #fee2e2;
+  --adj-bg: #dbeafe;
+  --yellow: #fef3c7;
+  --shadow: 0 1px 3px rgba(15, 23, 42, .10);
+}
+
+html.dark, body.dark {
+  color-scheme: dark;
+  --bg: #0f172a;
+  --card: #1e293b;
+  --surface: #0f172a;
+  --surface-2: #1e3a5f;
+  --text: #f1f5f9;
+  --heading: #f1f5f9;
+  --muted: #94a3b8;
+  --border: #334155;
+  --label: #93c5fd;
+  --link: #93c5fd;
+  --accent-text: #60a5fa;
+
+  --btn-bg: #2b5fa3;
+  --btn-hover: #3470b8;
+  --btn2-bg: #334155;
+  --btn2-text: #f1f5f9;
+
+  --field-bg: #0f172a;
+  --field-text: #f1f5f9;
+  --field-border: #475569;
+  --field-placeholder: #94a3b8;
+
+  --chip-bg: #0f172a;
+  --chip-border: #475569;
+  --mixed-bg: #1e3a5f;
+  --mixed-text: #f1f5f9;
+
+  --info-bg: #0c2a4a;
+  --info-text: #bae6fd;
+  --warn-bg: #422006;
+  --warn-border: #92400e;
+  --warn-text: #fef3c7;
+  --badge-bg: #1e3a5f;
+  --badge-text: #bfdbfe;
+
+  --good: #4ade80;
+  --bad: #f87171;
+  --amber: #fbbf24;
+  --out-bg: #7f1d1d;
+  --adj-bg: #1e3a5f;
+  --yellow: #422006;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+}
+
+/* ---------- base ---------- */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+h1, h2, h3 { color: var(--heading); }
+a { color: var(--link); }
+hr { border: 0; border-top: 1px solid var(--border); }
+
+/* ---------- fields: same look on every page, both themes ---------- */
+label { color: var(--label); }
+input, select, textarea {
+  background: var(--field-bg);
+  color: var(--field-text);
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 16px;               /* 16px stops iOS zooming into fields */
+  -webkit-appearance: none;
+  appearance: none;
+}
+select {
+  padding-right: 34px !important;
+  text-overflow: ellipsis;
+  background-image: linear-gradient(45deg, transparent 50%, var(--field-text) 50%), linear-gradient(135deg, var(--field-text) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+option { background: var(--field-bg); color: var(--field-text); }
+input::placeholder, textarea::placeholder { color: var(--field-placeholder); opacity: 1; }
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(46, 117, 182, .30);
+}
+input:disabled, select:disabled, textarea:disabled { opacity: .55; }
+input:-webkit-autofill, input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--field-text);
+  box-shadow: 0 0 0 1000px var(--field-bg) inset;
+  caret-color: var(--field-text);
+}
+input[type=checkbox], input[type=radio] {
+  -webkit-appearance: auto; appearance: auto;
+  width: 20px; height: 20px; min-height: 0; padding: 0; margin: 0; flex: 0 0 auto;
+  accent-color: var(--primary-light);
+}
+input[type=file] { padding: 8px; font-size: 14px; }
+
+/* ---------- buttons ---------- */
+.btn, a.btn {
+  display: inline-block;
+  background: var(--btn-bg);
+  color: #fff;
+  border: 1px solid transparent;
+  padding: 12px 18px;
+  min-height: 46px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { background: var(--btn-hover); }
+.btn-accent { background: var(--btn-bg); }
+.btn-outline { background: transparent; color: var(--link); border-color: var(--link); }
+.btn-outline:hover { background: var(--surface-2); }
+.btn-sm { padding: 8px 12px; min-height: 38px; font-size: .85rem; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.menu-item {
+  display: block; width: 100%; text-align: left;
+  padding: 14px 16px; min-height: 52px; margin-bottom: 8px;
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  font-family: inherit; font-size: 1rem; font-weight: 600; cursor: pointer;
+}
+.menu-item:hover { border-color: var(--primary-light); }
+
+/* ---------- header (identical on every page) ---------- */
+header {
+  background: var(--header-bg);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+header a { color: #fff; text-decoration: none; }
+header h1, header h2 { color: #fff; }
+header > div:first-child { min-width: 0; }
+header [style*="repeat(7,1fr)"] {
+  display: flex !important;
+  gap: 6px !important;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+header [style*="repeat(7,1fr)"]::-webkit-scrollbar { display: none; }
+header [style*="repeat(7,1fr)"] a {
+  flex: 0 0 auto;
+  padding: 9px 14px !important;
+  font-size: .85rem !important;
+  border-radius: 8px !important;
+  white-space: nowrap;
+}
+header a.active { background: rgba(255, 255, 255, .38) !important; font-weight: 700; }
+header #nav-settings { padding: 10px !important; }
+@media (max-width: 600px) {
+  #companyLogo { width: 48px !important; height: 48px !important; }
+}
+
+/* ---------- Google Places dropdown ---------- */
+.pac-container { background: var(--card); border-color: var(--border); color: var(--text); font-family: inherit; }
+.pac-item { color: var(--muted); border-top-color: var(--border); }
+.pac-item-query { color: var(--text); }
+.pac-item:hover, .pac-item-selected { background: var(--surface-2); }

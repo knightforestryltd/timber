@@ -1,0 +1,129 @@
+KNIGHT FORESTRY - UPDATE NOTES (v3)
+
+DEPLOY ORDER (nothing goes offline if you follow this)
+1. Upload ALL files in this folder to your site (theme.css and theme.js too).
+   The pages work with the OLD Apps Script until step 2; they just show "password protection is OFF".
+2. Update the quote/sync Apps Script WITHOUT changing its link:
+   open the script -> paste quote-apps-script-v3.gs over the old code -> Save ->
+   Deploy -> Manage deployments -> pencil -> Version: "New version" -> Deploy.
+   NEVER choose "New deployment" - that creates a new link and every device would point at a dead one.
+3. On one device: Settings -> Company Sync -> Save to Company. You will be asked to create the company password.
+4. On every other device: Settings -> Company Sync -> Sync to Company.
+   A brand-new device: open the app, paste the one Company Sync link on the Connect screen.
+
+ROLLBACK
+- Pages: put the previous index.html / scale.html / yards.html / theme.css back.
+- Script: Deploy -> Manage deployments -> pencil -> pick the previous version -> Deploy.
+- Saved prices keep working either way: "billed" fields keep their old names (pricePerTonne, hourly, fuelPrice).
+
+NOT CHANGED ON PURPOSE
+- dispatch.html, invoices.html, sw.js, manifest.json and the other .gs files are untouched.
+- apps-script-code.gs is an OLD script. Do not paste it over the live one (it has no dispatch/billing support).
+
+--- Booking notes (added later) ---
+Book Load now asks for optional notes. Notes are stored in column T ("Notes") of the Trip Log
+and shown in a pop-up when the load is opened in Dispatch.
+REQUIRES the updated booking script (quote-apps-script-v3.gs) on the LOAD LOG link, with
+Deploy > Manage deployments > pencil > New version. Until then the page warns "notes were NOT saved"
+and bookings still work exactly as before.
+
+--- Drivers (phase 1) ---
+New page drivers.html + new Apps Script drivers-apps-script.gs (its OWN project and link; creates a "Driver Logs" Google Sheet).
+The Drivers menu button on every page now opens drivers.html. Nothing else on those pages changed.
+
+--- Drivers v2 (update) ---
+1. Upload drivers.html, index.html and sw.js to the site.
+2. Update the DRIVERS script WITHOUT changing its link: open it at script.google.com -> paste
+   drivers-apps-script.gs over the old code -> Save -> Deploy -> Manage deployments -> pencil ->
+   Version: "New version" -> Deploy. Google asks you to authorize again (Maps, for village names).
+   The Driver Logs sheet is upgraded in place (new columns are added on the right).
+3. Quote page -> Settings -> paste the Drivers script link into "Drivers Sheet URL" -> Save Settings ->
+   Save to Company. Every device that syncs then opens Drivers without pasting a link.
+   The quote/sync script does NOT need changing.
+New: Alberta provincial rules (13/15/16), duty status edits with reasons, automatic status from GPS
+(40 km/h = Driving, stopped 15 min = On Duty, 30 min = Off Duty), pre-trip logs 30 min On Duty,
+paper-style daily log (graph + pre-trip) for print/share and emailed to the office as a PDF,
+14-day history, admin map with 15-minute trail, admin edit/delete shift, driver phone numbers,
+records older than 12 months removed automatically.
+An open shift on a phone carries straight over to the new version.
+
+--- Drivers v3 (rule choices) ---
+Same steps as v2: upload drivers.html; paste drivers-apps-script.gs over the Drivers script ->
+Manage deployments -> pencil -> New version -> Deploy (same link).
+One rules list: 70/7 · 120/14 · Alberta provincial (13 driving, 15 on duty, 8 h rest resets, no elapsed
+limit, 24 consecutive hours off in every 24 calendar days) · Saskatchewan provincial (same, without the
+24/24 check, no weekly cap). Every number is editable in Drivers -> Settings (0 = not enforced).
+Rule settings saved with the v2 page are replaced by these defaults once; re-enter any you had changed.
+
+--- Page settings, back button, invoices (v6) ---
+Upload ALL files (new: nav.js). No script changes.
+- Each page's gear/Settings now holds its own sheet links (Dispatch + Billing: Load Log and Tickets;
+  Tickets; Inventory; Drivers). Quote -> Settings keeps Company Sync, the Maps key, Load Log and Trucks.
+  A link changed on any page is shared with every device by Quote -> Settings -> Save to Company.
+- Phone back button goes back one level at a time (pop-up -> screen -> page menu -> Quote) and does
+  nothing on the Quote home screen instead of closing the app.
+- Billing: "Cash Sale" invoice mode is now "Price Adjustment". The CASH SALE banner prints only when
+  Cash is ticked as the payment type. Manual invoice: type a Total and the $/unit is worked out
+  (total / 1.05 = subtotal, minus FSC, / qty).
+
+=== v8: ONE company script + one sheet (company-apps-script.gs) ===
+Upload ALL site files first (nav.js, every page). Nothing changes until a device connects to the new link:
+devices still on the separate scripts keep working exactly as before.
+
+MOVING KNIGHT (once, from one phone that is set up and synced):
+ 1. script.google.com -> New project -> paste company-apps-script.gs -> Save ->
+    Deploy -> New deployment -> Web app -> Execute as: Me -> Who has access: Anyone -> Deploy -> authorize.
+ 2. Quote -> Settings -> Company Sync -> "Move to one company sheet": paste the new link, the company password,
+    and (optional) the Drivers admin password -> Move my company.
+    Copies loads, tickets, inventory, drivers + passcodes + shifts, settings, company info and logo.
+    The old scripts and sheets are NOT changed (keep them as a backup).
+ 3. Other devices: next time the app opens they are asked for the company password to switch.
+    Driver-only phones: Drivers -> paste the new link (passcodes stay the same).
+ After moving: the Drivers admin password is the company password. Changing the company password
+ disconnects every device until it enters the new one.
+
+A NEW COMPANY (e.g. a brother), on a fresh phone or after Quote -> Settings -> Switch company:
+ 1. Same as step 1 above, in THEIR Google account.
+ 2. Open the app, paste their link on the Connect screen -> "Set up your company" (name, password, logo...).
+ 3. Add pickup locations and trucks in Quote -> Settings -> Save to Company. GST/WCB/e-transfer in Billing -> Settings.
+ Their sheet starts empty; nothing from Knight is copied. A phone that holds another company's data
+ warns and clears it before connecting.
+
+Every night the script saves a copy of the sheet in Drive ("Company Data backups", 14 kept) and removes GPS
+trail / driver logs older than 12 months. Loads, tickets and invoices are never removed automatically.
+The Log tab records every change (for the statistics page later).
+
+--- v10: app download ---
+Quote -> Settings -> "Android app": Download the app / Share download link. The link opens app.html
+(download + install steps). The APK is app.apk on the site; to publish a new app version, replace app.apk.
+
+--- v11: logo fix ---
+Upload all files AND update the company script: paste company-apps-script.gs -> Deploy -> Manage deployments
+-> pencil -> New version -> Deploy (same link).
+Logos are now stored small and whole (a detailed logo was cut short by the old 120 KB limit, so only the top
+showed). To repair: Billing -> Settings -> "Use the logo from this website" (or choose the file) -> enter the
+company password -> Save. Every device picks it up.
+
+--- v12: live refresh, settings everywhere, Tickets rework ---
+Upload all files AND update the company script (paste company-apps-script.gs -> Manage deployments -> pencil ->
+New version -> Deploy). Old separate Tickets script: paste tickets-apps-script.gs the same way if still used.
+- Dispatch, Billing, Tickets, Inventory and the Drivers admin list refresh by themselves (every 20-30 s and
+  as soon as you return to the app). The sheet is the truth: a phone only remembers changes not sent yet.
+- Settings: Save to Company still needs the company password. Every connected device applies new company
+  settings by itself within about a minute (never over its own unsaved changes).
+- Tickets: new look; edits update the same ticket (also when renumbered); a resent save never duplicates;
+  tickets saved without signal are sent automatically. Each ticket has Client / Supplier / Office with
+  Copy text, Share as PDF and Print (ESC/POS receipt printer over Bluetooth or USB: Tickets -> Settings ->
+  Receipt printer). Ticket numbers and columns are unchanged for Dispatch and Billing.
+
+--- v13: Dispatch status colours, places, completed list, customer texts ---
+Upload all files AND update the company script (Manage deployments -> pencil -> New version -> Deploy).
+The script asks to authorize Maps again only if Google requires it.
+- Each load card: delivery place ("Blackie, AB · 60 km SE of Calgary"), cycle time ("10.6 hrs cycle"),
+  one-way km. Places are looked up once per address (new "Places" tab) - single company script only.
+- Green card = Started, amber = Delivered (pending billing), blue = Paid. Counts at the top.
+- Tabs: Pending, and Completed (paid, newest 100).
+- Dispatch -> Settings -> Customer texts: on/off + message (company password, applies to every device).
+  When a ticket starts a load, the phone's messaging app opens with the text ready to the customer, from the
+  driver's own number (driver name/phone from the Drivers log-in, or set once per phone). "Text the customer"
+  button on a started load to send it again.

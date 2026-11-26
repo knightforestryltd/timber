@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Invoicing</title>
+<script src="html2pdf.bundle.min.js"></script>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<script src="nav.js"></script>
+<style>
+.container { max-width: 700px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+.btn { margin-right: 8px; }
+label { display: block; margin-bottom: 4px; font-size: .9rem; }
+input, select, textarea { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 10px; }
+textarea { min-height: 90px; }
+.hidden { display: none; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+@media (max-width: 700px) { .container { padding: 8px; } }
+</style>
+</head>
+<body>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <a href="#" onclick="showSettings();return false;" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" onclick="location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="#" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+    </div>
+  </div>
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
+</header>
+<div class="container">
+  <div id="menu">
+    <button class="menu-item" onclick="showPending()">Pending Invoices</button>
+    <button class="menu-item" onclick="showNew()">New Ticket Invoice (manual)</button>
+    <button class="menu-item" onclick="showSettings()">Settings</button>
+    <div id="paidHistory" style="margin-top:20px;">
+      <h3 style="color:var(--muted);font-size:0.9rem;margin-bottom:10px;">Recent Paid (10 days)</h3>
+      <div id="paidList"></div>
+    </div>
+  </div>
+
+  <!-- PENDING LIST -->
+  <div id="pendingView" class="hidden">
+    <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
+    <h2>Pending Payment</h2>
+    <div id="pendingList"></div>
+  </div>
+
+  <!-- PENDING INVOICE (auto-filled from load + scale ticket) -->
+  <div id="invoiceView" class="hidden">
+    <div class="card" style="margin-top:12px;">
+      <button class="btn btn-outline" onclick="showPending()">&larr; Back</button>
+      <h2 id="invTitle">Invoice</h2>
+      <div id="invCustomer"></div>
+      <hr style="border-color:var(--border);">
+      <div class="row">
+        <div><label>Units</label><select id="invUnit" onchange="updateAmount()">
+          <option value="tonne">tonne</option>
+          <option value="cord">cord</option>
+        </select></div>
+        <div><label>Amount</label><input type="number" id="invAmount" step="0.01" oninput="calcInvoice()"></div>
+      </div>
+      <label>Km (one way — fuel surcharge uses round trip)</label>
+      <input type="number" id="invKm" step="0.1" oninput="calcInvoice()">
+      <label>Display as</label>
+      <select id="invDisplay" onchange="calcInvoice()">
+        <option value="detail">Detailed (3 lines)</option>
+        <option value="tonne">Single line - per tonne</option>
+        <option value="cord">Single line - per cord</option>
+        <option value="hour">Single line - per hour</option>
+      </select>
+      <label>Invoice mode</label>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0;">
+        <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="ticket" checked onchange="calcInvoice()" style="width:auto;margin:0;"> From Ticket</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="quote" onchange="calcInvoice()" style="width:auto;margin:0;"> Match Quote</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="invMode" value="adjust" onchange="calcInvoice()" style="width:auto;margin:0;"> Price Adjustment</label>
+      </div>
+      <div id="cashBox" style="display:none;margin:8px 0;">
+        <label>Adjusted price (incl GST)</label>
+        <input type="number" id="cashAmount" step="0.01" oninput="calcInvoice()">
+      </div>
+      <div id="invLines" style="margin:8px 0;font-size:0.9rem;"></div>
+      <p><strong>Subtotal:</strong> $<span id="invSub">0.00</span></p>
+      <p><strong>GST 5%:</strong> $<span id="invGst">0.00</span></p>
+      <p><strong>Total:</strong> $<span id="invTotal">0.00</span></p>
+      <label>Payment type</label>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0;">
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="pay" value="Etrans" style="width:auto;margin:0;"> Etrans</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="pay" value="Cheque" style="width:auto;margin:0;"> Cheque</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="pay" value="Card" style="width:auto;margin:0;"> Card</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="pay" value="Cash" style="width:auto;margin:0;"> Cash</label>
+      </div>
+      <label>Notes</label>
+      <textarea id="invNotes" rows="2" placeholder="Notes..."></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button class="btn btn-outline" onclick="previewInvoice()">Preview</button>
+        <button class="btn" onclick="shareClient(pendingCtx())">Share to Client</button>
+        <button class="btn" onclick="shareOffice(pendingCtx())">Share to Office</button>
+        <button class="btn" style="background:#15803d;" onclick="completeLoad()">Complete Load</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW MANUAL INVOICE -->
+  <div id="newView" class="hidden">
+    <div class="card" style="margin-top:12px;">
+      <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
+      <h2>New Ticket Invoice</h2>
+      <label>Invoice #</label>
+      <div style="display:flex;gap:8px;">
+        <input id="newInvNum" placeholder="KF-2026-1122-01" style="flex:1;">
+        <button class="btn btn-outline" style="margin:0 0 10px;" onclick="genNewInvNum(true)">Next #</button>
+      </div>
+      <label>Customer Name</label><input id="newCust" placeholder="Customer name">
+      <label>Address</label><input id="newAddr" placeholder="Address">
+      <label>Phone</label><input id="newPhone" placeholder="Phone">
+      <div class="row">
+        <div><label>Weight Ticket #</label><input id="newTicket" placeholder="Ticket #"></div>
+        <div><label>Trip / Load ID</label><input id="newTripId" placeholder="Trip ID (optional)"></div>
+      </div>
+      <button class="btn btn-outline" style="margin:0 0 10px;" onclick="lookupNew()">Look up ticket &amp; load</button>
+      <div id="newTicketResult" style="font-size:0.85rem;margin-bottom:10px;"></div>
+      <label>Description</label><input id="newDesc" placeholder="Species from Source">
+      <div class="row">
+        <div><label>Units</label>
+          <select id="newUnit" onchange="calcNew()"><option value="tonne">tonne</option><option value="cord">cord</option><option value="hour">hour</option></select>
+        </div>
+        <div><label>Qty</label><input type="number" id="newQty" step="0.01" oninput="calcNew()"></div>
+        <div><label>$/unit</label><input type="number" id="newPrice" step="0.01" oninput="priceTyped()"></div>
+      </div>
+      <div class="row">
+        <div><label>Truck</label><select id="newTruck" onchange="fillTruckRate()"><option value="">-- select --</option></select></div>
+        <div><label>Km</label><input type="number" id="newKm" step="1" oninput="calcNew()"></div>
+      </div>
+      <div class="row">
+        <div><label>FSC</label>
+          <select id="newFsc" onchange="calcNew()"><option value="off">Off</option><option value="on">On</option></select>
+        </div>
+
+      </div>
+      <div id="newLines" style="margin:8px 0;font-size:0.9rem;"></div>
+      <p><strong>Subtotal:</strong> $<span id="newSub">0.00</span></p>
+      <p><strong>GST 5%:</strong> $<span id="newGst">0.00</span></p>
+      <p><strong>Total:</strong> $<span id="newTotal">0.00</span></p>
+      <label>Total incl GST — type a total to work the $/unit out backwards</label>
+      <input type="number" id="newTotalIn" step="0.01" inputmode="decimal" oninput="totalTyped()">
+      <div id="newBackNote" style="font-size:0.85rem;color:var(--muted);margin:-4px 0 8px;"></div>
+      <label>Payment type</label>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin:8px 0;">
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="newPay" value="Etrans" style="width:auto;margin:0;"> Etrans</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="newPay" value="Cheque" style="width:auto;margin:0;"> Cheque</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="newPay" value="Card" style="width:auto;margin:0;"> Card</label>
+        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="newPay" value="Cash" style="width:auto;margin:0;"> Cash</label>
+      </div>
+      <label>Notes</label>
+      <textarea id="newNotes" rows="2" placeholder="Notes..."></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button class="btn btn-outline" onclick="previewNew()">Preview</button>
+        <button class="btn" onclick="shareClient(newCtx())">Share to Client</button>
+        <button class="btn" onclick="shareOffice(newCtx())">Share to Office</button>
+        <button class="btn" style="background:#15803d;" onclick="completeNew()">Complete Load</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAID (read-only reprint) -->
+  <div id="paidView" class="hidden">
+    <div class="card" style="margin-top:12px;">
+      <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
+      <h2 id="paidTitle">Invoice</h2>
+      <div id="paidBody"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button class="btn btn-outline" onclick="previewPaid()">Preview</button>
+        <button class="btn" onclick="shareClient(paidCtx())">Share to Client</button>
+        <button class="btn" onclick="shareOffice(paidCtx())">Share to Office</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="settingsView" class="hidden">
+    <div class="card" style="margin-top:12px;">
+      <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
+      <h2>Company Info</h2>
+      <div id="coSharedNote" class="hidden" style="font-size:.85rem;color:var(--muted);margin-bottom:8px;">Saved in the company sheet: every device gets these details.</div>
+      <label>Company Name</label><input id="coName" placeholder="Your company name">
+      <label>GST#</label><input id="coGst" placeholder="123456789">
+      <label>WCB#</label><input id="coWcb" placeholder="WCB number">
+      <label>Office email (receives "Share to Office" packages)</label><input id="coEmail" type="email" placeholder="info@company.com">
+      <label>Phone</label><input id="coPhone" placeholder="403-555-1234">
+      <label>Address</label><input id="coAddr" placeholder="Street address">
+      <label>Mailing Address</label><input id="coMail" placeholder="Mailing address (if different)">
+      <label>E-transfer note (printed on invoice when Etrans is ticked)</label><input id="coEtNote" placeholder="e.g. Send to info@company.com, password: firewood">
+      <label>Logo</label>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;"><img id="coLogoPrev" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--border);"><div id="coLogoWarn" class="hidden" style="color:var(--bad);font-weight:600;font-size:.9rem;">This logo was not saved completely (only the top shows). Choose it again or use the website logo, then Save.</div></div>
+      <input type="file" id="coLogo" accept="image/*">
+      <button class="btn btn-outline btn-sm" id="coLogoSite" type="button" style="margin:0 0 10px;">Use the logo from this website</button>
+      <div id="coPwWrap" class="hidden"><label>Company password (to save for every device)</label><input type="password" id="coPw" autocomplete="current-password"></div>
+      <button class="btn" onclick="saveCo()">Save</button>
+    </div>
+    <div class="card" style="margin-top:12px;" id="invLinks"></div>
+  </div>
+</div>
+
+<div id="busy" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:999;display:none;align-items:center;justify-content:center;color:#fff;font-size:1rem;text-align:center;padding:24px;"><div id="busyMsg">Working…</div></div>
+<div id="shareSheet" style="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:none;align-items:center;justify-content:center;padding:24px;">
+  <div class="card" style="max-width:340px;text-align:center;">
+    <p id="shareSheetName" style="margin-top:0;">PDF ready</p>
+    <button class="btn" id="shareSheetShare" style="width:100%;margin:0 0 8px;">Share PDF</button>
+    <button class="btn btn-outline" id="shareSheetDl" style="width:100%;margin:0 0 8px;">Download PDF</button>
+    <button class="btn btn-outline" onclick="closeShareSheet()" style="width:100%;margin:0;">Close</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const r2 = n => Math.round((+n || 0) * 100) / 100;
+const money = n => (+n || 0).toFixed(2);
+function getCo() { try { return JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch(e) { return {}; } }
+function getSettings() { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch(e) { return {}; } }
+function toTonnes(v) { const n = parseFloat(v); if (!n) return 0; return n > 500 ? Math.round(n / 10) / 100 : n; }
+function fmtHours(h) { if (!h) return '0h'; const hrs = Math.floor(h); const m = Math.round((h - hrs) * 60); return (hrs ? hrs + 'h ' : '') + (m ? m + 'm' : ''); }
+function loadKey(l) { return (l.customerName || '') + '|' + (l.timestamp || ''); }
+function sameId(a, b) { return a && b && String(a).trim().toUpperCase() === String(b).trim().toUpperCase(); }
+
+let loads = [];
+let current = null;
+let paidInvoices = [];
+let paidCurrent = null;
+
+/* ---------- navigation ---------- */
+const VIEWS = ['menu','pendingView','invoiceView','newView','settingsView','paidView'];
+// phone back button (nav.js): one level at a time
+window.kfBack = function () {
+  const sh = $('shareSheet').style.display;
+  if (sh && sh !== 'none') { closeShareSheet(); return true; }
+  if ($('busy').style.display === 'flex') return true;
+  if (!$('invoiceView').classList.contains('hidden')) { showPending(); return true; }
+  if (['pendingView', 'newView', 'settingsView', 'paidView'].some(id => !$(id).classList.contains('hidden'))) { showMenu(); return true; }
+  return false;
+};
+function hideAll() { VIEWS.forEach(id => $(id).classList.add('hidden')); }
+function show(id) { hideAll(); $(id).classList.remove('hidden'); window.scrollTo(0, 0); }
+function showMenu() { show('menu'); loadPaidHistory(); }
+function showPending() { show('pendingView'); loadPending(); }
+function showNew() { show('newView'); loadTrucks(); if (!$('newInvNum').value) genNewInvNum(false); calcNew(); }
+function showSettings() {
+  show('settingsView');
+  kfLinks.card($('invLinks'), ['sheetsUrl', 'scriptUrl']);
+  const co = getCo();
+  $('coName').value = co.name || ''; $('coGst').value = co.gst || ''; $('coWcb').value = co.wcb || '';
+  $('coEmail').value = co.email || ''; $('coPhone').value = co.phone || ''; $('coAddr').value = co.addr || '';
+  $('coMail').value = co.mail || ''; $('coEtNote').value = co.etNote || '';
+  pendingLogo = null; $('coLogo').value = '';
+  $('coLogoPrev').src = co.logo || ''; $('coLogoPrev').style.visibility = co.logo ? 'visible' : 'hidden';
+  $('coLogoWarn').classList.toggle('hidden', !(window.kfLogoBroken && kfLogoBroken(co.logo)));
+  const uni = window.kfCo && kfCo.unified();
+  $('coSharedNote').classList.toggle('hidden', !uni); $('coPwWrap').classList.toggle('hidden', !uni);
+}
+window.kfOnProfile = () => { if (!$('settingsView').classList.contains('hidden')) showSettings(); };
+let pendingLogo = null;
+function previewLogo(l) { pendingLogo = l; $('coLogoPrev').src = l; $('coLogoPrev').style.visibility = 'visible'; $('coLogoWarn').classList.add('hidden'); }
+$('coLogo').addEventListener('change', async () => { const f = $('coLogo').files[0]; if (f) { try { previewLogo(await kfShrinkImage(f, 256)); } catch (e) { alert('Could not read that picture.'); } } });
+$('coLogoSite').onclick = async () => { try { previewLogo(await kfShrinkImage(await (await fetch('logo.jpg')).blob(), 256)); } catch (e) { alert('This website has no logo.jpg.'); } };
+async function saveCo() {
+  const old = getCo();
+  const co = {
+    name: $('coName').value.trim(), gst: $('coGst').value.trim(), wcb: $('coWcb').value.trim(),
+    email: $('coEmail').value.trim(), phone: $('coPhone').value.trim(), addr: $('coAddr').value.trim(),
+    mail: $('coMail').value.trim(), etNote: $('coEtNote').value.trim(), logo: old.logo || ''
+  };
+  if (pendingLogo) co.logo = pendingLogo;
+  if (window.kfCo && kfCo.unified()) {
+    const pw = $('coPw').value; if (!pw) { alert('Enter the company password to save these details for every device.'); return; }
+    busy('Saving…');
+    try {
+      const r = await kfCo.post('sync', { action: 'saveProfile', password: pw, profile: co });
+      busy();
+      if (r.status !== 'saved') { alert(r.status === 'badpassword' ? 'Wrong company password. Nothing was saved.' : (r.message || 'Could not save.')); return; }
+      $('coPw').value = '';
+    } catch (e) { busy(); alert('No signal: nothing was saved.'); return; }
+  }
+  localStorage.setItem('kfCompany', JSON.stringify(co)); if (window.kfBrand) kfBrand(); alert('Saved.');
+}
+function busy(msg) {
+  const el = $('busy');
+  if (msg) { $('busyMsg').textContent = msg; el.style.display = 'flex'; } else { el.style.display = 'none'; }
+}
+
+/* ---------- server ---------- */
+async function post(payload) {
+  const s = getSettings();
+  if (!s.sheetsUrl) throw new Error('Set the Load Log sheet link in Settings first.');
+  const res = await fetch(s.sheetsUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' });
+  const data = await res.json();
+  if (data.status === 'error') throw new Error(data.message || 'Sheet error');
+  return data;
+}
+async function fetchTicket(num) {
+  const url = localStorage.getItem('scriptUrl') || '';
+  if (!url || !num) return null;
+  try {
+    const data = await (await fetch(url)).json();
+    return (data.rows || []).find(r => sameId(r[0], num)) || null;
+  } catch(e) { return null; }
+}
+async function fetchLoad(...ids) {
+  const s = getSettings();
+  if (!s.sheetsUrl) return null;
+  try {
+    const data = await (await fetch(s.sheetsUrl)).json();
+    const rows = data.rows || [];
+    for (const id of ids) {
+      if (!id) continue;
+      const hit = rows.find(r => sameId(r.loadId, id));
+      if (hit) return hit;
+    }
+  } catch(e) {}
+  return null;
+}
+
+/* ---------- pending list ---------- */
+async function loadPending() {
+  const list = $('pendingList');
+  if (!list.children.length) list.innerHTML = '<p style="color:var(--muted);">Loading…</p>';
+  try {
+    const s = getSettings();
+    if (!s.sheetsUrl) { list.innerHTML = '<p>Set the Load Log sheet link in Settings.</p>'; return; }
+    const data = await (await fetch(s.sheetsUrl + (s.sheetsUrl.includes('?') ? '&' : '?') + 't=' + Date.now())).json();
+    const local = JSON.parse(localStorage.getItem('kfDispatch') || '{}');
+    loads = (data.rows || []).filter(r => {
+      const st = local[loadKey(r)];
+      if (st && st.pending) {            // only Dispatch changes that have not reached the sheet yet
+        if (st.loadId && !r.loadId) r.loadId = st.loadId;
+        if (st.netTonnes && !r.netTonnes) r.netTonnes = st.netTonnes;
+        if (st.status && (r.status || '').toLowerCase() !== 'paid') r.status = st.status;
+      }
+      return (r.status || '').toLowerCase() === 'delivered';
+    });
+    list.innerHTML = loads.map((l, i) => `
+      <div class="card" style="cursor:pointer;" onclick="openInvoice(${i})">
+        <strong>${esc(l.loadId || 'No ID')}</strong> - ${esc(l.customerName)}<br>
+        <span style="color:var(--muted);">${esc(l.species)} - ${toTonnes(l.netTonnes) || esc(l.tonnes)} t</span>
+      </div>`).join('') || '<p style="color:var(--muted);">No delivered loads waiting for an invoice.</p>';
+  } catch(e) { list.innerHTML = '<p>Could not load. Check the sheet URL and connection.</p>'; }
+}
+
+function rates(l) {
+  const s = getSettings();
+  const loc = (s.locations || []).find(x => x.name === l.location);
+  const sp = loc && (loc.species || []).find(x => x.name === l.species);
+  const unit = (s.units || []).find(x => x.name === l.truck);
+  return {
+    ppt: (sp && sp.pricePerTonne) || l.pricePerTonne || 0,
+    cvf: (sp && sp.cvf) || 1.3,
+    hourly: (unit && unit.hourly) || l.hourly || 0,
+    fuelL100: unit ? (+unit.fuel || 0) : 0,
+    fuelPrice: +s.fuelPrice || 0
+  };
+}
+
+function openInvoice(i) {
+  current = loads[i];
+  show('invoiceView');
+  $('invTitle').textContent = 'Invoice ' + (current.loadId || '');
+  $('invCustomer').innerHTML = `<p><strong>${esc(current.customerName)}</strong></p><p>${esc(current.address)}</p><p>${esc(current.phone)}</p><p>${esc(current.species)} - ${esc(current.location)}</p>`;
+  $('invUnit').value = 'tonne';
+  $('invAmount').value = toTonnes(current.netTonnes) || current.tonnes || '';
+  $('invKm').value = current.km || '';
+  $('invDisplay').value = 'detail';
+  $('cashAmount').value = '';
+  $('invNotes').value = '';
+  document.querySelector('input[name="invMode"][value="ticket"]').checked = true;
+  document.querySelectorAll('input.pay').forEach(c => c.checked = false);
+  calcInvoice();
+}
+function updateAmount() {
+  if (!current) return;
+  const r = rates(current);
+  const tonnes = toTonnes(current.netTonnes) || +current.tonnes || 0;
+  $('invAmount').value = $('invUnit').value === 'cord' ? (Math.round(tonnes / r.cvf * 10) / 10) : tonnes;
+  calcInvoice();
+}
+
+/* Builds the invoice model from the pending form */
+function calcInvoice() {
+  if (!current) return null;
+  const r = rates(current);
+  const unit = $('invUnit').value;
+  const amt = +$('invAmount').value || 0;
+  const tonnes = unit === 'cord' ? amt * r.cvf : amt;
+  const cords = unit === 'cord' ? amt : tonnes / r.cvf;
+  const km = +$('invKm').value || 0;
+  const hours = +current.totalHours || 0;
+  const display = $('invDisplay').value;
+  const mode = (document.querySelector('input[name="invMode"]:checked') || {}).value || 'ticket';
+  $('cashBox').style.display = mode === 'adjust' ? 'block' : 'none';
+
+  const product = r2(tonnes * r.ppt);
+  const trip = r2(hours * r.hourly);
+  const fuel = r2((km * 2 / 100) * r.fuelL100 * r.fuelPrice);   // same formula as the Quote app
+  let sub = r2(product + trip + fuel), gst, total;
+  let forceSingle = false;
+
+  if (!r.ppt && !r.hourly) {          // no rates configured: scale the quoted price by actual tonnes
+    const origT = +current.tonnes || tonnes;
+    const origTotal = +current.total || 0;
+    sub = r2(origT ? (origTotal / 1.05 / origT) * tonnes : 0);
+    forceSingle = true;
+  }
+  if (mode === 'adjust') { total = r2(+$('cashAmount').value || 0); sub = r2(total / 1.05); gst = r2(total - sub); forceSingle = true; }
+  else if (mode === 'quote') { total = r2(+current.total || (sub * 1.05)); sub = r2(total / 1.05); gst = r2(total - sub); forceSingle = true; }
+  else { gst = r2(sub * 0.05); total = r2(sub + gst); }
+
+  const pays = [...document.querySelectorAll('input.pay:checked')].map(c => c.value);
+  const desc = [current.species, current.location ? 'from ' + current.location : ''].filter(Boolean).join(' ');
+  let lines = [];
+  const single = forceSingle || display !== 'detail';
+  if (single) {
+    let u = display !== 'detail' ? display : unit;
+    let qty, lbl;
+    if (u === 'cord') { qty = cords; lbl = 'cord'; }
+    else if (u === 'hour') { qty = hours || 1; lbl = 'hr'; }
+    else { qty = tonnes; lbl = 't'; }
+    const per = qty ? sub / qty : 0;
+    lines = [{ d: desc || 'Firewood', q: `${qty.toFixed(2)} ${lbl} @ $${money(per)}/${lbl}`, a: sub }];
+  } else {
+    lines = [
+      { d: desc || 'Product', q: `${tonnes.toFixed(2)} t @ $${money(r.ppt)}/t`, a: product },
+      { d: 'Trip time', q: `${fmtHours(hours)} @ $${money(r.hourly)}/hr`, a: trip },
+      { d: 'Fuel surcharge (FSC)', q: `${km * 2} km × ${r.fuelL100} L/100km × $${money(r.fuelPrice)}/L`, a: fuel }
+    ].filter(x => x.a);
+  }
+  $('invLines').innerHTML = lines.map(l => `<p>${esc(l.d)} — ${esc(l.q)} = $${money(l.a)}</p>`).join('');
+  $('invSub').textContent = money(sub); $('invGst').textContent = money(gst); $('invTotal').textContent = money(total);
+
+  return {
+    idLabel: 'Load ID', idValue: current.loadId || '', invNo: current.loadId || '',
+    date: new Date().toLocaleDateString('en-CA'),
+    customer: current.customerName || '', address: current.address || '', phone: current.phone || '',
+    lines, sub, gst, total,
+    pays,
+    notes: $('invNotes').value.trim(), cash: pays.includes('Cash'), mode
+  };
+}
+function previewInvoice() { const m = calcInvoice(); if (m) openPreview([invoiceHtml(m)]); }
+function pendingCtx() {
+  if (!current) { alert('No invoice loaded.'); return null; }
+  return { model: calcInvoice(), ticket: current.loadId || '', load: current, tripId: '' };
+}
+
+/* ---------- manual invoice ---------- */
+function loadTrucks() {
+  const sel = $('newTruck'); const keep = sel.value;
+  const units = getSettings().units || [];
+  sel.innerHTML = '<option value="">-- select --</option>' + units.map(u => `<option value="${esc(u.name)}" data-hourly="${+u.hourly || 0}">${esc(u.name)} ($${+u.hourly || 0}/hr)</option>`).join('');
+  sel.value = keep;
+}
+function fillTruckRate() {
+  const opt = $('newTruck').options[$('newTruck').selectedIndex];
+  if (opt && opt.dataset.hourly && +opt.dataset.hourly) { $('newUnit').value = 'hour'; $('newPrice').value = opt.dataset.hourly; }
+  calcNew();
+}
+async function genNewInvNum(force) {
+  const co = getCo();
+  const prefix = (co.name || 'KF').replace(/[^A-Za-z]/g, '').substring(0, 2).toUpperCase() || 'KF';
+  const d = new Date();
+  const ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  const key = 'invNum_' + ymd;
+  let n = 0;
+  if (window.kfCo && kfCo.unified()) { try { const r = await kfCo.post('sync', { action: 'nextInvoice', ymd }); if (r.status === 'ok') n = r.n; } catch (e) {} }
+  if (!n) { n = (parseInt(localStorage.getItem(key) || '0') || 0) + 1; if (window.kfCo && kfCo.unified()) alert('No signal: this invoice number came from this phone only. Check it is not used twice.'); }
+  localStorage.setItem(key, String(Math.max(n, parseInt(localStorage.getItem(key) || '0') || 0)));
+  $('newInvNum').value = `${prefix}-${d.getFullYear()}-${ymd.slice(4)}-${String(n).padStart(2, '0')}`;
+}
+async function lookupNew() {
+  const num = $('newTicket').value.trim() || $('newTripId').value.trim();
+  if (!num) { alert('Enter a ticket number first.'); return; }
+  const out = $('newTicketResult'); out.textContent = 'Looking up…';
+  const t = await fetchTicket(num);
+  const l = await fetchLoad($('newTripId').value.trim(), num);
+  const msgs = [];
+  if (t) {
+    msgs.push('Ticket found');
+    if (!$('newCust').value && t[2]) $('newCust').value = t[2];
+    if (!$('newDesc').value && t[1]) $('newDesc').value = t[1] + (t[3] ? ' from ' + t[3] : '');
+    const tn = toTonnes(t[6]);
+    if (!$('newQty').value && tn) { $('newQty').value = tn; $('newUnit').value = 'tonne'; }
+  } else msgs.push('No ticket match');
+  if (l) {
+    msgs.push('Load found');
+    if (!$('newCust').value && l.customerName) $('newCust').value = l.customerName;
+    if (!$('newAddr').value && l.address) $('newAddr').value = l.address;
+    if (!$('newPhone').value && l.phone) $('newPhone').value = l.phone;
+    if (!$('newKm').value && l.km) $('newKm').value = l.km;
+  } else msgs.push('No load match');
+  out.textContent = msgs.join(' · ');
+  calcNew();
+}
+/* A typed total stays fixed (qty, km, FSC changes re-work the price); typing a $/unit lets go of it. */
+let lockedTotal = null;
+function totalTyped() { const v = $('newTotalIn').value; lockedTotal = v === '' ? null : +v; calcNew(); }
+function priceTyped() { lockedTotal = null; calcNew(); }
+function calcNew() {
+  const qty = +$('newQty').value || 0, km = +$('newKm').value || 0;
+  let price = +$('newPrice').value || 0;
+  const fscOn = $('newFsc').value === 'on';
+  const S = getSettings();
+  const unitCfg = (S.units || []).find(x => x.name === $('newTruck').value);
+  const fuelL100 = unitCfg ? (+unitCfg.fuel || 0) : 0, fuelPrice = +S.fuelPrice || 0;
+  const unit = $('newUnit').value;
+  const fsc = fscOn ? r2((km * 2 / 100) * fuelL100 * fuelPrice) : 0;   // round trip, unit L/100 × fuel $/L (same as Quote)
+  let main, sub, gst, total;
+  if (lockedTotal != null) {
+    // backwards: total ÷ 1.05 = subtotal (GST out) ; subtotal − FSC = product line ; ÷ qty = $/unit
+    total = r2(lockedTotal); sub = r2(total / 1.05); gst = r2(total - sub); main = r2(sub - fsc);
+    price = qty ? main / qty : 0;
+    $('newPrice').value = qty ? String(Math.round(price * 10000) / 10000) : '';
+    $('newBackNote').textContent = !qty ? 'Enter the Qty to work out the $/unit.' : main < 0 ? 'The FSC is more than the subtotal: check the total.' :
+      '$' + money(total) + ' ÷ 1.05 = $' + money(sub) + ' subtotal' + (fsc ? ' − $' + money(fsc) + ' FSC = $' + money(main) : '') + ' ÷ ' + qty + ' ' + unit + ' = $' + money(price) + '/' + unit;
+  } else {
+    main = r2(qty * price); sub = r2(main + fsc); gst = r2(sub * 0.05); total = r2(sub + gst);
+    if (document.activeElement !== $('newTotalIn')) $('newTotalIn').value = total ? money(total) : '';
+    $('newBackNote').textContent = '';
+  }
+  const lines = [{ d: $('newDesc').value.trim() || 'Firewood', q: `${qty} ${unit} @ $${money(price)}`, a: main }];
+  if (fsc) lines.push({ d: 'Fuel surcharge (FSC)', q: `${km * 2} km × ${fuelL100} L/100km × $${money(fuelPrice)}/L`, a: fsc });
+  if (fscOn && (!unitCfg || !fuelL100 || !fuelPrice)) $('newTicketResult').textContent = 'FSC is $0: pick a truck with a fuel (L/100) value and set the fuel price in Quote settings.';
+  $('newLines').innerHTML = lines.map(l => `<p>${esc(l.d)} — ${esc(l.q)} = $${money(l.a)}</p>`).join('');
+  $('newSub').textContent = money(sub); $('newGst').textContent = money(gst); $('newTotal').textContent = money(total);
+  return {
+    idLabel: 'Invoice', idValue: $('newInvNum').value.trim(), invNo: $('newInvNum').value.trim(),
+    date: new Date().toLocaleDateString('en-CA'),
+    customer: $('newCust').value.trim(), address: $('newAddr').value.trim(), phone: $('newPhone').value.trim(),
+    lines, sub, gst, total,
+    pays: [...document.querySelectorAll('input.newPay:checked')].map(c => c.value),
+    notes: $('newNotes').value.trim(), cash: [...document.querySelectorAll('input.newPay:checked')].some(c => c.value === 'Cash'), mode: 'manual'
+  };
+}
+function previewNew() { openPreview([invoiceHtml(calcNew())]); }
+function newCtx() {
+  const m = calcNew();
+  if (!m.customer) { alert('Enter a customer name.'); return null; }
+  return { model: m, ticket: $('newTicket').value.trim(), tripId: $('newTripId').value.trim(), load: null };
+}
+
+/* ---------- paid history ---------- */
+async function loadPaidHistory() {
+  const box = $('paidList');
+  try {
+    const s = getSettings();
+    if (!s.sheetsUrl) { box.innerHTML = ''; return; }
+    const data = await (await fetch(s.sheetsUrl)).json();
+    const cutoff = Date.now() - 10 * 86400000;
+    paidInvoices = (data.rows || []).map(r => {
+      let inv = null; try { inv = r.invoiceData ? JSON.parse(r.invoiceData) : null; } catch(e) {}
+      r._inv = inv; return r;
+    }).filter(r => (r.status || '').toLowerCase() === 'paid' && r._inv && r._inv.model &&
+      (+r._inv.paidAt || new Date(r.timestamp || 0).getTime()) > cutoff);
+    box.innerHTML = paidInvoices.map((l, i) => `
+      <div class="card" style="cursor:pointer;padding:12px;" onclick="openPaid(${i})">
+        <strong>${esc(l.loadId || l._inv.model.invNo || 'No ID')}</strong> - ${esc(l.customerName)}<br>
+        <span style="color:var(--good);font-weight:600;">Paid</span> · $${money(l._inv.model.total)}
+      </div>`).join('') || '<p style="color:var(--muted);font-size:0.85rem;">No recent paid invoices.</p>';
+  } catch(e) { box.innerHTML = ''; }
+}
+function openPaid(i) {
+  paidCurrent = paidInvoices[i]; if (!paidCurrent) return;
+  const m = paidCurrent._inv.model;
+  show('paidView');
+  $('paidTitle').textContent = 'Invoice ' + (m.invNo || '');
+  $('paidBody').innerHTML = `<p><strong>${esc(m.customer)}</strong></p>` +
+    m.lines.map(l => `<p>${esc(l.d)} — ${esc(l.q)} = $${money(l.a)}</p>`).join('') +
+    `<p><strong>Total:</strong> $${money(m.total)}</p>`;
+}
+function paidCtx() {
+  if (!paidCurrent) return null;
+  return { model: paidCurrent._inv.model, ticket: paidCurrent.loadId || '', load: paidCurrent, tripId: '' };
+}
+function previewPaid() { const c = paidCtx(); if (c) openPreview([invoiceHtml(c.model)]); }
+
+/* ---------- document templates ---------- */
+const DOC_CSS = `
+.pg{font-family:Arial,sans-serif;color:#1e293b;background:#fff;padding:12px;}
+.inv .head{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1e40af;padding-bottom:12px;margin-bottom:14px;}
+.inv .head-left{display:flex;align-items:center;gap:12px;}
+.inv .name{font-size:1.5rem;font-weight:700;color:#1e40af;}
+.inv .loadid{font-weight:600;color:#1e40af;font-size:1rem;background:#eff6ff;padding:6px 12px;border-radius:6px;}
+.inv .meta{display:flex;flex-wrap:wrap;gap:14px;margin:8px 0;font-size:0.8rem;color:#64748b;}
+.inv .bill{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:12px 0;}
+.inv .bill h3{margin:0 0 6px;color:#1e40af;font-size:0.7rem;letter-spacing:1.5px;text-transform:uppercase;}
+.inv .bill .who{font-size:1.1rem;font-weight:700;margin:0 0 6px;color:#0f172a;}
+.inv .bill p{margin:3px 0;color:#475569;}
+.inv table{width:100%;border-collapse:collapse;margin-bottom:16px;}
+.inv th{background:#1e40af;color:#fff;text-align:left;padding:8px 10px;font-size:0.72rem;text-transform:uppercase;}
+.inv td{padding:10px;border-bottom:1px solid #e2e8f0;font-size:0.9rem;}
+.inv .amt{text-align:right;white-space:nowrap;}
+.inv .totals{text-align:right;margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:8px;}
+.inv .totals div{padding:4px 0;font-size:0.95rem;}
+.inv .total-bar{background:#1e40af;color:#fff;display:inline-block;padding:10px 20px;border-radius:8px;font-weight:700;font-size:1.15rem;margin-top:6px;}
+.inv .foot{display:flex;justify-content:space-between;gap:12px;border-top:2px solid #e2e8f0;padding-top:14px;font-size:0.85rem;color:#475569;}
+.inv .cash-banner{background:#1e40af;color:#fff;text-align:center;padding:16px;margin-top:18px;font-size:2rem;font-weight:900;letter-spacing:8px;border-radius:8px;}
+`;
+
+function invoiceHtml(m) {
+  const co = getCo();
+  const logo = co.logo ? `<img src="${co.logo}" style="width:90px;height:90px;border-radius:50%;object-fit:cover;">` : '';
+  const pay = (m.pays || []).join(', ');
+  const etNote = (m.pays || []).includes('Etrans') && co.etNote ? `<br>${esc(co.etNote)}` : '';
+  return `<div class="inv">
+    <div class="head">
+      <div class="head-left">${logo}<span class="name">${esc(co.name || getSettings().companyName || '')}</span></div>
+      <div class="loadid">${esc(m.idLabel)} ${esc(m.idValue)}<br><span style="font-size:0.75rem;font-weight:400;">${esc(m.date)}</span></div>
+    </div>
+    <div class="meta"><span>GST# ${esc(co.gst)}</span><span>WCB# ${esc(co.wcb)}</span><span>${esc(co.email)}</span><span>${esc(co.phone)}</span></div>
+    <div style="font-size:0.8rem;color:#475569;">
+      ${co.addr ? '<div>' + esc(co.addr) + '</div>' : ''}
+      ${co.mail && co.mail !== co.addr ? '<div>Mail: ' + esc(co.mail) + '</div>' : ''}
+    </div>
+    <div class="bill"><h3>Billed to</h3>
+      <p class="who">${esc(m.customer)}</p><p>${esc(m.address)}</p><p>${esc(m.phone)}</p>
+    </div>
+    <table>
+      <tr><th>Description</th><th>Quantity / Rate</th><th class="amt">Amount</th></tr>
+      ${m.lines.map(l => `<tr><td>${esc(l.d)}</td><td>${esc(l.q)}</td><td class="amt">$${money(l.a)}</td></tr>`).join('')}
+    </table>
+    <div class="totals">
+      <div>SUBTOTAL &nbsp; $${money(m.sub)}</div>
+      <div>GST (5%) &nbsp; $${money(m.gst)}</div>
+      <div class="total-bar">TOTAL &nbsp; $${money(m.total)}</div>
+    </div>
+    ${m.notes ? `<div style="margin:12px 0;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;"><strong>Notes:</strong> ${esc(m.notes)}</div>` : ''}
+    <div class="foot">
+      <div>Payment Type: ${esc(pay)}${etNote}</div>
+      <div>Thank you for your business</div>
+      <div>Due on delivery</div>
+    </div>
+    ${(m.pays || []).includes('Cash') ? '<div class="cash-banner">CASH SALE</div>' : ''}
+  </div>`;
+}
+
+function scaleTicketHtml(t, num) {
+  if (!t) return '';
+  const kg = v => (+v || 0).toLocaleString();
+  const purchase = t[7] ? '$' + (+t[7]).toFixed(2) : '';
+  const sale = t[8] ? '$' + (+t[8]).toFixed(2) : '';
+  const row = (a, b) => `<div style="display:flex;justify-content:space-between;"><span>${a}</span><span>${b}</span></div>`;
+  return `<div style="font-family:monospace;max-width:320px;margin:0 auto;padding:16px;border:1px dashed #666;color:#000;">
+    <div style="text-align:center;font-weight:bold;margin-bottom:8px;">SCALE TICKET</div>
+    <div style="text-align:center;margin-bottom:12px;">${esc(t[0] || num)}</div>
+    <div>Product: ${esc(t[1])}</div><div>Customer: ${esc(t[2])}</div><div>Source: ${esc(t[3])}</div>
+    <hr style="border:none;border-top:1px dashed #999;margin:12px 0;">
+    ${row('Tr:', kg(t[4]))}${row('Gr:', kg(t[5]))}
+    <div style="text-align:center;margin-top:12px;font-size:11px;">NET</div>
+    <div style="text-align:center;font-weight:bold;font-size:20px;">${kg(t[6])}</div>
+    <hr style="border:none;border-top:1px dashed #999;margin:12px 0;">
+    ${purchase ? row('Purchase:', purchase) : ''}${sale ? row('Sale:', sale) : ''}
+    ${t[10] ? `<div style="margin-top:8px;font-size:11px;"><strong>Notes:</strong> ${esc(t[10])}</div>` : ''}
+    <div style="text-align:center;font-size:10px;color:#666;margin-top:8px;">${esc(t[9])}</div>
+  </div>`;
+}
+function unitInfo(truck, key) {
+  const u = (getSettings().units || []).find(t => (t.name || '').toLowerCase() === (truck || '').toLowerCase());
+  return u ? (u[key] || '') : '';
+}
+function pickupAddr(loc) {
+  const f = (getSettings().locations || []).find(x => (x.name || '').toLowerCase() === (loc || '').toLowerCase());
+  return f ? (f.address || f.addr || '') : '';
+}
+function tm9Html(l, num) {
+  if (!l) return '';
+  const co = getCo();
+  const hrs = l.totalHours ? fmtHours(+l.totalHours) : (l.duration || '');
+  const td = 'padding:4px;border:1px solid #000;';
+  return `<div style="font-family:Arial;padding:16px;border:2px solid #000;max-width:520px;margin:0 auto;color:#000;">
+    <div style="text-align:center;font-weight:bold;font-size:18px;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;">TM9 TRIP LOG</div>
+    <div style="text-align:center;font-size:12px;margin-bottom:12px;">${esc(co.name || getSettings().companyName || '')}<br>${esc(co.addr)}</div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><div><strong>Load ID:</strong> ${esc(l.loadId || num)}</div><div><strong>Date:</strong> ${new Date().toLocaleDateString('en-CA')}</div></div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+      <tr><td style="${td}width:50%;"><strong>Customer:</strong> ${esc(l.customerName)}</td><td style="${td}"><strong>Phone:</strong> ${esc(l.phone)}</td></tr>
+      <tr><td colspan="2" style="${td}"><strong>Delivery Address:</strong> ${esc(l.address)}</td></tr>
+      <tr><td style="${td}"><strong>Pickup:</strong> ${esc(l.location)}</td><td style="${td}"><strong>Species:</strong> ${esc(l.species)}</td></tr>
+      <tr><td colspan="2" style="${td}"><strong>Pickup Address:</strong> ${esc(pickupAddr(l.location))}</td></tr>
+      <tr><td style="${td}"><strong>Truck:</strong> ${esc(l.truck)}</td><td style="${td}"><strong>Plate:</strong> ${esc(unitInfo(l.truck, 'plate'))}</td></tr>
+      <tr><td style="${td}"><strong>Config:</strong> ${esc(unitInfo(l.truck, 'config'))}</td><td style="${td}"><strong>Km:</strong> ${esc(l.km)}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+      <tr style="background:#eee;"><th style="${td}">Tonnes</th><th style="${td}">Cords</th><th style="${td}">Trip Time</th></tr>
+      <tr><td style="${td}text-align:center;">${toTonnes(l.netTonnes) || esc(l.tonnes)}</td><td style="${td}text-align:center;">${esc(l.cords)}</td><td style="${td}text-align:center;">${esc(hrs)}</td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:20px;">
+      <div style="width:45%;"><div style="border-bottom:1px solid #000;height:40px;"></div><div style="font-size:11px;text-align:center;">Driver Signature</div></div>
+      <div style="width:45%;"><div style="border-bottom:1px solid #000;height:40px;"></div><div style="font-size:11px;text-align:center;">Customer Signature</div></div>
+    </div>
+  </div>`;
+}
+
+function fullDoc(pages, title) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title || 'Invoice')}</title><style>body{margin:0;background:#fff;}${DOC_CSS}.pg{max-width:760px;margin:0 auto;page-break-after:always;}.pg:last-child{page-break-after:auto;}</style></head><body>${pages.map(p => `<div class="pg">${p}</div>`).join('')}</body></html>`;
+}
+function openPreview(pages) {
+  if (window.kfNative) { kfPreview(fullDoc(pages)); return; }
+  const w = window.open('', '_blank');
+  if (!w) { alert('Allow popups to preview.'); return; }
+  w.document.write(fullDoc(pages)); w.document.close();
+}
+
+/* ---------- PDF + delivery ---------- */
+async function makePdf(pages, quality, scale) {
+  if (typeof html2pdf === 'undefined') throw new Error('PDF library not loaded (html2pdf.bundle.min.js missing).');
+  window.scrollTo(0, 0);
+  const wrap = document.createElement('div');
+  // NOTE: no position/left offsets here - html2pdf clones this element, and an off-screen clone renders blank.
+  wrap.style.cssText = 'width:720px;background:#fff;color:#1e293b;';
+  wrap.innerHTML = `<style>${DOC_CSS}.pg{width:720px;box-sizing:border-box;}</style>` +
+    pages.map((p, i) => `<div class="pg" style="${i < pages.length - 1 ? 'page-break-after:always;' : ''}">${p}</div>`).join('');
+  document.body.appendChild(wrap);
+  try {
+    return await html2pdf().set({
+      margin: 10,
+      image: { type: 'jpeg', quality: quality || 0.95 },
+      html2canvas: { scale: scale || 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    }).from(wrap).outputPdf('blob');
+  } finally { document.body.removeChild(wrap); }
+}
+function blobToB64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1]);
+    r.onerror = () => rej(new Error('Could not read PDF'));
+    r.readAsDataURL(blob);
+  });
+}
+function download(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a'); a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+function closeShareSheet() { $('shareSheet').style.display = 'none'; }
+function showShareSheet(file, title) {
+  $('shareSheetName').textContent = file.name + ' is ready';
+  $('shareSheetShare').onclick = async () => {
+    if (await kfShareFile(file, title)) { closeShareSheet(); return; }
+    try { await navigator.share({ title, files: [file] }); closeShareSheet(); }
+    catch(e) { if (e.name !== 'AbortError') download(file); }
+  };
+  $('shareSheetDl').onclick = () => download(file);
+  $('shareSheet').style.display = 'flex';
+}
+async function deliverPdf(blob, name, title) {
+  const file = new File([blob], name, { type: 'application/pdf' });
+  if (await kfShareFile(file, title)) return;          // Android app: phone's own share screen
+  const canShare = navigator.share && navigator.canShare && navigator.canShare({ files: [file] });
+  if (!canShare) { download(file); return; }
+  try { await navigator.share({ title, files: [file] }); }
+  catch(e) {
+    if (e.name === 'AbortError') return;
+    showShareSheet(file, title);       // browser wants a fresh tap after the long PDF build
+  }
+}
+function safeName(s) { return String(s || 'invoice').replace(/[^A-Za-z0-9._-]+/g, '_'); }
+
+async function shareClient(ctx) {
+  if (!ctx || !ctx.model) return;
+  busy('Building invoice PDF…');
+  try {
+    const pdf = await makePdf([invoiceHtml(ctx.model)], 0.95, 2);
+    busy(false);
+    await deliverPdf(pdf, safeName(ctx.model.invNo || ctx.ticket || 'invoice') + '.pdf', 'Invoice ' + (ctx.model.invNo || ''));
+  } catch(e) { busy(false); alert('Could not create PDF: ' + e.message); }
+}
+
+async function shareOffice(ctx) {
+  if (!ctx || !ctx.model) return;
+  const co = getCo(), s = getSettings();
+  if (!co.email) { alert('Add the office email in Settings first.'); return; }
+  if (!s.sheetsUrl) { alert('Set the Load Log sheet link in Settings first.'); return; }
+  const m = ctx.model, ticket = (ctx.ticket || '').trim();
+  busy('Collecting weight ticket and trip info…');
+  try {
+    const pages = [], included = [], missing = [];
+    const t = ticket ? await fetchTicket(ticket) : null;
+    if (t) { pages.push(scaleTicketHtml(t, ticket)); included.push('weight ticket'); } else missing.push('weight ticket' + (ticket ? ' ' + ticket : ' (no ticket #)'));
+    const load = ctx.load || await fetchLoad(ctx.tripId, ticket);
+    if (load) { pages.push(tm9Html(load, ticket)); included.push('trip info'); } else missing.push('trip info');
+    pages.push(invoiceHtml(m)); included.push('invoice');
+    busy('Building package PDF…');
+    const pdf = await makePdf(pages, 0.9, 1.5);
+    const b64 = await blobToB64(pdf);
+    busy('Emailing to ' + co.email + '…');
+    const label = m.invNo || ticket || 'invoice';
+    const body = `Load package for ${m.customer || ''} (${label}).\nTotal: $${money(m.total)}\nIncluded: ${included.join(', ')}.` + (missing.length ? `\nNOT FOUND: ${missing.join(', ')}.` : '');
+    const r = await post({ action: 'sendInvoice', to: co.email, subject: 'Load Package: ' + label + (m.customer ? ' - ' + m.customer : ''), body, filename: safeName(label) + '-package.pdf', pdfBase64: b64 });
+    busy(false);
+    if (r.status !== 'sent') throw new Error(r.message || 'Email was not sent');
+    if (!r.attached) { alert('Email was sent, but WITHOUT the PDF. Your Apps Script is the old version: paste the new code, then Deploy > Manage deployments > edit > New version.'); return; }
+    alert('Emailed to ' + co.email + '\nIncluded: ' + included.join(', ') + (missing.length ? '\nNOT FOUND: ' + missing.join(', ') : ''));
+  } catch(e) {
+    busy(false);
+    alert('Share to Office failed: ' + e.message + '\n\nIf this says "Failed to fetch", redeploy the Apps Script (new version) and try again.');
+  }
+}
+
+/* ---------- complete load (mark sheet row Paid) ---------- */
+async function markPaid(ctx, ids) {
+  const invoiceData = { model: ctx.model, paidAt: Date.now() };
+  const r = await post({
+    action: 'updateStatus', status: 'Paid',
+    loadId: ids.loadId || '', customerName: ids.customerName || '', timestamp: ids.timestamp || '',
+    location: ids.location || '', species: ids.species || '', truck: ids.truck || '',
+    invoiceData: JSON.stringify(invoiceData)
+  });
+  return r;
+}
+async function completeLoad() {
+  const ctx = pendingCtx(); if (!ctx) return;
+  if (!ctx.ticket) { alert('This load has no Load/Ticket ID, so the sheet row cannot be matched.'); return; }
+  if (!confirm('Mark ' + ctx.ticket + ' as Paid?')) return;
+  busy('Marking paid…');
+  try {
+    const r = await markPaid(ctx, { loadId: ctx.ticket, customerName: current.customerName, timestamp: current.timestamp, location: current.location, species: current.species, truck: current.truck });
+    busy(false);
+    if (r.status === 'notfound') { alert('No matching row was found in the sheet, so nothing was marked Paid.'); return; }
+    const local = JSON.parse(localStorage.getItem('kfDispatch') || '{}');
+    const k = loadKey(current);
+    local[k] = Object.assign(local[k] || {}, { status: 'Paid', loadId: ctx.ticket });
+    localStorage.setItem('kfDispatch', JSON.stringify(local));
+    alert('Marked Paid.');
+    showPending();
+  } catch(e) { busy(false); alert('Could not mark Paid: ' + e.message); }
+}
+async function completeNew() {
+  const ctx = newCtx(); if (!ctx) return;
+  const id = ctx.tripId || ctx.ticket;
+  if (!id) { alert('Enter the Weight Ticket # or Trip ID so the sheet row can be found.'); return; }
+  if (!confirm('Mark ' + id + ' as Paid in the sheet?')) return;
+  busy('Marking paid…');
+  try {
+    const load = await fetchLoad(ctx.tripId, ctx.ticket);
+    const r = await markPaid(ctx, { loadId: (load && load.loadId) || id, customerName: ctx.model.customer });
+    busy(false);
+    if (r.status === 'notfound') { alert('No load row with ID ' + id + ' was found, so nothing was marked Paid.'); return; }
+    alert('Marked Paid.');
+  } catch(e) { busy(false); alert('Could not mark Paid: ' + e.message); }
+}
+
+showMenu();
+// delivered loads and payments from other devices show up by themselves
+if (window.kfLive) kfLive(() => {
+  if (!$('pendingView').classList.contains('hidden')) return loadPending();
+  if (!$('menu').classList.contains('hidden')) return loadPaidHistory();
+}, { ms: 30000 });
+</script>
+</body>
+</html>
