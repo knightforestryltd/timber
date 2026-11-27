@@ -484,6 +484,16 @@ function addPlaces_(rows) {
   });
   if (added.length) appendMany_('Places', added);
 }
+// v14: lat/lon of any address (pickup locations, home base), looked up once and kept in the Places tab
+function geoOf_(address) {
+  var a = String(address || '').trim(); if (!a) return null;
+  var m = a.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/); if (m) return { lat: Number(m[1]), lon: Number(m[2]) };
+  var norm = a.toLowerCase().replace(/\s+/g, ' '), hit = rows_('Places').filter(function (x) { return String(x.address).trim().toLowerCase().replace(/\s+/g, ' ') === norm; })[0];
+  if (hit) return hit.lat !== '' ? { lat: Number(hit.lat), lon: Number(hit.lon) } : null;
+  var g = null; try { g = geocodePlace_(a); } catch (e) {}
+  append_('Places', { address: a, place: g ? g.place : '', lat: g ? g.lat : '', lon: g ? g.lon : '', at: nowIso_() });
+  return g ? { lat: g.lat, lon: g.lon } : null;
+}
 function loadsPost_(d) {
   var sh = sheet_('Loads');
   if (d.action === 'updateStatus') {
@@ -1782,8 +1792,9 @@ function drvPost_(p, d) {
       var au2 = personAuth_(d); if (!au2.ok) return drvAuthFail_(au2);
       if (a === 'myTrips') {     // loads a driver may pick under "Trips from Dispatch" (no company key needed)
         var me = String(au2.driver.name).toLowerCase(), td = today_();
-        return json_({ status: 'ok', rows: loadRows_().filter(function (l) { var st = String(l.status).toLowerCase(); return st !== 'paid' && (String(l.driverName || '').toLowerCase() === me || st === 'started' || (l.loadId && String(l.loadId).indexOf(td.slice(0, 4)) > -1)); })
-          .map(function (l) { return { loadId: l.loadId, bookingId: l.bookingId, customerName: l.customerName, location: l.location, species: l.species, status: l.status, address: l.address, placeLat: l.placeLat, placeLon: l.placeLon, driverName: l.driverName, unitId: l.unitId, requestedDate: l.requestedDate, product: l.product }; }) });
+        var set0 = readSettings_(), locGeo = {}, geoLoc = function (name) { if (!(name in locGeo)) { var lc = (set0.locations || []).filter(function (x) { return x.name === name; })[0]; locGeo[name] = lc ? geoOf_(lc.address) : null; } return locGeo[name]; };
+        return json_({ status: 'ok', base: geoOf_(set0.homeBase), rows: loadRows_().filter(function (l) { var st = String(l.status).toLowerCase(); return st !== 'paid' && (String(l.driverName || '').toLowerCase() === me || st === 'started' || (l.loadId && String(l.loadId).indexOf(td.slice(0, 4)) > -1)); })
+          .map(function (l) { var pg = geoOf_ && l.location ? geoLoc(l.location) : null; return { loadId: l.loadId, bookingId: l.bookingId, customerName: l.customerName, location: l.location, species: l.species, status: l.status, address: l.address, placeLat: l.placeLat, placeLon: l.placeLon, pickupLat: pg ? pg.lat : '', pickupLon: pg ? pg.lon : '', driverName: l.driverName, unitId: l.unitId, requestedDate: l.requestedDate, product: l.product }; }) });
       }
       return json_(yardDrop_(d, au2.driver));
     }
@@ -1803,7 +1814,7 @@ function drvPost_(p, d) {
         rows_('Shifts').forEach(function (s) { if (s.status !== 'Submitted' || !s.unit || s.endOdo === '' || s.shiftType === 'yard') return; var tt = ms_(s.submittedAt); if (!odoAt[s.unit] || tt >= odoAt[s.unit]) { allOdo[s.unit] = s.endOdo; odoAt[s.unit] = tt; } });
         var ob = drvOnBlocks_(mine.filter(function (s) { return !isYard(s); }), Date.now() - 40 * 86400000);
         return json_({ status: 'ok', v: 3, sv: SCRIPT_VERSION, token: personToken_(drv), roles: rolesOf_(drv), driver: drvPublic_(drv), company: cfg.company, units: cfg.units, rules: cfg.rules, history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? drvFullShift_(open) : null, openYardShift: openYard ? drvFullShift_(openYard) : null, onBlocks: ob.blocks, knownSince: ob.knownSince,
-          allUnits: cfg.allUnits || [], yards: yardNames_() });
+          allUnits: cfg.allUnits || [], yards: yardNames_(), base: (function () { try { return geoOf_(readSettings_().homeBase); } catch (e) { return null; } })() });
       }
       if (a === 'driverHistory') {
         var since = Date.now() - Math.min(Number(d.days) || 15, 31) * 86400000, pret2 = rows_('Pretrips');

@@ -175,6 +175,22 @@ let online = true, dirty = false, tab = 'drivers', serverV = LS.get('kfDrvServer
 
 // v14: a phone keeps a signed session token, never the passcode. Old sessions ({name, passcode}) still work until the next login with signal.
 function sAuth() { return session && session.token ? { token: session.token, name: session.name } : { name: session ? session.name : '', passcode: session ? session.passcode : '' }; }
+/* ---------- v14: units from the Trucks tab (status, open work orders, engine hours) ---------- */
+const unitsAll = () => (ctx && ctx.allUnits && ctx.allUnits.length ? ctx.allUnits : (ctx && ctx.units) || []);
+const unitObj = name => unitsAll().find(u => u.name === name) || ((ctx && ctx.units) || []).find(u => u.name === name) || null;
+// why a driver may not start on this unit ('' = fine). The office can override from Trucks (until they turn it off).
+function unitBlock(u) {
+  if (!u || u.override) return '';
+  if (u.status === 'Out of service') return 'Out of service' + (u.outReason ? ': ' + u.outReason : '');
+  const maj = (u.openWOs || []).filter(w => w.severity === 'major'); if (maj.length) return 'Open MAJOR defect: ' + maj.map(w => w.defect).join('; ');
+  return '';
+}
+function knownDefectsHtml(u) {
+  const l = (u && u.openWOs) || []; if (!l.length) return '';
+  return `<div class="notice" style="margin-top:8px"><b>Known defects on this unit</b>${l.map(w => `<div class="small">• ${esc(w.defect)}${w.severity === 'major' ? ' <b style="color:var(--bad)">MAJOR</b>' : ''}</div>`).join('')}<div class="small">Check them in your pre-trip. Mark them "still there" instead of entering them again.</div></div>`;
+}
+function unitAlertsHtml(u) { const a = (u && u.alerts) || []; return a.length ? a.map(x => `<div class="small" style="font-weight:700;color:${x.lvl === 'red' ? 'var(--bad)' : '#b45309'}">${esc(x.text)}</div>`).join('') : ''; }
+const majorDefect = sh => !!(sh && sh.pretrip && (sh.pretrip.defectItems || []).some(x => x.severity === 'major')) && !((unitObj(sh.unit) || {}).override);
 function syncedDriversUrl() { try { return localStorage.getItem('driversUrl') || ''; } catch (e) { return ''; } }
 function saveShiftLocal() { if (shift) LS.set('kfDrvShift', shift); else LS.del('kfDrvShift'); }
 
@@ -396,6 +412,7 @@ function addEvent(ev) { ev.id = ev.id || newId(); ev.hm = hm(new Date(ev.t)); sh
 function lastEvent() { return shift.events[shift.events.length - 1]; }
 async function fillPlace(ev) { if (ev.lat == null) return; const p = await placeFor(ev.lat, ev.lon); if (!shift) return; const e = shift.events.find(x => x.id === ev.id); if (e && !e.place) { e.place = p; saveShiftLocal(); if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderShiftHome(); } }
 function autoCheck(fix) {
+  try { trailAdd(fix); tripAuto(fix); } catch (e) {}
   if (!canAuto() || !fix) return;
   const r = rulesAll(), now = Date.now(), st = curStatus();
   const goodFix = !fix.acc || fix.acc <= 150;
@@ -582,7 +599,7 @@ async function renderLogin(msg) {
     $('lgGo').disabled = true; $('lgErr').textContent = 'Logging in…';
     const r = await api({ action: 'driverLogin', name, passcode: pass });
     $('lgGo').disabled = false;
-    if (r.status === 'ok') { session = r.token ? { name, passcode: '', token: r.token } : { name, passcode: pass }; LS.set('kfDrvSession', session); setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } renderDrivers(); }
+    if (r.status === 'ok') { session = r.token ? { name, passcode: '', token: r.token } : { name, passcode: pass }; LS.set('kfDrvSession', session); const oy = r.openYardShift; setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } if (oy && !yard) { yard = oy; saveYard(); } renderDrivers(); }
     else $('lgErr').textContent = r.status === 'badpassword' ? 'Wrong name or passcode.' : r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal. You need signal to log in the first time.' : (r.message || 'Could not log in.');
   };
 }
@@ -598,11 +615,14 @@ function setCtx(r) {
 
 function renderStart() {
   const v = $('view-drivers'), units = (ctx && ctx.units) || [], lo = LS.get('kfDrvLastOdo', {}), R = rulesAll();
-  v.innerHTML = `<div class="card"><h2 style="margin-top:0">Hi ${esc(session.name)}</h2><p class="small">Start your shift. You stay <b>Off Duty</b> until your pre-trip; saving the pre-trip logs 30 minutes On Duty. You must submit this shift before you can start another.</p>
+  v.innerHTML = yardCardHtml() + `<div class="card"><h2 style="margin-top:0">Hi ${esc(session.name)}</h2>${!yard && serverV14() ? '<div class="btnrow" style="margin:0 0 8px"><button class="btn btn-outline" id="stYard" style="flex:1">Yard work (time clock)</button></div><div class="small" style="margin-bottom:6px">Or start a driving shift:</div>' : ''}<p class="small">Start your shift. You stay <b>Off Duty</b> until your pre-trip; saving the pre-trip logs 30 minutes On Duty. You must submit this shift before you can start another.</p>
     <label>Unit</label><select id="stUnit"><option value="">Select unit</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}${u.plate ? ' · ' + esc(u.plate) : ''}</option>`).join('')}</select>
     <div class="row2"><div><label>Trailer plate A</label><input id="stTa"></div><div><label>Trailer plate B</label><input id="stTb"></div></div>
     <label>Starting odometer (km)</label><input id="stOdo" type="number" inputmode="decimal" placeholder="loads from the last log on this unit"><div class="small" id="stOdoHint">Select the unit to load the last recorded km.</div>
     <label style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="stOdoOk" style="width:24px;min-height:24px;margin:0"> I checked this against the odometer on the dash</label>
+    <div id="stHrsWrap" class="hidden"><label>Starting engine hours</label><input id="stHrs" type="number" inputmode="decimal" step="0.1"><div class="small" id="stHrsHint"></div>
+      <label style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="stHrsOk" style="width:24px;min-height:24px;margin:0"> I checked this against the hour meter on the dash</label></div>
+    <div id="stUnitInfo"></div>
     <label>Hours of service rules</label><select id="stSet">${ruleOptions(R)}</select>
     <div class="err" id="stErr"></div><button class="btn" id="stGo" style="width:100%;margin-top:8px">Start shift</button>
     <button class="btn btn-outline" id="stHist" style="width:100%;margin-top:8px">My logs (last 14 days)</button>
@@ -614,7 +634,17 @@ function renderStart() {
     const o = lo[$('stUnit').value]; $('stOdoOk').checked = false;
     if (o !== undefined && o !== '') { $('stOdo').value = o; $('stOdoHint').innerHTML = `Last log on this unit ended at <b>${esc(o)} km</b>. Check the dash and correct it if it is different.`; }
     else { $('stOdo').value = ''; $('stOdoHint').textContent = 'No earlier log for this unit. Enter the km from the dash.'; }
+    // v14: engine hours (units set to track hours), out-of-service block, known defects, due reminders
+    const uo = unitObj($('stUnit').value), lh = LS.get('kfDrvLastHours', {});
+    const lastH = uo ? (lh[uo.name] != null && +lh[uo.name] > +(uo.currentHours || 0) ? lh[uo.name] : uo.currentHours) : '';
+    $('stHrsWrap').classList.toggle('hidden', !(uo && uo.trackHours)); $('stHrsOk').checked = false;
+    if (uo && uo.trackHours) { $('stHrs').value = lastH !== '' && lastH != null ? lastH : ''; $('stHrsHint').innerHTML = lastH !== '' && lastH != null ? `Last reading on this unit: <b>${esc(lastH)} h</b>. Check the hour meter and correct it if different.` : 'No earlier reading. Enter the hours from the dash.'; }
+    const why = unitBlock(uo);
+    $('stUnitInfo').innerHTML = (why ? `<div class="notice bad" style="margin-top:8px"><b>You cannot start a shift on this unit.</b><br>${esc(why)}<br><span class="small">The office can let you use it from the Trucks page.</span></div>` : '') + knownDefectsHtml(uo) + (uo && uo.alerts && uo.alerts.length ? `<div class="notice" style="margin-top:8px">${unitAlertsHtml(uo)}</div>` : '');
+    $('stGo').disabled = !!why;
   };
+  $('stHrs').oninput = () => { $('stHrsOk').checked = false; };
+  if ($('stYard')) $('stYard').onclick = startYard;
   $('stOdo').oninput = () => { $('stOdoOk').checked = false; };
   $('stOut').onclick = logout; $('stHist').onclick = openHistory;
   $('stGo').onclick = async () => {
@@ -623,10 +653,18 @@ function renderStart() {
     if (odo === '' || isNaN(+odo)) { $('stErr').textContent = 'Enter the starting odometer.'; return; }
     if (!$('stOdoOk').checked) { $('stErr').textContent = 'Check the km on the dash, then tick the box.'; return; }
     const prevKm = lo[un]; if (prevKm !== undefined && prevKm !== '' && +odo < +prevKm && !confirm(`The last log on ${un} ended at ${prevKm} km, which is more than ${odo} km. Start with ${odo} km anyway?`)) return;
+    const uo = unitObj(un), why = unitBlock(uo); if (why) { $('stErr').textContent = 'This unit cannot be used: ' + why; return; }
+    let hrs = '';
+    if (uo && uo.trackHours) {
+      hrs = $('stHrs').value; if (hrs === '' || isNaN(+hrs)) { $('stErr').textContent = 'Enter the starting engine hours.'; return; }
+      if (!$('stHrsOk').checked) { $('stErr').textContent = 'Check the hours on the dash, then tick the box.'; return; }
+      const lastH = uo.currentHours; if (lastH !== '' && lastH != null && +hrs < +lastH && !confirm(`The last reading on ${un} was ${lastH} h, which is more than ${hrs} h. Start with ${hrs} h anyway?`)) return;
+      hrs = +hrs;
+    }
     $('stGo').disabled = true;
     const u = units.find(x => x.name === un) || {}; const now = new Date();
     LS.set('kfDrvLastSetup', { set: $('stSet').value });
-    shift = { id: 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: dkey(now), startedAt: now.toISOString(), driverName: session.name, unit: un, plate: u.plate || '', trailerA: $('stTa').value.trim(), trailerB: $('stTb').value.trim(), hosSet: $('stSet').value, startOdo: +odo, endOdo: '', events: [], trips: [], fuel: [], edits: [], gpsGaps: [], pretrip: null, remarks: '', signature: '' };
+    shift = { id: 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: dkey(now), startedAt: now.toISOString(), driverName: session.name, unit: un, plate: u.plate || '', trailerA: $('stTa').value.trim(), trailerB: $('stTb').value.trim(), hosSet: $('stSet').value, startOdo: +odo, endOdo: '', unitId: uo ? uo.id : '', startHours: hrs, events: [], trips: [], fuel: [], edits: [], gpsGaps: [], pretrip: null, remarks: '', signature: '' };
     // Off duty from the end of the last shift (or midnight) until the pre-trip
     const lc = tms(LS.get('kfDrvLastClose', '')), midnight = dayStart(dkey(now)), yesterday = midnight - 86400000;
     const offFrom = lc && lc < now.getTime() ? Math.max(lc, yesterday) : midnight;
@@ -634,7 +672,9 @@ function renderStart() {
     const ev = { id: newId(), t: new Date(Math.min(offFrom, now.getTime())).toISOString(), s: 'OFF', label: 'Off Duty' + (lc ? ' (since last shift)' : ''), lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: '', note: '' };
     shift.events.push(ev); normalize(shift);
     anchor = pos ? { lat: pos.lat, lon: pos.lon, at: Date.now() } : null; saveAnchor(); LS.set('kfDrvPtAt', 0);
+    LS.del('kfDrvTrail');
     stamp(shift, Date.now()); saveShiftLocal(); queuePoint(true, 'OFF'); renderDrivers(); keepAwake();
+    if (uo && uo.alerts && uo.alerts.length) toast('<b>Reminder for ' + esc(un) + '</b><br>' + uo.alerts.map(a => esc(a.text)).join('<br>'));
     if (pos) { ev.place = await placeFor(pos.lat, pos.lon); const e = shift && shift.events.find(x => x.id === ev.id); if (e) e.place = ev.place; saveShiftLocal(); renderIfHome(); }
     await pushShift();
   };
@@ -642,6 +682,7 @@ function renderStart() {
 
 async function logout() {
   if (shift) { alert('Submit your open shift first.'); return; }
+  if (yard) { alert('Clock out of yard work first.'); return; }
   session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); LS.del('kfDrvHist'); stopWatch(); renderDrivers();
 }
 
@@ -656,8 +697,9 @@ function renderShiftHome() {
   }
   const ms = hos(now), pt = pretripTag(), L = limitsFor(shift), edits = (shift.edits || []).length;
   const oldScript = serverV && serverV < 3;
-  v.innerHTML = `<div class="small" style="margin-bottom:8px"><span class="badge ${online ? 'on' : 'off'}" id="netBadge">${online ? 'Online' : 'Offline'}</span><span class="badge" id="gpsBadge">GPS…</span><span class="badge" id="wakeBadge">…</span>${dirty ? '<span class="badge off">Not yet synced</span>' : ''} ${esc(shift.driverName)} · ${esc(shift.unit)} ${shift.plate ? '· ' + esc(shift.plate) : ''}</div>
+  v.innerHTML = yardCardHtml() + `<div class="small" style="margin-bottom:8px"><span class="badge ${online ? 'on' : 'off'}" id="netBadge">${online ? 'Online' : 'Offline'}</span><span class="badge" id="gpsBadge">GPS…</span><span class="badge" id="wakeBadge">…</span>${dirty ? '<span class="badge off">Not yet synced</span>' : ''} ${esc(shift.driverName)} · ${esc(shift.unit)} ${shift.plate ? '· ' + esc(shift.plate) : ''}</div>
     ${oldScript ? '<div class="notice">The office Drivers script is the old version. Logging works, but edits sync, village names, history and the map need the update (Settings has the steps).</div>' : ''}
+    ${unitAlertsHtml(unitObj(shift.unit))}
     <div class="stat ${st}"><div class="small">Current duty status · since ${esc(last.hm)}${last.auto ? ' · set by GPS' : ''}</div><div class="big">${STATUS[st]}</div><div class="sub">${esc(last.place || 'location not recorded')} · ${since}</div></div>
     <div class="sbtn-grid">${['D', 'ON', 'OFF', 'SB'].map(s => `<button class="sbtn ${s === st ? 'cur' : ''}" data-st="${s}">${SHORT[s]}${s === 'D' ? '<small>pre-trip first</small>' : s === 'ON' ? '<small>not driving</small>' : ''}</button>`).join('')}</div>
     <div><span class="chip" id="ruleChip">Rules: ${esc(L.setName)} · change</span></div>
@@ -666,7 +708,9 @@ function renderShiftHome() {
     <button class="act" id="aEdit"><span>Edit duty status<br><span class="small">fix a time or a status you forgot to change</span></span><span class="tag">${shift.events.length}${edits ? ' · ' + edits + ' edited' : ''}</span></button>
     <button class="act" id="aOdo"><span>Odometer</span><span class="tag">start ${esc(shift.startOdo)} km</span></button>
     <button class="act" id="aTrips"><span>Trips from Dispatch</span><span class="tag">${shift.trips.length}</span></button>
+    <div id="tripCard">${tripCardHtml()}</div>
     <button class="act" id="aFuel"><span>Fuel</span><span class="tag">${shift.fuel.length}</span></button>
+    ${!yard && serverV14() ? '<button class="act" id="aYard"><span>Yard work (time clock)<br><span class="small">separate from your driving log</span></span><span class="tag">clock in</span></button>' : ''}
     <button class="act" id="aLog"><span>View today's log sheet</span><span class="tag">24 h</span></button>
     <button class="act" id="aHist"><span>My logs (last 14 days)</span><span class="tag">view</span></button>
     <button class="act" id="aPrint"><span>Print / share</span><span class="tag">today · 14 days</span></button>
@@ -683,7 +727,7 @@ function renderShiftHome() {
   $('aPre').onclick = openPretrip; $('aTrips').onclick = openTrips; $('aFuel').onclick = openFuel; $('aEdit').onclick = () => openEventsEditor(shift, 'driver', afterDriverEdit);
   $('aOdo').onclick = openOdometer; $('ruleChip').onclick = openRuleChange; $('aHist').onclick = openHistory; $('aPrint').onclick = openPrintChoice;
   $('aLog').onclick = async () => { const shifts = await getHistory(false); const k = dkey(new Date()); openSheet(`<h3>Today's log</h3><div class="paperwrap">${dayPageHtml(buildDay(k, shifts, Date.now()))}</div><div class="btnrow"><button class="btn btn-outline" id="lgPr">Print / share</button><button class="btn" id="cls">Close</button></div>`, b => { b.querySelector('#cls').onclick = closeSheet; b.querySelector('#lgPr').onclick = () => printDays([k], shifts); }); };
-  $('aClose').onclick = openClose; gpsBadge();
+  $('aClose').onclick = openClose; gpsBadge(); bindTripCard(); bindYardCard(); if ($('aYard')) $('aYard').onclick = startYard;
   startWatch(); keepAwake(); clearInterval(tick); tick = setInterval(() => { if (tab === 'drivers' && shift && !shift.submittedPending && !$('sheetOv').classList.contains('show')) renderShiftHome(); }, 60000);
 }
 function afterDriverEdit() { stamp(shift, Date.now()); saveShiftLocal(); renderShiftHome(); pushShift(); }
@@ -694,6 +738,7 @@ async function changeStatus(s) {
   openSheet(`<h3>Change to ${STATUS[s]}</h3><label>Location (nearest town)</label><input id="csPlace" value="${esc(place0)}" placeholder="type a location if GPS is unavailable"><label>Note (optional)</label><input id="csNote" placeholder="e.g. loading at Barmac, fuel stop"><div class="small">Forgot to change earlier? Use <b>Edit duty status</b> to set the right time.</div><div class="btnrow"><button class="btn btn-outline" id="csNo">Cancel</button><button class="btn" id="csOk">Confirm</button></div>`, box => {
     $('csNo').onclick = closeSheet;
     $('csOk').onclick = async () => {
+      if (s === 'D' && majorDefect(shift)) { closeSheet(); alert('A MAJOR defect was reported on this unit. You cannot drive it until it is fixed (or the office allows it).'); return; }
       if (s === 'D' && shift.pretrip && shift.pretrip.defects && !confirm('The pre-trip reported defects. Drive anyway? The office will be told.')) return;
       const now = new Date();
       addEvent({ t: now.toISOString(), s, label: STATUS[s], lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place: $('csPlace').value.trim(), note: $('csNote').value.trim() });
@@ -798,7 +843,7 @@ async function pushShift(opts) {
   if (!opts.submit) pushing = run;
   try { return await run; } finally { if (pushing === run) pushing = null; }
 }
-window.addEventListener('online', () => { if (shift) { if (shift.submittedPending) submitNow(); else pushShift().then(() => { if (tab === 'drivers') renderDrivers(); }); } });
+window.addEventListener('online', () => { flushPhotos(); flushDrops(); if (yard) pushYard(); if (shift) { if (shift.submittedPending) submitNow(); else pushShift().then(() => { if (tab === 'drivers') renderDrivers(); }); } });
 setInterval(() => { if (shift && !shift.submittedPending && !document.hidden) pushShift(); }, HEARTBEAT_MS());
 setInterval(() => { if (shift && shift.submittedPending) submitNow(); }, 60000);
 
@@ -817,17 +862,21 @@ function companyHeaderHtml(sh, company) {
 }
 function openPretrip() {
   const company = (ctx && ctx.company) || {}; const p = shift.pretrip || { items: {}, defectNote: '', signature: '' }; p.items = p.items || {};
+  const knownWOs = ((unitObj(shift.unit) || {}).openWOs || []), knownStill = {}, sevOf = {};
+  (p.defectItems || []).forEach(x => { if (x.known) knownStill[x.known] = true; else if (x.k) sevOf[x.k] = x.severity; });
+  if (p.done && p.defectItems) knownWOs.forEach(w => { if (!knownStill[w.id]) knownStill[w.id] = false; });
   const first = !shift.pretrip || !shift.pretrip.done;
   const html = `<h3>Pre-trip inspection</h3><div class="logsheet">${companyHeaderHtml(shift, company)}</div><div class="small">Odometer ${esc(shift.startOdo)} km · ${esc(shift.date)} ${esc(hm(new Date()))}</div>
     ${first && curStatus() !== 'ON' && curStatus() !== 'D' ? '<div class="notice">Saving the pre-trip logs <b>On Duty (not driving)</b> starting 30 minutes ago. You stay On Duty until you change status.</div>' : ''}
+    ${knownWOs.length ? `<div class="grp">Known defects on this unit</div>${knownWOs.map(w => `<label class="li" style="display:flex;gap:10px;align-items:center"><input type="checkbox" class="ptKnown" data-wo="${esc(w.id)}" style="width:24px;min-height:24px;margin:0" ${knownStill[w.id] !== false ? 'checked' : ''}><span>${esc(w.defect)}${w.severity === 'major' ? ' <b style="color:var(--bad)">MAJOR</b>' : ''}<br><span class="small">still there (no new work order is made)</span></span></label>`).join('')}` : ''}
     <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="ptAll">Mark all OK</button></div>
-    ${PRETRIP.map((g, gi) => `<div class="grp">${esc(g[0])}</div>${g[1].map((q, qi) => { const k = gi + '.' + qi; return `<div class="chk" data-k="${k}"><div class="q">${esc(q)}</div><button class="ok ${p.items[k] === 'ok' ? 'on' : ''}" data-v="ok">OK</button><button class="df ${p.items[k] === 'df' ? 'on' : ''}" data-v="df">Defect</button></div>`; }).join('')}`).join('')}
+    ${PRETRIP.map((g, gi) => `<div class="grp">${esc(g[0])}</div>${g[1].map((q, qi) => { const k = gi + '.' + qi; return `<div class="chk" data-k="${k}"><div class="q">${esc(q)}</div><button class="ok ${p.items[k] === 'ok' ? 'on' : ''}" data-v="ok">OK</button><button class="df ${p.items[k] === 'df' ? 'on' : ''}" data-v="df">Defect</button></div><select class="ptSev ${p.items[k] === 'df' ? '' : 'hidden'}" data-k="${k}" style="margin:-2px 0 8px"><option value="minor">Minor (can still drive)</option><option value="major" ${sevOf[k] === 'major' ? 'selected' : ''}>MAJOR (unit must not be driven)</option></select>`; }).join('')}`).join('')}
     <label>Defect notes (required if any defect)</label><textarea id="ptNote" placeholder="Describe the defect">${esc(p.defectNote)}</textarea>
     <label>Driver signature</label><canvas class="sig" id="ptSig"></canvas><div class="btnrow" style="justify-content:flex-start;margin-top:4px"><button class="btn btn-sm btn-outline" id="ptClr">Clear signature</button></div>
     <div class="err" id="ptErr"></div><div class="btnrow"><button class="btn btn-outline" id="ptCancel">Cancel</button><button class="btn" id="ptSave">Save pre-trip</button></div>`;
   openSheet(html, box => {
     const items = Object.assign({}, p.items), sig = makeSig($('ptSig'), p.signature);
-    const paint = () => box.querySelectorAll('.chk').forEach(r => { r.querySelector('.ok').classList.toggle('on', items[r.dataset.k] === 'ok'); r.querySelector('.df').classList.toggle('on', items[r.dataset.k] === 'df'); });
+    const paint = () => box.querySelectorAll('.chk').forEach(r => { r.querySelector('.ok').classList.toggle('on', items[r.dataset.k] === 'ok'); r.querySelector('.df').classList.toggle('on', items[r.dataset.k] === 'df'); const sv = box.querySelector(`.ptSev[data-k="${r.dataset.k}"]`); if (sv) sv.classList.toggle('hidden', items[r.dataset.k] !== 'df'); });
     box.querySelectorAll('.chk button').forEach(b => b.onclick = () => { items[b.closest('.chk').dataset.k] = b.dataset.v; paint(); });
     $('ptAll').onclick = () => { PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => { if (items[gi + '.' + qi] !== 'df') items[gi + '.' + qi] = 'ok'; })); paint(); };
     $('ptClr').onclick = () => sig.clear(); $('ptCancel').onclick = closeSheet;
@@ -837,10 +886,12 @@ function openPretrip() {
       const defects = keys.some(k => items[k] === 'df'), note = $('ptNote').value.trim();
       if (defects && !note) { $('ptErr').textContent = 'Describe the defect.'; return; }
       if (sig.blank()) { $('ptErr').textContent = 'Sign the pre-trip.'; return; }
-      const list = []; PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => { if (items[gi + '.' + qi] === 'df') list.push(q); }));
+      const list = [], dItems = []; PRETRIP.forEach((g, gi) => g[1].forEach((q, qi) => { const k = gi + '.' + qi; if (items[k] === 'df') { list.push(q); const sv = box.querySelector(`.ptSev[data-k="${k}"]`); dItems.push({ k, item: q, severity: sv ? sv.value : 'minor', note }); } }));
+      box.querySelectorAll('.ptKnown').forEach(c => { if (c.checked) { const w = knownWOs.find(x => x.id === c.dataset.wo); if (w) { dItems.push({ item: w.itemName || w.defect, severity: w.severity, known: w.id }); list.push(w.defect + ' (known)'); } } });
+      if (dItems.some(x => x.severity === 'major' && !x.known) && !confirm('You marked a MAJOR defect. This unit is taken out of service and you cannot drive it. Save the pre-trip?')) return;
       $('ptSave').disabled = true; $('ptErr').textContent = 'Saving…';
       const fresh = await getPosition(); const now = Date.now();
-      shift.pretrip = { done: true, at: new Date(now).toISOString(), items, defects, defectNote: note, defectList: list, signature: sig.data(), place: (lastEvent() && lastEvent().place) || '', odo: shift.startOdo };
+      shift.pretrip = { done: true, at: new Date(now).toISOString(), items, defects: defects || dItems.length > 0, defectNote: note, defectList: list, defectItems: dItems, signature: sig.data(), place: (lastEvent() && lastEvent().place) || '', odo: shift.startOdo };
       // the pre-trip itself is 30 minutes on duty; stay on duty afterwards
       if (first && curStatus() !== 'ON' && curStatus() !== 'D') {
         const le = lastEvent(), t = Math.max(now - 30 * 60000, le ? tms(le.t) + 1000 : 0);
@@ -870,21 +921,24 @@ async function openTrips() {
   openSheet(`<h3>Trips from Dispatch</h3><p class="small">Loads with a Load ID for today (0:00–24:00) appear here. Tick the ones you hauled on this log.</p><div id="tpList" class="small">Loading…</div>
     <label>Add a trip ID by hand</label><div style="display:flex;gap:8px"><input id="tpMan" placeholder="e.g. KF-2026-1123-001"><button class="btn" id="tpAdd" style="min-width:80px">Add</button></div><div class="btnrow"><button class="btn" id="tpDone">Done</button></div>`, async box => {
     $('tpDone').onclick = () => { saveShiftLocal(); closeSheet(); renderShiftHome(); pushShift(); };
+    if (serverV14()) { const db = document.createElement('button'); db.className = 'btn btn-outline'; db.textContent = 'Drop at yard'; db.style.cssText = 'width:100%;margin-top:8px'; db.onclick = openYardDrop; $('tpDone').parentNode.parentNode.insertBefore(db, $('tpDone').parentNode); }
     $('tpAdd').onclick = () => { const v = $('tpMan').value.trim(); if (v && !shift.trips.some(t => t.loadId === v)) shift.trips.push({ loadId: v, customer: '', manual: true }); $('tpMan').value = ''; draw(); };
     let rows = [];
-    if (url) { try { const r = await fetch(url); const j = await r.json(); rows = (j.rows || []).filter(x => x.loadId); } catch (e) { rows = null; } }
+    if (serverV14()) { const r = await api(Object.assign({ action: 'myTrips' }, sAuth())); if (r.status === 'ok') { rows = (r.rows || []).filter(x => x.loadId); if (r.base) { ctx.base = r.base; LS.set('kfDrvCtx', ctx); } } else if (r.status === 'offline') rows = null; }
+    else if (url) { try { const r = await fetch(url); const j = await r.json(); rows = (j.rows || []).filter(x => x.loadId); } catch (e) { rows = null; } }
     const dayTag = new Date(); const tag = dayTag.getFullYear() + '-' + pad(dayTag.getMonth() + 1) + pad(dayTag.getDate());
     const shiftDays = (shift.days || []).map(d => d.date.slice(0, 4) + '-' + d.date.slice(5, 7) + d.date.slice(8, 10));
     function draw() {
       if (!$('tpList')) return;
       const chosen = new Set(shift.trips.map(t => t.loadId)); let html = '';
       if (rows === null || !url) html += '<div class="notice">Could not load Dispatch (offline or no link). You can still add trip IDs by hand.</div>';
-      const today = (rows || []).filter(x => shiftDays.some(d => String(x.loadId).includes(d)) || String(x.loadId).includes(tag) || String(x.status).toLowerCase() === 'started');
-      html += today.map(x => `<label class="li" style="display:flex;gap:10px;align-items:center;margin:0 0 8px"><input type="checkbox" style="width:24px;min-height:24px;margin:0" data-id="${esc(x.loadId)}" data-c="${esc(x.customerName || '')}" data-l="${esc(x.location || '')}" data-sp="${esc(x.species || '')}" ${chosen.has(x.loadId) ? 'checked' : ''}><span><b>${esc(x.loadId)}</b> · ${esc(x.customerName || '')}<br><span class="small">${esc(x.species || '')} · ${esc(x.location || '')} · ${esc(x.status || '')}</span></span></label>`).join('');
+      const mine = n => String(n || '').toLowerCase() === String(session.name || '').toLowerCase();
+      const today = (rows || []).filter(x => mine(x.driverName) || shiftDays.some(d => String(x.loadId).includes(d)) || String(x.loadId).includes(tag) || String(x.status).toLowerCase() === 'started').sort((a, b) => (mine(b.driverName) ? 1 : 0) - (mine(a.driverName) ? 1 : 0));
+      html += today.map(x => `<label class="li" style="display:flex;gap:10px;align-items:center;margin:0 0 8px"><input type="checkbox" style="width:24px;min-height:24px;margin:0" data-id="${esc(x.loadId)}" data-c="${esc(x.customerName || '')}" data-l="${esc(x.location || '')}" data-sp="${esc(x.species || '')}" data-geo="${esc(JSON.stringify({ pLat: x.pickupLat, pLon: x.pickupLon, cLat: x.placeLat, cLon: x.placeLon }))}" ${chosen.has(x.loadId) ? 'checked' : ''}><span><b>${esc(x.loadId)}</b> · ${esc(x.customerName || '')}${mine(x.driverName) ? ' <span class="tag ok">assigned to you</span>' : ''}<br><span class="small">${esc(x.species || '')} · ${esc(x.location || '')} · ${esc(x.status || '')}</span></span></label>`).join('');
       if (rows && !today.length) html += '<div class="small">No started loads for today in Dispatch.</div>';
       const manual = shift.trips.filter(t => t.manual); if (manual.length) html += '<div class="small" style="margin-top:8px">Added by hand:</div>' + manual.map(t => `<div class="li">${esc(t.loadId)} <button class="btn btn-sm btn-outline" data-rm="${esc(t.loadId)}" style="float:right">Remove</button></div>`).join('');
       $('tpList').innerHTML = html;
-      $('tpList').querySelectorAll('input[type=checkbox]').forEach(c => c.onchange = () => { if (c.checked) { if (!shift.trips.some(t => t.loadId === c.dataset.id)) shift.trips.push({ loadId: c.dataset.id, customer: c.dataset.c, location: c.dataset.l, species: c.dataset.sp }); } else shift.trips = shift.trips.filter(t => t.loadId !== c.dataset.id); saveShiftLocal(); });
+      $('tpList').querySelectorAll('input[type=checkbox]').forEach(c => c.onchange = () => { if (c.checked) { if (!shift.trips.some(t => t.loadId === c.dataset.id)) shift.trips.push({ loadId: c.dataset.id, customer: c.dataset.c, location: c.dataset.l, species: c.dataset.sp, geo: (() => { try { return JSON.parse(c.dataset.geo); } catch (e) { return null; } })(), stages: [] }); } else shift.trips = shift.trips.filter(t => t.loadId !== c.dataset.id); saveShiftLocal(); });
       $('tpList').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { shift.trips = shift.trips.filter(t => t.loadId !== b.dataset.rm); draw(); });
       saveShiftLocal();
     }
@@ -895,15 +949,38 @@ async function openTrips() {
 /* ---------- fuel ---------- */
 async function openFuel() {
   const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
-  const list = () => shift.fuel.map((f, i) => `<div class="li">${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.hm)}<br><span class="small">${esc(f.place || '')} ${esc(f.note || '')}</span> <button class="btn btn-sm btn-outline" data-rm="${i}" style="float:right">Remove</button></div>`).join('') || '<div class="small">No fuel entered yet.</div>';
-  openSheet(`<h3>Fuel</h3><div id="fuList">${list()}</div><div class="row2"><div><label>Litres</label><input id="fuL" type="number" inputmode="decimal"></div><div><label>Cost ($)</label><input id="fuC" type="number" inputmode="decimal"></div></div>
-    <label>Location</label><input id="fuP" value="${esc(place)}"><label>Note / receipt #</label><input id="fuN"><div class="small">Receipt photo upload is coming in the next release.</div><div class="err" id="fuE"></div>
+  const list = () => shift.fuel.map((f, i) => `<div class="li">${esc(f.litres)} L · $${esc(f.cost)}${f.gst != null && f.gst !== '' ? ' + GST $' + esc(f.gst) : ''} · ${esc(f.hm)}${f.pay ? ' · ' + esc(f.pay) : ''}${f.photo ? ' · receipt ✓' : f.photoQ ? ' · receipt waiting for signal' : ''}<br><span class="small">${esc(f.place || '')} ${esc(f.note || '')}</span> <button class="btn btn-sm btn-outline" data-rm="${i}" style="float:right">Remove</button></div>`).join('') || '<div class="small">No fuel entered yet.</div>';
+  openSheet(`<h3>Fuel</h3><div id="fuList">${list()}</div><div class="row2"><div><label>Litres</label><input id="fuL" type="number" inputmode="decimal"></div><div><label>Cost ($, before GST)</label><input id="fuC" type="number" inputmode="decimal"></div>
+    <div><label>GST ($)</label><input id="fuG" type="number" inputmode="decimal" placeholder="5% filled in"></div><div><label>Paid with</label><select id="fuPay"><option value="company card">Company card</option><option value="cash">Cash</option><option value="other">Other</option></select></div></div>
+    <label>Location</label><input id="fuP" value="${esc(place)}"><label>Note / receipt #</label><input id="fuN">
+    <label>Receipt photo</label><div style="display:flex;gap:8px;align-items:center"><button class="btn btn-outline" type="button" id="fuPh">Take photo</button><span class="small" id="fuPhS">none</span></div><div class="err" id="fuE"></div>
     <div class="btnrow"><button class="btn btn-outline" id="fuDone">Done</button><button class="btn" id="fuAdd">Add fuel</button></div>`, box => {
-    const bind = () => box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { shift.fuel.splice(+b.dataset.rm, 1); saveShiftLocal(); $('fuList').innerHTML = list(); bind(); });
+    let gstTyped = false, photo = '', photoData = '';
+    $('fuC').oninput = () => { if (!gstTyped) $('fuG').value = $('fuC').value ? (Math.round(+$('fuC').value * 5) / 100).toFixed(2) : ''; };
+    $('fuG').oninput = () => { gstTyped = true; };
+    $('fuPh').onclick = async () => { const d = await kfPhoto.pick(); if (!d) return; $('fuPhS').textContent = 'uploading…'; try { photo = await kfPhoto.upload(d, 'Fuel ' + shift.unit + ' ' + dkey(new Date())); photoData = ''; $('fuPhS').textContent = 'attached'; } catch (e) { photo = ''; photoData = d; $('fuPhS').textContent = 'kept on the phone, sent when there is signal'; } };
+    const bind = () => box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { if (!confirm('Remove this fuel entry?')) return; shift.fuel.splice(+b.dataset.rm, 1); saveShiftLocal(); $('fuList').innerHTML = list(); bind(); });
     bind(); $('fuDone').onclick = () => { closeSheet(); renderShiftHome(); pushShift(); };
-    $('fuAdd').onclick = () => { const l = +$('fuL').value, c = +$('fuC').value; if (!(l > 0)) { $('fuE').textContent = 'Enter the litres.'; return; } shift.fuel.push({ litres: l, cost: c || 0, place: $('fuP').value.trim(), note: $('fuN').value.trim(), hm: hm(new Date()), at: new Date().toISOString() }); saveShiftLocal(); $('fuL').value = $('fuC').value = $('fuN').value = ''; $('fuE').textContent = ''; $('fuList').innerHTML = list(); bind(); };
+    $('fuAdd').onclick = () => {
+      const l = +$('fuL').value, c = +$('fuC').value; if (!(l > 0)) { $('fuE').textContent = 'Enter the litres.'; return; }
+      const f = { id: newId(), litres: l, cost: c || 0, gst: $('fuG').value === '' ? r2((c || 0) * 0.05) : +$('fuG').value, pay: $('fuPay').value, photo, unitId: shift.unitId || '', place: $('fuP').value.trim(), note: $('fuN').value.trim(), hm: hm(new Date()), at: new Date().toISOString() };
+      if (photoData) { f.photoQ = 1; const q = LS.get('kfDrvPhotoQ', []); q.push({ shiftId: shift.id, fuelId: f.id, data: photoData }); try { LS.set('kfDrvPhotoQ', q.slice(-4)); } catch (e) {} }
+      shift.fuel.push(f); saveShiftLocal(); $('fuL').value = $('fuC').value = $('fuG').value = $('fuN').value = ''; gstTyped = false; photo = photoData = ''; $('fuPhS').textContent = 'none'; $('fuE').textContent = ''; $('fuList').innerHTML = list(); bind();
+    };
   });
 }
+// receipt photos taken without signal: uploaded later, then the shift is saved with the link
+async function flushPhotos() {
+  const q = LS.get('kfDrvPhotoQ', []); if (!q.length || navigator.onLine === false || !window.kfPhoto) return;
+  const left = [];
+  for (const x of q) {
+    try { const url = await kfPhoto.upload(x.data, 'Fuel receipt'); [shift, yard].forEach(sh => { if (sh && sh.id === x.shiftId) { const f = (sh.fuel || []).find(y => y.id === x.fuelId); if (f) { f.photo = url; delete f.photoQ; } } }); }
+    catch (e) { left.push(x); }
+  }
+  LS.set('kfDrvPhotoQ', left); saveShiftLocal(); saveYard();
+  if (shift) pushShift(); if (yard) pushYard();
+}
+const fuelLper100 = sh => { const km = (+sh.endOdo || 0) - (+sh.startOdo || 0), l = (sh.fuel || []).reduce((t, f) => t + (+f.litres || 0), 0); return km > 0 && l > 0 ? Math.round(l / km * 1000) / 10 : null; };
 
 /* ---------- close + submit ---------- */
 function openClose() {
@@ -912,25 +989,28 @@ function openClose() {
   openSheet(`<h3>Close shift &amp; submit</h3><div class="small">Driving ${fmtH(shift.drivingHrs)} · On duty ${fmtH(shift.onDutyHrs)} · Starting odometer ${esc(shift.startOdo)} km</div>
     <div class="notice" style="margin-top:8px">Check your duty status times first. <button class="btn btn-sm btn-outline" id="clEdit">Edit duty status</button></div>
     <label>Ending odometer (km) — required</label><input id="clOdo" type="number" inputmode="decimal"><div class="small" id="clKm"></div>
+    ${shift.startHours !== '' && shift.startHours != null ? `<label>Ending engine hours — required</label><input id="clHrs" type="number" inputmode="decimal" step="0.1"><div class="small">Started at ${esc(shift.startHours)} h.</div>` : ''}
     <label>Closing remarks — required</label><textarea id="clRem" placeholder="Anything the office should know (delays, issues, vehicle notes). Write 'none' if nothing."></textarea>
     <label>Driver signature — required</label><canvas class="sig" id="clSig"></canvas><div class="btnrow" style="justify-content:flex-start;margin-top:4px"><button class="btn btn-sm btn-outline" id="clClr">Clear signature</button></div>
     <div class="small" style="margin-top:8px">I certify these entries are true and correct. Submitting sets you Off Duty, sends the log sheet (graph + pre-trip) to the office and logs you out.</div>
     <div class="err" id="clErr"></div><div class="btnrow"><button class="btn btn-outline" id="clNo">Back</button><button class="btn" id="clGo">Submit &amp; log out</button></div>`, box => {
     const sig = makeSig($('clSig')); $('clClr').onclick = () => sig.clear(); $('clNo').onclick = closeSheet;
     $('clEdit').onclick = () => openEventsEditor(shift, 'driver', afterDriverEditQuiet, openClose);
-    $('clOdo').oninput = () => { const v = +$('clOdo').value; $('clKm').textContent = v ? 'Distance this shift: ' + Math.round(v - shift.startOdo) + ' km' : ''; };
+    $('clOdo').oninput = () => { const v = +$('clOdo').value, l = (shift.fuel || []).reduce((t, f) => t + (+f.litres || 0), 0), km = v - shift.startOdo; $('clKm').textContent = v ? 'Distance this shift: ' + Math.round(km) + ' km' + (l > 0 && km > 0 ? ' · fuel ' + (Math.round(l / km * 1000) / 10) + ' L/100 km' : '') : ''; };
     $('clGo').onclick = async () => {
       const odo = $('clOdo').value, rem = $('clRem').value.trim();
       if (odo === '' || isNaN(+odo)) { $('clErr').textContent = 'Enter the ending odometer.'; return; }
       if (+odo < +shift.startOdo) { $('clErr').textContent = 'Ending odometer is lower than the starting odometer (' + shift.startOdo + ').'; return; }
       if (+odo - +shift.startOdo > 2500 && !confirm('That is ' + Math.round(+odo - shift.startOdo) + ' km this shift. Is the ending odometer right?')) return;
+      let endH = '';
+      if ($('clHrs')) { endH = $('clHrs').value; if (endH === '' || isNaN(+endH)) { $('clErr').textContent = 'Enter the ending engine hours.'; return; } if (+endH < +shift.startHours) { $('clErr').textContent = 'Ending hours are lower than the starting hours (' + shift.startHours + ').'; return; } if (+endH - +shift.startHours > 24 && !confirm((+endH - +shift.startHours) + ' engine hours this shift. Is that right?')) return; endH = +endH; }
       if (!rem) { $('clErr').textContent = 'Enter closing remarks (write "none" if nothing).'; return; }
       if (sig.blank()) { $('clErr').textContent = 'Sign the log.'; return; }
       $('clGo').disabled = true; $('clErr').textContent = 'Submitting…';
       const pos = await getPosition(); const place = pos ? await placeFor(pos.lat, pos.lon) : '';
       const now = new Date();
       if (curStatus() !== 'OFF') addEvent({ t: now.toISOString(), s: 'OFF', label: 'Off Duty (shift closed)', lat: pos ? pos.lat : null, lon: pos ? pos.lon : null, place, note: '' });
-      shift.endOdo = +odo; shift.remarks = rem; shift.signature = sig.data(); shift.closedAt = now.toISOString(); stamp(shift, now.getTime());
+      shift.endOdo = +odo; if (endH !== '') { shift.endHours = endH; const lh = LS.get('kfDrvLastHours', {}); lh[shift.unit] = endH; LS.set('kfDrvLastHours', lh); } shift.remarks = rem; shift.signature = sig.data(); shift.closedAt = now.toISOString(); stamp(shift, now.getTime());
       shift.submittedPending = true; saveShiftLocal(); closeSheet(); keepAwake();
       await submitNow();
     };
@@ -1158,21 +1238,23 @@ async function adminGate(container, title, then) {
     if (r.status === 'ok') return then(); SS.del('kfDrvAdmin'); $('adErr').textContent = r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal.' : 'Wrong password.';
   };
 }
-async function loadCfg() { const r = await adminApi('adminGetConfig'); if (r.status === 'ok') { admin.cfg = r.config; admin.drivers = r.drivers; } return r; }
+async function loadCfg() { const r = await adminApi('adminGetConfig'); if (r.status === 'ok') { admin.cfg = r.config; admin.drivers = r.drivers; admin.people = r.people || []; if (r.sv) { try { localStorage.setItem('kfServerV', String(r.sv)); } catch (e) {} } if (r.config && r.config.allUnits && ctx) { ctx.allUnits = r.config.allUnits; } else if (r.config && r.config.allUnits) { ctx = Object.assign({}, ctx || {}, { allUnits: r.config.allUnits }); } } return r; }
+function rateOf(d, role) { const p = (admin.people || []).find(x => String(x.id) === String(d.id)); if (!p) return ''; let r = {}; try { r = JSON.parse(p.rates || '{}'); } catch (e) {} return r[role] != null ? r[role] : (p.role === role ? p.hourlyRate : ''); }
 const needV2 = what => `<div class="notice">${what} needs the updated Drivers script. Open it at script.google.com, paste the new drivers-apps-script.gs, then Deploy → Manage deployments → pencil → Version: New version → Deploy. The link stays the same.</div>`;
 
 function renderAdmin() {
   const v = $('view-admin');
   adminGate(v, 'Admin log in', async () => {
     const r = await loadCfg(); if (r.status !== 'ok') { v.innerHTML = '<div class="card"><div class="notice bad">Could not load admin data.</div></div>'; return; }
-    v.innerHTML = `${(r.v || serverV) < 3 ? needV2('The rule choices, map, shift editing and village names') : ''}<div class="seg" id="adSeg">${[['logs', 'Shifts'], ['map', 'Map'], ['units', 'Units'], ['exp', 'Expenses']].map(x => `<button data-s="${x[0]}" class="${admin.sub === x[0] ? 'on' : ''}">${x[1]}</button>`).join('')}</div><div id="adBody"></div><div class="btnrow noprint" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="adLock">Lock admin</button></div>`;
+    v.innerHTML = `${(r.v || serverV) < 3 ? needV2('The rule choices, map, shift editing and village names') : ''}<div class="seg" id="adSeg">${[['logs', 'Shifts'], ['defects', 'Defects'], ['map', 'Map'], ['units', 'Units'], ['exp', 'Expenses']].filter(x => x[0] !== 'defects' || serverV14()).map(x => `<button data-s="${x[0]}" class="${admin.sub === x[0] ? 'on' : ''}">${x[1]}</button>`).join('')}</div><div id="adBody"></div><div class="btnrow noprint" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="adLock">Lock admin</button></div>`;
     v.querySelectorAll('#adSeg button').forEach(b => b.onclick = () => { admin.sub = b.dataset.s; renderAdmin(); });
     $('adLock').onclick = () => { SS.del('kfDrvAdmin'); if (window.kfAdminToken && kfAdminToken()) { kfStopAdmin(); return; } renderAdmin(); };
     const body = $('adBody');
     if (admin.sub === 'logs') renderShiftList(body);
     else if (admin.sub === 'map') renderMap(body);
     else if (admin.sub === 'units') renderUnits(body);
-    else body.innerHTML = '<div class="card"><b>Driver expense reports</b><p class="small">Expense submissions from drivers (with receipt photos) arrive in the next release. For now fuel entries are in each driver log, and each driver\'s expense notes are kept in Settings → Drivers.</p></div>';
+    else if (admin.sub === 'defects') renderDefects(body);
+    else body.innerHTML = '<div class="card"><b>Driver expenses</b><p class="small">Fuel entered by drivers (with GST, payment method and receipt photo) goes to the company costs by itself' + (serverV14() ? ' and shows on the Statistics page' : '') + '. Each driver\'s expense notes are kept in Settings → Drivers.</p></div>';
   });
 }
 async function renderShiftList(body) {
@@ -1180,8 +1262,9 @@ async function renderShiftList(body) {
   $('slDrv').value = admin.filter || ''; $('slDrv').onchange = () => { admin.filter = $('slDrv').value; renderShiftList(body); };
   const l = await adminApi('adminListShifts', { limit: 120, driverId: admin.filter || undefined });
   if (!$('slList')) return;
-  $('slList').innerHTML = (l.shifts || []).map(s => `<button class="act" data-id="${esc(s.shiftId)}"><span>${esc(s.driverName)} · ${esc(s.date)}<br><span class="small">${esc(s.unit)} · ${esc(s.startOdo)}→${esc(s.endOdo === '' ? '…' : s.endOdo)} km · drive ${esc(s.drivingHrs)} h · on duty ${esc(s.onDutyHrs)} h${s.edited ? ' · edited by office' : ''}</span></span><span class="tag ${s.status === 'Submitted' ? 'ok' : 'todo'}">${esc(s.status)}</span></button>`).join('') || '<div class="card small">No shifts yet.</div>';
+  $('slList').innerHTML = (l.shifts || []).map(s => s.type === 'yard' ? `<button class="act" data-yard="${esc(s.shiftId)}"><span>${esc(s.driverName)} · ${esc(s.date)} · <b>Yard work</b><br><span class="small">${esc(s.yard || '')} · ${esc(s.paidHrs)} h paid${s.fuelL ? ' · fuel ' + esc(s.fuelL) + ' L' : ''}</span></span><span class="tag ${s.status === 'Submitted' ? 'ok' : 'todo'}">${esc(s.status)}</span></button>` : `<button class="act" data-id="${esc(s.shiftId)}"><span>${esc(s.driverName)} · ${esc(s.date)}<br><span class="small">${esc(s.unit)} · ${esc(s.startOdo)}→${esc(s.endOdo === '' ? '…' : s.endOdo)} km${s.startHours !== '' && s.startHours != null ? ' · ' + esc(s.startHours) + '→' + esc(s.endHours == null || s.endHours === '' ? '…' : s.endHours) + ' h' : ''}${s.paidHrs != null ? ' · ' + esc(s.paidHrs) + ' h paid' : ''} · drive ${esc(s.drivingHrs)} h · on duty ${esc(s.onDutyHrs)} h${s.fuelL ? ' · fuel ' + esc(s.fuelL) + ' L $' + esc(r2(s.fuelCost)) : ''}${s.edited ? ' · edited by office' : ''}</span></span><span class="tag ${s.status === 'Submitted' ? 'ok' : 'todo'}">${esc(s.status)}</span></button>`).join('') || '<div class="card small">No shifts yet.</div>';
   $('slList').querySelectorAll('[data-id]').forEach(b => b.onclick = () => openAdminShift(b.dataset.id, body));
+  $('slList').querySelectorAll('[data-yard]').forEach(b => b.onclick = () => openAdminYard(b.dataset.yard));
 }
 async function openAdminShift(id, body) {
   openSheet('<h3>Loading…</h3>');
@@ -1191,6 +1274,7 @@ async function openAdminShift(id, body) {
   const extra = { company: admin.cfg.company, licence: drv.licenseNo || '', driverName: sh.driverName };
   const end = sh.closedAt ? tms(sh.closedAt) : Date.now(); const keys = (stampCopy(sh, end).days || []).map(d => d.date); if (!keys.length) keys.push(sh.date);
   openSheet(`<h3>${esc(sh.driverName)} · ${esc(sh.date)}</h3><div class="small">${esc(g.row.status)} ${g.row.submittedAt ? '· submitted ' + esc(new Date(g.row.submittedAt).toLocaleString()) : ''}${g.row.editedAt ? ' · edited by office ' + esc(new Date(g.row.editedAt).toLocaleString()) : ''}${drv.phone ? ` · <a href="tel:${esc(drv.phone)}">${esc(drv.phone)}</a>` : ''}</div>
+    ${adminSummaryHtml(sh)}
     <div class="paperwrap">${keys.map(k => dayPageHtml(buildDay(k, [sh], end, extra))).join('')}</div>
     ${(sh.edits || []).length ? `<details><summary class="small"><b>Edit history (${sh.edits.length})</b></summary><table class="ev">${sh.edits.map(e => `<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(e.by)}</td><td>${esc(e.action)}</td><td>${e.before ? esc((e.before.t ? hm(new Date(e.before.t)) + ' ' : '') + (SHORT[e.before.s] || JSON.stringify(e.before))) : ''} → ${e.after ? esc((e.after.t ? hm(new Date(e.after.t)) + ' ' : '') + (SHORT[e.after.s] || JSON.stringify(e.after))) : 'deleted'}</td><td>${esc(e.reason)}</td></tr>`).join('')}</table></details>` : ''}
     <div class="btnrow"><button class="btn btn-outline" id="asDel" style="margin-right:auto;color:var(--bad)">Delete shift</button><button class="btn btn-outline" id="asPr">Print / share</button><button class="btn btn-outline" id="asEd">Edit shift</button><button class="btn" id="asCl">Close</button></div>`, () => {
@@ -1282,10 +1366,13 @@ async function renderMap(body) {
 
 function renderUnits(body) {
   const units = admin.cfg.units;
-  body.innerHTML = `<div id="unList">${units.map((u, i) => `<div class="li"><div class="row2"><div><label>Unit name</label><input data-i="${i}" data-f="name" value="${esc(u.name)}"></div><div><label>Truck plate</label><input data-i="${i}" data-f="plate" value="${esc(u.plate)}"></div></div><div class="row2"><div><label>Trailer plate A</label><input data-i="${i}" data-f="trailerA" value="${esc(u.trailerA)}"></div><div><label>Trailer plate B</label><input data-i="${i}" data-f="trailerB" value="${esc(u.trailerB)}"></div></div><button class="btn btn-sm btn-outline" data-del="${i}" style="margin-top:6px">Remove unit</button></div>`).join('') || '<div class="small">No units yet.</div>'}</div>
+  const oos = serverV14() ? unitsAll().filter(u => u.status === 'Out of service' || (u.openWOs || []).some(w => w.severity === 'major')) : [];
+  body.innerHTML = (serverV14() ? `<div class="notice">Trucks, trailers and equipment are now kept on the <a href="trucks.html">Trucks page</a>. This list is still saved there too.</div>` +
+    oos.map(u => `<div class="li"><b>${esc(u.name)}</b> · <span style="color:var(--bad)">${esc(unitBlock(Object.assign({}, u, { override: false })))}</span><br><button class="btn btn-sm ${u.override ? 'btn-outline' : ''}" data-ovr="${esc(u.id)}" data-on="${u.override ? '0' : '1'}">${u.override ? 'Stop drivers using it' : 'Let drivers use it anyway (until turned off)'}</button></div>`).join('') : '') + `<div id="unList">${units.map((u, i) => `<div class="li"><div class="row2"><div><label>Unit name</label><input data-i="${i}" data-f="name" value="${esc(u.name)}"></div><div><label>Truck plate</label><input data-i="${i}" data-f="plate" value="${esc(u.plate)}"></div></div><div class="row2"><div><label>Trailer plate A</label><input data-i="${i}" data-f="trailerA" value="${esc(u.trailerA)}"></div><div><label>Trailer plate B</label><input data-i="${i}" data-f="trailerB" value="${esc(u.trailerB)}"></div></div><button class="btn btn-sm btn-outline" data-del="${i}" style="margin-top:6px">Remove unit</button></div>`).join('') || '<div class="small">No units yet.</div>'}</div>
     <div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="unAdd">Add unit</button><button class="btn" id="unSave">Save units</button></div><div class="err" id="unMsg"></div>`;
   body.querySelectorAll('[data-f]').forEach(inp => inp.oninput = () => { units[+inp.dataset.i][inp.dataset.f] = inp.value; });
   body.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this unit?')) { units.splice(+b.dataset.del, 1); renderUnits(body); } });
+  body.querySelectorAll('[data-ovr]').forEach(b => b.onclick = async () => { const on = b.dataset.on === '1'; if (!confirm(on ? 'Let drivers start shifts on this unit until you turn it off?' : 'Stop drivers using this unit?')) return; const r = await kfCo.post('trucks', { action: 'setOverride', unitId: b.dataset.ovr, on }); if (r.status !== 'ok') return alert(r.message || 'Not saved.'); const u = unitsAll().find(x => String(x.id) === b.dataset.ovr); if (u) u.override = on; renderUnits(body); });
   $('unAdd').onclick = () => { units.push({ id: '', name: '', plate: '', trailerA: '', trailerB: '' }); renderUnits(body); };
   $('unSave').onclick = async () => { const clean = units.filter(u => u.name.trim()); const r = await adminApi('adminSaveConfig', { config: { units: clean } }); $('unMsg').textContent = r.status === 'ok' ? 'Saved.' : (r.message || 'Could not save.'); if (r.status === 'ok') { admin.cfg = r.config; $('unMsg').style.color = 'var(--good)'; } else $('unMsg').style.color = 'var(--bad)'; };
 }
@@ -1306,7 +1393,7 @@ function renderSettings() {
       <div class="row2"><div><label>Moving faster than (km/h) → Driving</label><input id="ruKph" type="number" value="${esc(ru.driveKph)}"></div><div><label>Stopped (min) → On Duty</label><input id="ruSM" type="number" value="${esc(ru.stillMinutes)}"></div>
       <div><label>Stopped (min) → Off Duty</label><input id="ruOM" type="number" value="${esc(ru.offMinutes)}"></div><div><label>"Stopped" means within (m)</label><input id="ruSD" type="number" value="${esc(ru.stillMeters)}"></div></div>
       <div class="btnrow" style="justify-content:flex-start"><button class="btn" id="coSave">Save company &amp; rules</button></div><div class="err" id="coMsg"></div></div>
-    <div class="card"><h3 style="margin-top:0">Drivers</h3><div id="drvList"></div><div class="btnrow" style="justify-content:flex-start"><button class="btn" id="drvNew">Add driver</button></div></div>
+    <div class="card"><h3 style="margin-top:0">Drivers, mechanic and yard</h3><div id="drvList"></div><div class="btnrow" style="justify-content:flex-start"><button class="btn" id="drvNew">Add person</button></div></div>
     <div class="card"><h3 style="margin-top:0">This phone</h3><label>Drivers script link</label><input id="urlSet" value="${esc(URL_)}"><div class="small">Company Sync (Quote page) shares this link with every device.</div><div class="btnrow" style="justify-content:flex-start"><button class="btn btn-outline" id="urlUpd">Update link</button><button class="btn btn-outline" id="plTest">Test village names</button>${/svc=drivers/.test(URL_) ? '' : '<button class="btn btn-outline" id="pwChg">Change admin password</button>'}</div><div class="err" id="stMsg"></div><div class="small">Drivers script version: ${esc(sv)}</div></div>`;
     $('ruDef').value = RULE_IDS.includes(ru.defaultSet) ? ru.defaultSet : 'ab';
     $('coSave').onclick = async () => {
@@ -1315,7 +1402,7 @@ function renderSettings() {
       $('coMsg').textContent = r.status === 'ok' ? 'Saved. Drivers get the new rules the next time they log in.' : (r.message || 'Could not save.'); $('coMsg').style.color = r.status === 'ok' ? 'var(--good)' : 'var(--bad)'; if (r.status === 'ok') admin.cfg = r.config;
     };
     const drawDrivers = () => {
-      $('drvList').innerHTML = admin.drivers.map(d => `<button class="act" data-id="${esc(d.id)}"><span>${esc(d.name)}<br><span class="small">${d.phone ? esc(d.phone) + ' · ' : ''}${d.licenseNo ? 'Licence ' + esc(d.licenseNo) : 'no licence # yet'}${d.licenseExpiry ? ' · exp ' + esc(d.licenseExpiry) : ''}</span></span><span class="tag ${d.active ? 'ok' : 'bad'}">${d.active ? 'Active' : 'Inactive'}</span></button>`).join('') || '<div class="small">No drivers yet.</div>';
+      $('drvList').innerHTML = admin.drivers.map(d => `<button class="act" data-id="${esc(d.id)}"><span>${esc(d.name)}${(d.roles || []).filter(x => x !== 'driver').map(x => ' <span class="tag">' + esc(x) + '</span>').join('')}<br><span class="small">${d.phone ? esc(d.phone) + ' · ' : ''}${d.licenseNo ? 'Licence ' + esc(d.licenseNo) : 'no licence # yet'}${d.licenseExpiry ? ' · exp ' + esc(d.licenseExpiry) : ''}</span></span><span class="tag ${d.active ? 'ok' : 'bad'}">${d.active ? 'Active' : 'Inactive'}</span></button>`).join('') || '<div class="small">No drivers yet.</div>';
       $('drvList').querySelectorAll('[data-id]').forEach(b => b.onclick = () => driverForm(admin.drivers.find(x => String(x.id) === b.dataset.id)));
     };
     drawDrivers(); $('drvNew').onclick = () => driverForm(null);
@@ -1325,11 +1412,21 @@ function renderSettings() {
         <div class="row2"><div><label>Licence number</label><input id="dfLic" value="${esc(d.licenseNo)}"></div><div><label>Licence expiry</label><input id="dfExp" type="date" value="${esc(d.licenseExpiry)}"></div></div>
         <label>Licence photo link (Drive link)</label><input id="dfLink" value="${esc(d.licenseLink)}" placeholder="https://drive.google.com/…"><div class="small">Photo upload straight from the phone comes in the next release; paste a Drive link for now.</div>
         <label>Expense notes</label><textarea id="dfNotes">${esc(d.expenseNotes)}</textarea><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="dfAct" style="width:24px;min-height:24px;margin:0" ${d.active !== false ? 'checked' : ''}> Active (can log in)</label>
+        ${serverV14() ? `<h3>Roles and pay (office only)</h3><div class="small">A person can have more than one role. Paid hours = shift start to shift end. Overtime and employer cost are set in Quote → Company settings.</div>
+        ${[['driver', 'Driver'], ['mechanic', 'Mechanic (Trucks shop view)'], ['yard', 'Yard (time clock)']].map(x => `<div class="row2" style="align-items:end"><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" class="dfRole" value="${x[0]}" style="width:24px;min-height:24px;margin:0" ${(d.roles || ['driver']).includes(x[0]) ? 'checked' : ''}> ${x[1]}</label><div><label>$ / hour</label><input class="dfRate" data-r="${x[0]}" type="number" inputmode="decimal" step="0.01" value="${esc(rateOf(d, x[0]))}"></div></div>`).join('')}` : ''}
         <div class="err" id="dfErr"></div><div class="btnrow"><button class="btn btn-outline" id="dfNo">Cancel</button><button class="btn" id="dfOk">Save driver</button></div>`, () => {
         $('dfNo').onclick = closeSheet;
         $('dfOk').onclick = async () => {
           const r = await adminApi('adminSaveDriver', { driver: { id: d.id, name: $('dfName').value, phone: $('dfPhone').value.trim(), passcode: $('dfPass').value, licenseNo: $('dfLic').value, licenseExpiry: $('dfExp').value, licenseLink: $('dfLink').value, expenseNotes: $('dfNotes').value, active: $('dfAct').checked } });
-          if (r.status === 'ok') { admin.drivers = r.drivers; closeSheet(); drawDrivers(); } else $('dfErr').textContent = r.message || 'Could not save.';
+          if (r.status === 'ok') {
+            admin.drivers = r.drivers;
+            if (serverV14()) {
+              const me = r.drivers.find(x => x.id === d.id) || r.drivers.find(x => x.name.toLowerCase() === $('dfName').value.trim().toLowerCase());
+              const roles = [...document.querySelectorAll('.dfRole:checked')].map(c => c.value), rates = {}; document.querySelectorAll('.dfRate').forEach(i => { if (i.value !== '') rates[i.dataset.r] = +i.value; });
+              if (me) { const r2_ = await adminApi('adminSavePerson', { person: { id: me.id, roles, rates } }); if (r2_.status === 'ok') { admin.drivers = r2_.drivers; admin.people = r2_.people; } else { $('dfErr').textContent = 'Driver saved, but roles/pay were not: ' + (r2_.message || r2_.status); return; } }
+            }
+            closeSheet(); drawDrivers();
+          } else $('dfErr').textContent = r.message || 'Could not save.';
         };
       });
     }
@@ -1359,14 +1456,304 @@ window.kfBack = function () {
 /* ---------- the admin shift list refreshes by itself ---------- */
 if (window.kfLive) kfLive(() => { const b = $('adBody'); if (tab === 'admin' && admin.sub === 'logs' && b && $('slList') && !$('sheetOv').classList.contains('show')) return renderShiftList(b); }, { ms: 30000 });
 
+/* ============================== v14: trip stages, drop at yard, yard time clock, admin extras ============================== */
+function serverV14() { return +(localStorage.getItem('kfServerV') || 0) >= 14 || !!(ctx && +ctx.sv >= 14); }
+
+/* ---- trip stages. Six stages per trip; stamped automatically from GPS (300 m around base, pickup, customer) or by hand.
+   Leg rules (how loads are priced): loaded = pickup -> customer, return = the empty drive right after unloading
+   (back to base, or on to the next pickup); positioning = base -> first pickup of a run (belongs to the run). ---- */
+const STAGES = [['leave', 'Leave base'], ['pickup', 'At pickup'], ['loaded', 'Loaded / leaving'], ['customer', 'At customer'], ['unloaded', 'Unloaded'], ['back', 'Back at base / next pickup']];
+const stIdx = k => STAGES.findIndex(x => x[0] === k);
+const stageOf = (t, k) => (t.stages || []).find(g => g.k === k);
+const nextStage = t => STAGES.find(x => !stageOf(t, x[0]));
+const activeTrip = () => shift && (shift.trips || []).find(t => !stageOf(t, 'back'));
+const FENCE = 300;
+function geoFor(t, k) {
+  const b = ctx && ctx.base, g = t.geo || {};
+  if (k === 'leave' || k === 'back') return b && b.lat != null && b.lat !== '' ? { lat: +b.lat, lon: +b.lon } : null;
+  if (k === 'pickup' || k === 'loaded') return g.pLat !== '' && g.pLat != null ? { lat: +g.pLat, lon: +g.pLon } : null;
+  return g.cLat !== '' && g.cLat != null ? { lat: +g.cLat, lon: +g.cLon } : null;
+}
+const inFence = (fix, c) => !!(c && fix && hav(fix.lat, fix.lon, c.lat, c.lon) <= FENCE);
+// GPS trail of this shift kept on the phone (every 30 s), for filling missed stages and leg km
+function trailAdd(fix) {
+  if (!shift || !fix || fix.lat == null) return; const tr = LS.get('kfDrvTrail', []), last = tr[tr.length - 1], now = Date.now();
+  if (last && now - last.t < 30000) return; tr.push({ t: now, la: +fix.lat.toFixed(5), lo: +fix.lon.toFixed(5) }); LS.set('kfDrvTrail', tr.slice(-3000));
+}
+function trailKm(a, b) { let km = 0, prev = null; LS.get('kfDrvTrail', []).forEach(p => { if (p.t < a || p.t > b) return; if (prev) km += hav(prev.la, prev.lo, p.la, p.lo) / 1000; prev = p; }); return Math.round(km * 10) / 10; }
+function stampStage(t, k, o) {
+  o = o || {}; t.stages = t.stages || [];
+  const g = { k, t: o.t || new Date().toISOString() }, pos = o.noPos ? null : (o.pos || lastPos);
+  if (pos && pos.lat != null) { g.la = +(+pos.lat).toFixed(4); g.lo = +(+pos.lon).toFixed(4); }
+  if (o.odo !== undefined && o.odo !== '') g.odo = +o.odo; if (o.auto) g.a = 1; if (o.est) g.e = 1; if (o.edited) g.ed = 1;
+  t.stages = t.stages.filter(x => x.k !== k).concat([g]).sort((a, b) => stIdx(a.k) - stIdx(b.k));
+  fillMissing(t); t.legs = legsOf(t); saveShiftLocal();
+  return g;
+}
+// stages that were missed are filled from the GPS trail (or halfway between their neighbours) and marked "estimated"
+function fillMissing(t) {
+  const last = Math.max(...(t.stages || []).map(g => stIdx(g.k)), -1), tr = LS.get('kfDrvTrail', []);
+  for (let i = 0; i < last; i++) {
+    const k = STAGES[i][0]; if (stageOf(t, k)) continue;
+    const before = (t.stages || []).filter(g => stIdx(g.k) < i).pop(), after = (t.stages || []).find(g => stIdx(g.k) > i);
+    const a = before ? tms(before.t) : tms(shift.startedAt), b = after ? tms(after.t) : Date.now(), c = geoFor(t, k);
+    let at = null;
+    if (c) { const pts = tr.filter(p => p.t >= a && p.t <= b && hav(p.la, p.lo, c.lat, c.lon) <= FENCE); if (pts.length) at = (k === 'pickup' || k === 'customer' || k === 'back') ? pts[0].t : pts[pts.length - 1].t; }
+    if (at == null) at = Math.round((a + b) / 2);
+    t.stages.push({ k, t: new Date(at).toISOString(), e: 1 });
+  }
+  t.stages.sort((x, y) => stIdx(x.k) - stIdx(y.k));
+}
+function legsOf(t) {
+  const T = k => { const g = stageOf(t, k); return g ? tms(g.t) : 0; }, O = k => { const g = stageOf(t, k); return g && g.odo != null ? +g.odo : null; };
+  const h = (a, b) => (T(a) && T(b) && T(b) > T(a)) ? Math.round((T(b) - T(a)) / 36000) / 100 : null;
+  const km = (a, b) => (O(a) != null && O(b) != null && O(b) >= O(a)) ? O(b) - O(a) : (T(a) && T(b) ? trailKm(T(a), T(b)) : null);
+  return { chain: !!t.chain, posH: t.chain ? 0 : h('leave', 'pickup'), posKm: t.chain ? 0 : km('leave', 'pickup'), waitPickupH: h('pickup', 'loaded'), loadedH: h('loaded', 'customer'), loadedKm: km('loaded', 'customer'),
+    waitCustH: h('customer', 'unloaded'), returnH: h('unloaded', 'back'), returnKm: km('unloaded', 'back'), backTo: (stageOf(t, 'back') || {}).to || '' };
+}
+// automatic stamping from GPS
+function tripAuto(fix) {
+  if (!shift || shift.submittedPending || !fix || fix.lat == null || (fix.acc && fix.acc > 150)) return;
+  const t = activeTrip(); if (!t) return;
+  const nx = nextStage(t); if (!nx) return;
+  const was = t.f || {}, now = { b: inFence(fix, geoFor(t, 'leave')), p: inFence(fix, geoFor(t, 'pickup')), c: inFence(fix, geoFor(t, 'customer')) };
+  let did = null;
+  const auto = k => { did = stampStage(t, k, { auto: 1, pos: fix }); };
+  if (nx[0] === 'leave' && was.b && !now.b) auto('leave');
+  else if (nx[0] === 'pickup' && now.p && !was.p) auto('pickup');
+  else if (nx[0] === 'loaded' && was.p && !now.p) auto('loaded');
+  else if (nx[0] === 'customer' && now.c && !was.c) auto('customer');
+  else if (nx[0] === 'unloaded' && was.c && !now.c) auto('unloaded');
+  else if (nx[0] === 'back') {
+    if (now.b && !was.b) { auto('back'); stageOf(t, 'back').to = 'base'; }
+    else {
+      const nt = (shift.trips || []).find(x => x !== t && !(x.stages || []).length), c2 = nt && geoFor(nt, 'pickup');
+      if (nt && inFence(fix, c2)) {      // straight on to the next load: the return ends at the next pickup
+        auto('back'); stageOf(t, 'back').to = 'pickup';
+        nt.chain = 1; const un = stageOf(t, 'unloaded'); stampStage(nt, 'leave', { t: un ? un.t : new Date().toISOString(), auto: 1, noPos: true }); stampStage(nt, 'pickup', { auto: 1, pos: fix }); nt.f = { b: false, p: true, c: false };
+      }
+    }
+  }
+  t.f = now; saveShiftLocal();
+  if (did) { t.legs = legsOf(t); pushShift(); toast(`Auto: <b>${esc(STAGES[stIdx(did.k)][1])}</b> ${esc(hm(new Date(did.t)))} · ${esc(t.loadId)}`, [{ t: 'Fix', ghost: true, fn: () => openStages(t) }, { t: 'OK' }]); renderIfHome(); }
+}
+function tripCardHtml() {
+  if (!shift || !(shift.trips || []).length) return '';
+  const t = activeTrip();
+  if (!t) return `<div class="card small" style="margin:8px 0">All trips on this shift are finished. <button class="btn btn-sm btn-outline" id="tcAll">Trip times</button></div>`;
+  const nx = nextStage(t);
+  return `<div class="card" style="margin:8px 0"><div class="small">Trip <b>${esc(t.loadId)}</b> · ${esc(t.customer || '')}${t.location ? ' · from ' + esc(t.location) : ''}</div>
+    <div style="margin:6px 0">${STAGES.map(x => { const g = stageOf(t, x[0]); return `<span class="tag ${g ? 'ok' : ''}" style="margin:2px">${esc(x[1])}${g ? ' ' + esc(hm(new Date(g.t))) + (g.a ? ' auto' : g.e ? ' est.' : '') : ''}</span>`; }).join('')}</div>
+    ${nx ? `<button class="btn" id="tcNext" style="width:100%;min-height:56px">${esc(nx[1])} now</button>` : ''}
+    <div class="btnrow" style="margin-top:6px"><button class="btn btn-sm btn-outline" id="tcFix">Fix times</button>${(shift.trips || []).length > 1 ? '<button class="btn btn-sm btn-outline" id="tcAll">All trips</button>' : ''}</div>
+    <div class="small">Stages stamp by themselves near the base, the pickup and the customer (GPS). Tap if one was missed.</div></div>`;
+}
+function bindTripCard() {
+  const t = activeTrip();
+  if ($('tcNext') && t) $('tcNext').onclick = () => { const nx = nextStage(t); if (!nx) return; const g = stampStage(t, nx[0], {}); if (nx[0] === 'back') g.to = confirm('Back at the BASE? (Cancel = at the next pickup)') ? 'base' : 'pickup'; t.legs = legsOf(t); saveShiftLocal(); renderShiftHome(); pushShift(); };
+  if ($('tcFix') && t) $('tcFix').onclick = () => openStages(t);
+  if ($('tcAll')) $('tcAll').onclick = () => openSheet(`<h3>Trips on this shift</h3>${(shift.trips || []).map((x, i) => `<button class="act" data-i="${i}"><span>${esc(x.loadId)} · ${esc(x.customer || '')}<br><span class="small">${(x.stages || []).length}/6 stages${x.legs && x.legs.loadedH != null ? ' · loaded ' + x.legs.loadedH + ' h' : ''}${x.legs && x.legs.returnH != null ? ' · return ' + x.legs.returnH + ' h' : ''}</span></span></button>`).join('')}<div class="btnrow"><button class="btn" id="taCl">Close</button></div>`, b => { $('taCl').onclick = closeSheet; b.querySelectorAll('[data-i]').forEach(x => x.onclick = () => openStages(shift.trips[+x.dataset.i])); });
+}
+function openStages(t) {
+  openSheet(`<h3>Trip times · ${esc(t.loadId)}</h3><div class="small">Correct a time if the automatic one is wrong. Odometer is optional.</div>
+    ${STAGES.map(x => { const g = stageOf(t, x[0]), li = g ? toLocalInputs(g.t) : { date: shift.date, time: '' }; return `<label>${esc(x[1])}${g && g.a ? ' <span class="small">(auto)</span>' : g && g.e ? ' <span class="small">(estimated)</span>' : ''}</label><div class="row2"><input type="time" data-k="${x[0]}" data-d="${esc(li.date)}" value="${esc(li.time)}"><input type="number" inputmode="decimal" data-o="${x[0]}" placeholder="odometer (optional)" value="${esc(g && g.odo != null ? g.odo : '')}"></div>`; }).join('')}
+    <div class="err" id="stE"></div><div class="btnrow"><button class="btn btn-outline" id="stNo">Cancel</button><button class="btn" id="stOk">Save</button></div>`, box => {
+    $('stNo').onclick = closeSheet;
+    $('stOk').onclick = () => {
+      let prev = 0, err = '';
+      box.querySelectorAll('[data-k]').forEach(i => { if (!i.value) return; const tt = new Date(i.dataset.d + 'T' + i.value).getTime(); if (tt < prev) err = 'The times must go in order.'; prev = tt; });
+      if (err) { $('stE').textContent = err; return; }
+      box.querySelectorAll('[data-k]').forEach(i => {
+        const k = i.dataset.k, g = stageOf(t, k), o = box.querySelector(`[data-o="${k}"]`).value;
+        if (!i.value) return; const iso = new Date(i.dataset.d + 'T' + i.value).toISOString();
+        if (!g || g.t !== iso || String(g.odo == null ? '' : g.odo) !== o) { const keep = g ? { la: g.la, lo: g.lo, to: g.to } : {}; const ng = stampStage(t, k, { t: iso, odo: o, edited: 1, noPos: true }); Object.assign(ng, keep); }
+      });
+      t.legs = legsOf(t); saveShiftLocal(); closeSheet(); renderShiftHome(); pushShift();
+    };
+  });
+}
+
+/* ---- drop at yard (driver): saved as Pending; the office confirms it in Inventory before it counts ---- */
+function openYardDrop() {
+  const yards = (ctx && ctx.yards) || [], t = activeTrip();
+  openSheet(`<h3>Drop at yard</h3><label>Yard</label><input id="ydY" list="ydYl" value="${esc(yards[0] || '')}"><datalist id="ydYl">${yards.map(y => `<option value="${esc(y)}">`).join('')}</datalist>
+    <label>Species</label><input id="ydS" value="${esc((t && t.species) || '')}"><label>Tonnes</label><input id="ydT" type="number" inputmode="decimal" step="0.01"><label>Note</label><input id="ydN" placeholder="optional">
+    <div class="small">The office confirms the drop (price and haul cost) before it counts in Inventory.</div><div class="err" id="ydE"></div>
+    <div class="btnrow"><button class="btn btn-outline" id="ydNo">Cancel</button><button class="btn" id="ydOk">Save drop</button></div>`, () => {
+    $('ydNo').onclick = closeSheet;
+    $('ydOk').onclick = () => {
+      const tn = +$('ydT').value; if (!$('ydY').value.trim() || !$('ydS').value.trim() || !(tn > 0)) { $('ydE').textContent = 'Yard, species and tonnes are needed.'; return; }
+      const q = LS.get('kfDrvDropQ', []); q.push({ id: newId(), yard: $('ydY').value.trim(), species: $('ydS').value.trim(), tonnes: tn, note: $('ydN').value.trim(), source: t ? t.location || '' : '', unit: shift ? shift.unit : '', loadId: t ? t.loadId : '' }); LS.set('kfDrvDropQ', q);
+      closeSheet(); flushDrops(true);
+    };
+  });
+}
+async function flushDrops(show) {
+  let q = LS.get('kfDrvDropQ', []); if (!q.length || !session || navigator.onLine === false) { if (show && q.length) toast('No signal: the drop is saved on this phone and sent later.'); return; }
+  while (q.length) { const r = await api(Object.assign({ action: 'yardDrop', drop: q[0] }, sAuth())); if (r.status !== 'ok') { if (show) toast(r.status === 'offline' ? 'No signal: the drop is sent later.' : 'Drop not accepted: ' + esc(r.message || r.status)); return; } q.shift(); LS.set('kfDrvDropQ', q); if (show) toast('Drop saved. The office confirms it in Inventory.'); }
+}
+
+/* ---- YARD TIME CLOCK: completely separate from hours of service (no HOS log, no duty status, no pre-trip, never in the daily log)
+   It never opens, closes or changes a driving shift. Kept in its own phone storage (kfDrvYard). ---- */
+let yard = LS.get('kfDrvYard', null);
+function saveYard() { if (yard) LS.set('kfDrvYard', yard); else LS.del('kfDrvYard'); }
+const YTASKS = [['processing', 'Processing'], ['loading', 'Loading trucks'], ['maintenance', 'Equipment maintenance'], ['cleanup', 'Yard cleanup'], ['other', 'Other']];
+function yardCardHtml() {
+  if (!yard) return '';
+  const cur = (yard.tasks || [])[yard.tasks.length - 1], el = (Date.now() - tms(yard.startedAt)) / 3600000;
+  if (yard.submittedPending) return `<div class="card" style="border-color:#f59e0b"><b>Yard work clocked out</b><div class="small">Waiting for signal to send it.</div><button class="btn btn-outline" id="ycRetry" style="width:100%;margin-top:6px">Try again now</button></div>`;
+  return `<div class="card" style="border:2px solid #16a34a"><div><b>Yard work</b> · ${esc(yard.yard)} · since ${esc(hm(new Date(yard.startedAt)))} (${fmtH(el)})</div>
+    <div class="small">Now: <b>${esc(cur ? cur.label + (cur.sp ? ' ' + cur.sp : '') : 'no task picked')}</b>. Not part of your hours-of-service log.</div>
+    <div class="sbtn-grid" style="margin-top:8px">${YTASKS.map(x => `<button class="sbtn ${cur && cur.k === x[0] ? 'cur' : ''}" data-yt="${x[0]}">${x[1]}</button>`).join('')}</div>
+    ${(yard.equip || []).map((e, i) => `<div class="small">Equipment: <b>${esc(e.name)}</b> from ${esc(e.startHours)} h${e.endHours !== '' && e.endHours != null ? ' to ' + esc(e.endHours) + ' h' : ''}</div>`).join('')}
+    <div class="btnrow"><button class="btn btn-outline" id="ycEq">Equipment used</button><button class="btn btn-outline" id="ycFuel">Fuel (${(yard.fuel || []).length})</button></div>
+    <button class="btn" id="ycOut" style="width:100%;margin-top:8px;background:#b91c1c">Clock out</button></div>`;
+}
+function bindYardCard() {
+  if (!yard) return;
+  document.querySelectorAll('[data-yt]').forEach(b => b.onclick = () => yardTask(b.dataset.yt));
+  if ($('ycEq')) $('ycEq').onclick = yardEquip; if ($('ycFuel')) $('ycFuel').onclick = yardFuel; if ($('ycOut')) $('ycOut').onclick = yardOut;
+  if ($('ycRetry')) $('ycRetry').onclick = () => pushYard({ submit: true });
+}
+function speciesNames() { const o = {}; (mainSettings().locations || []).forEach(l => (l.species || []).forEach(sp => { o[sp.name] = 1; })); return Object.keys(o); }
+function startYard() {
+  if (yard) return;
+  const yards = (ctx && ctx.yards) || [];
+  openSheet(`<h3>Yard work: clock in</h3><label>Yard</label><input id="yiY" list="yiYl" value="${esc(yards[0] || '')}"><datalist id="yiYl">${yards.map(y => `<option value="${esc(y)}">`).join('')}</datalist>
+    <label style="display:flex;gap:10px;align-items:center;margin-top:10px"><input type="checkbox" id="yiGps" style="width:24px;min-height:24px;margin:0"> Record GPS during yard work (off unless you need it)</label>
+    <div class="small">Yard work is only for pay and processing costs. It does not touch your driving log.</div><div class="err" id="yiE"></div>
+    <div class="btnrow"><button class="btn btn-outline" id="yiNo">Cancel</button><button class="btn" id="yiOk">Clock in</button></div>`, () => {
+    $('yiNo').onclick = closeSheet;
+    $('yiOk').onclick = () => {
+      if (!$('yiY').value.trim()) { $('yiE').textContent = 'Pick the yard.'; return; }
+      const now = new Date();
+      yard = { id: 'Y' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), type: 'yard', yard: $('yiY').value.trim(), gps: $('yiGps').checked, date: dkey(now), startedAt: now.toISOString(), driverName: session.name, unit: '', startOdo: '', endOdo: '',
+        events: [], trips: [], fuel: [], edits: [], gpsGaps: [], tasks: [], equip: [], remarks: '', signature: '' };
+      saveYard(); closeSheet(); renderDrivers(); pushYard();
+    };
+  });
+}
+function yardTask(k) {
+  const x = YTASKS.find(y => y[0] === k); if (!x) return;
+  const go = sp => { yard.tasks.push({ k, label: x[1], sp: sp || '', t: new Date().toISOString() }); saveYard(); closeSheet(); renderDrivers(); pushYard(); };
+  if (k !== 'processing') return go('');
+  const sps = speciesNames();
+  openSheet(`<h3>Processing: which species?</h3>${sps.map(n => `<button class="btn btn-outline" style="width:100%;margin-top:6px" data-sp="${esc(n)}">${esc(n)}</button>`).join('')}<label>Other</label><input id="ypO"><div class="btnrow"><button class="btn btn-outline" id="ypNo">Cancel</button><button class="btn" id="ypOk">OK</button></div>`, b => {
+    b.querySelectorAll('[data-sp]').forEach(y => y.onclick = () => go(y.dataset.sp)); $('ypNo').onclick = closeSheet; $('ypOk').onclick = () => { if ($('ypO').value.trim()) go($('ypO').value.trim()); };
+  });
+}
+function yardEquip() {
+  const eq = unitsAll().filter(u => u.type === 'equipment' || u.trackHours);
+  openSheet(`<h3>Equipment used</h3>${(yard.equip || []).map(e => `<div class="li">${esc(e.name)} · start ${esc(e.startHours)} h</div>`).join('')}
+    <label>Add a machine</label><select id="yeU"><option value="">Pick…</option>${eq.map(u => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>
+    <label>Starting engine hours</label><input id="yeH" type="number" inputmode="decimal" step="0.1"><div class="small" id="yeHint"></div>
+    <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="yeOk" style="width:24px;min-height:24px;margin:0"> I checked this against the hour meter</label><div class="err" id="yeE"></div>
+    <div class="btnrow"><button class="btn btn-outline" id="yeNo">Close</button><button class="btn" id="yeAdd">Add</button></div>`, () => {
+    $('yeNo').onclick = () => { closeSheet(); renderDrivers(); };
+    $('yeU').onchange = () => { const u = eq.find(x => String(x.id) === $('yeU').value); $('yeH').value = u && u.currentHours !== '' ? u.currentHours : ''; $('yeHint').textContent = u && u.currentHours !== '' ? 'Last reading: ' + u.currentHours + ' h' : ''; $('yeOk').checked = false; };
+    $('yeAdd').onclick = () => {
+      const u = eq.find(x => String(x.id) === $('yeU').value); if (!u) { $('yeE').textContent = 'Pick the machine.'; return; }
+      if ($('yeH').value === '' || !$('yeOk').checked) { $('yeE').textContent = 'Enter the hours and tick the box.'; return; }
+      if (u.currentHours !== '' && +$('yeH').value < +u.currentHours && !confirm('That is lower than the last reading (' + u.currentHours + ' h). Use it anyway?')) return;
+      yard.equip.push({ unitId: u.id, name: u.name, startHours: +$('yeH').value, endHours: '' }); saveYard(); pushYard(); yardEquip();
+    };
+  });
+}
+function yardFuel() {
+  openSheet(`<h3>Fuel (yard)</h3>${(yard.fuel || []).map(f => `<div class="li">${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.unitName || '')}</div>`).join('')}
+    <label>Machine</label><select id="yfU"><option value="">—</option>${(yard.equip || []).map(e => `<option value="${esc(e.unitId)}">${esc(e.name)}</option>`).join('')}</select>
+    <div class="row2"><div><label>Litres</label><input id="yfL" type="number" inputmode="decimal"></div><div><label>Cost ($, before GST)</label><input id="yfC" type="number" inputmode="decimal"></div><div><label>GST ($)</label><input id="yfG" type="number" inputmode="decimal"></div><div><label>Paid with</label><select id="yfP"><option value="company card">Company card</option><option value="cash">Cash</option><option value="other">Other</option></select></div></div>
+    <label>Receipt photo</label><div style="display:flex;gap:8px;align-items:center"><button class="btn btn-outline" type="button" id="yfPh">Take photo</button><span class="small" id="yfPhS">none</span></div><div class="err" id="yfE"></div>
+    <div class="btnrow"><button class="btn btn-outline" id="yfNo">Close</button><button class="btn" id="yfAdd">Add</button></div>`, () => {
+    let photo = '', photoData = '', typed = false;
+    $('yfC').oninput = () => { if (!typed) $('yfG').value = $('yfC').value ? (Math.round(+$('yfC').value * 5) / 100).toFixed(2) : ''; }; $('yfG').oninput = () => { typed = true; };
+    $('yfPh').onclick = async () => { const d = await kfPhoto.pick(); if (!d) return; $('yfPhS').textContent = 'uploading…'; try { photo = await kfPhoto.upload(d, 'Yard fuel'); $('yfPhS').textContent = 'attached'; } catch (e) { photoData = d; $('yfPhS').textContent = 'sent when there is signal'; } };
+    $('yfNo').onclick = () => { closeSheet(); renderDrivers(); };
+    $('yfAdd').onclick = () => {
+      const l = +$('yfL').value; if (!(l > 0)) { $('yfE').textContent = 'Enter the litres.'; return; }
+      const e = (yard.equip || []).find(x => String(x.unitId) === $('yfU').value), c = +$('yfC').value || 0;
+      const f = { id: newId(), litres: l, cost: c, gst: $('yfG').value === '' ? r2(c * 0.05) : +$('yfG').value, pay: $('yfP').value, photo, unitId: e ? e.unitId : '', unitName: e ? e.name : '', place: yard.yard, hm: hm(new Date()), at: new Date().toISOString() };
+      if (photoData) { f.photoQ = 1; const q = LS.get('kfDrvPhotoQ', []); q.push({ shiftId: yard.id, fuelId: f.id, data: photoData }); try { LS.set('kfDrvPhotoQ', q.slice(-4)); } catch (er) {} }
+      yard.fuel.push(f); saveYard(); pushYard(); yardFuel();
+    };
+  });
+}
+function yardOut() {
+  openSheet(`<h3>Clock out of yard work</h3><div class="small">${esc(yard.yard)} · ${esc(hm(new Date(yard.startedAt)))} to now (${fmtH((Date.now() - tms(yard.startedAt)) / 3600000)})</div>
+    ${(yard.equip || []).map((e, i) => `<label>${esc(e.name)}: ending engine hours (started ${esc(e.startHours)})</label><input data-eq="${i}" type="number" inputmode="decimal" step="0.1">`).join('')}
+    ${(yard.equip || []).length ? '<label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="yoOk" style="width:24px;min-height:24px;margin:0"> I checked these against the hour meters</label>' : ''}
+    <label>Note (optional)</label><input id="yoN"><div class="err" id="yoE"></div><div class="btnrow"><button class="btn btn-outline" id="yoNo">Back</button><button class="btn" id="yoGo">Clock out</button></div>`, box => {
+    $('yoNo').onclick = closeSheet;
+    $('yoGo').onclick = async () => {
+      let bad = '';
+      box.querySelectorAll('[data-eq]').forEach(i => { const e = yard.equip[+i.dataset.eq]; if (i.value === '') bad = 'Enter the ending hours for ' + e.name + '.'; else if (+i.value < +e.startHours) bad = e.name + ': ending hours are lower than the start.'; });
+      if (bad) { $('yoE').textContent = bad; return; } if ($('yoOk') && !$('yoOk').checked) { $('yoE').textContent = 'Tick the box after checking the hour meters.'; return; }
+      box.querySelectorAll('[data-eq]').forEach(i => { yard.equip[+i.dataset.eq].endHours = +i.value; });
+      yard.closedAt = new Date().toISOString(); yard.remarks = $('yoN').value.trim(); yard.submittedPending = true; saveYard(); closeSheet(); renderDrivers();
+      await pushYard({ submit: true });
+    };
+  });
+}
+let yardPushing = false;
+async function pushYard(opts) {
+  if (!yard || !session || yardPushing) return; opts = opts || {}; yardPushing = true;
+  try {
+    const submit = opts.submit || yard.submittedPending;
+    const body = Object.assign({ action: submit ? 'submitShift' : 'saveShift', shift: yard }, sAuth());
+    if (yard.gps && lastPos) body.pos = { lat: lastPos.lat, lon: lastPos.lon, at: lastPos.at, place: '', status: 'YARD' };   // optional, off by default
+    const r = await api(body, 30000);
+    if (r.status === 'ok' && submit) { const was = yard; yard = null; saveYard(); toast('Clocked out of yard work: ' + esc(fmtH((tms(was.closedAt) - tms(was.startedAt)) / 3600000)) + '.'); if (tab === 'drivers') renderDrivers(); }
+    else if (r.status === 'deleted') { yard = null; saveYard(); if (tab === 'drivers') renderDrivers(); }
+  } finally { yardPushing = false; }
+}
+setInterval(() => { if (yard && !document.hidden) pushYard(); }, HEARTBEAT_MS());
+
+/* ---- admin: summary of a shift (hours paid, km, engine hours, fuel, work orders); yard shift view; new defects to mark Seen ---- */
+function adminSummaryHtml(sh) {
+  const end = sh.closedAt ? tms(sh.closedAt) : Date.now(), paid = (end - tms(sh.startedAt)) / 3600000, km = sh.endOdo !== '' && sh.endOdo != null ? (+sh.endOdo - +sh.startOdo) : null;
+  const L = (sh.fuel || []).reduce((t, f) => t + (+f.litres || 0), 0), $f = (sh.fuel || []).reduce((t, f) => t + (+f.cost || 0), 0), l100 = fuelLper100(sh);
+  const wos = sh._workOrders || [];
+  return `<div class="card" style="margin:6px 0"><b>Hours paid:</b> ${fmtH(paid)} (shift start to end)<br><b>Km:</b> ${esc(sh.startOdo)} → ${esc(sh.endOdo === '' ? '…' : sh.endOdo)}${km != null ? ' (' + Math.round(km) + ' km)' : ''}
+    ${sh.startHours !== '' && sh.startHours != null ? `<br><b>Engine hours:</b> ${esc(sh.startHours)} → ${esc(sh.endHours == null || sh.endHours === '' ? '…' : sh.endHours)}` : ''}
+    <br><b>Fuel:</b> ${r2(L)} L · $${r2($f)}${l100 ? ' · ' + l100 + ' L/100 km' : ''}${(sh.fuel || []).filter(f => f.photo).map(f => ` <a href="${esc(f.photo)}" target="_blank" rel="noopener">receipt</a>`).join('')}
+    ${(sh.trips || []).filter(t => t.legs).map(t => `<br><span class="small">${esc(t.loadId)}: ${t.legs.posH ? 'to pickup ' + t.legs.posH + ' h · ' : ''}loaded ${t.legs.loadedH ?? '?'} h · return ${t.legs.returnH ?? '?'} h${(t.stages || []).some(g => g.e) ? ' (some times estimated)' : ''}</span>`).join('')}
+    ${wos.length ? '<br><b>Work orders from this shift:</b> ' + wos.map(w => `<a href="trucks.html#wo=${encodeURIComponent(w.id)}">${esc(w.defect)} (${esc(w.severity)}, ${esc(w.status)})</a>`).join(' · ') : ''}</div>`;
+}
+async function openAdminYard(id) {
+  openSheet('<h3>Loading…</h3>');
+  const g = await adminApi('adminGetShift', { shiftId: id }); if (g.status !== 'ok') { closeSheet(); return alert(g.message || 'Could not open'); }
+  const y = g.shift, end = y.closedAt ? tms(y.closedAt) : Date.now();
+  openSheet(`<h3>Yard work · ${esc(y.driverName)} · ${esc(y.date)}</h3><div class="small">${esc(y.yard)} · ${esc(hm(new Date(y.startedAt)))}–${y.closedAt ? esc(hm(new Date(y.closedAt))) : 'still clocked in'} · <b>${fmtH((end - tms(y.startedAt)) / 3600000)} paid</b></div>
+    <h4>Tasks</h4>${(y.tasks || []).map((t, i, a) => `<div class="li">${esc(hm(new Date(t.t)))} ${esc(t.label)}${t.sp ? ' · ' + esc(t.sp) : ''} <span class="small">(${fmtH(((a[i + 1] ? tms(a[i + 1].t) : end) - tms(t.t)) / 3600000)})</span></div>`).join('') || '<div class="small">No tasks picked.</div>'}
+    ${(y.equip || []).length ? '<h4>Equipment</h4>' + y.equip.map(e => `<div class="li">${esc(e.name)}: ${esc(e.startHours)} → ${esc(e.endHours === '' ? '…' : e.endHours)} h</div>`).join('') : ''}
+    ${(y.fuel || []).length ? '<h4>Fuel</h4>' + y.fuel.map(f => `<div class="li">${esc(f.litres)} L · $${esc(f.cost)} · ${esc(f.unitName || '')}${f.photo ? ` <a href="${esc(f.photo)}" target="_blank" rel="noopener">receipt</a>` : ''}</div>`).join('') : ''}
+    ${y.remarks ? '<p>' + esc(y.remarks) + '</p>' : ''}<div class="btnrow"><button class="btn" id="ayCl">Close</button></div>`, () => { $('ayCl').onclick = closeSheet; });
+}
+async function renderDefects(body) {
+  body.innerHTML = '<div class="small">Loading…</div>';
+  let r; try { r = await kfCo.post('trucks', { action: 'listWorkOrders', limit: 300 }); } catch (e) { body.innerHTML = '<div class="card small">Needs signal.</div>'; return; }
+  if (r.status !== 'ok') { body.innerHTML = `<div class="card small">${esc(r.message || r.status)}</div>`; return; }
+  const list = (r.workOrders || []).filter(w => (w.source === 'pretrip' || w.source === 'inspection') && !w.seenAt);
+  body.innerHTML = `<div class="small" style="margin-bottom:6px">Defects drivers and mechanics reported that the office has not looked at yet.</div>` +
+    list.map(w => `<div class="li"><b>${esc(w.unitName)}</b> · <span style="color:${w.severity === 'major' ? 'var(--bad)' : ''}">${esc(w.severity)}</span> · ${esc(w.defect)}<br><span class="small">${esc(w.source)} · ${esc(w.driverName || '')} · ${esc(new Date(w.openedAt).toLocaleString())} · ${esc(w.status)}</span><br>
+      <button class="btn btn-sm" data-seen="${esc(w.id)}">Seen</button> <a class="small" href="trucks.html#wo=${encodeURIComponent(w.id)}">open work order</a></div>`).join('') +
+    (list.length > 1 ? '<button class="btn btn-outline" id="seenAll" style="width:100%;margin-top:8px">Mark all seen</button>' : '') + (!list.length ? '<div class="card small">Nothing new.</div>' : '');
+  const mark = async ids => { const x = await kfCo.post('trucks', { action: 'markSeen', ids }); if (x.status !== 'ok') return alert(x.message || 'Not saved.'); if (window.kfAlertsRefresh) kfAlertsRefresh(true); renderDefects(body); };
+  body.querySelectorAll('[data-seen]').forEach(b => b.onclick = () => mark([b.dataset.seen]));
+  if ($('seenAll')) $('seenAll').onclick = () => mark(list.map(w => w.id));
+}
+
 /* ============================== boot ============================== */
 (function boot() {
   if (shift) normalize(shift);
   const h = (location.hash || '').replace('#', ''); tab = ['admin', 'settings'].includes(h) ? h : 'drivers';
+  if (/^seen/.test(h)) { tab = 'admin'; admin.sub = 'defects'; }
   showTab(tab);
   if (shift && session && !shift.submittedPending) { pushShift(); keepAwake(); }
+  if (yard && session) pushYard();
+  setTimeout(flushPhotos, 3000); setTimeout(flushDrops, 3500);
   if (session && URL_ && navigator.onLine !== false) api(Object.assign({ action: 'driverLogin' }, sAuth())).then(r => {
-    if ((r.status === 'badpassword') && session && session.token) { session = null; LS.del('kfDrvSession'); if (tab === 'drivers') renderLogin('Please log in again (your passcode was changed by the office). Your open shift is kept on this phone.'); return; } if (r.status === 'ok') { const os = r.openShift; setCtx(r); if (!shift && os) { shift = normalize(os); saveShiftLocal(); } if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderDrivers(); } });
+    if ((r.status === 'badpassword') && session && session.token) { session = null; LS.del('kfDrvSession'); if (tab === 'drivers') renderLogin('Please log in again (your passcode was changed by the office). Your open shift is kept on this phone.'); return; } if (r.status === 'ok') { const os = r.openShift, oy = r.openYardShift; setCtx(r); if (!shift && os) { shift = normalize(os); saveShiftLocal(); } if (!yard && oy) { yard = oy; saveYard(); } if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderDrivers(); } });
   const n = $('companyNameBanner'); const s = mainSettings(); if (n && s.companyName) n.textContent = s.companyName;
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
