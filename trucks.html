@@ -96,6 +96,7 @@ function defaultTab() { return admin || !person ? 'units' : isMech() ? 'wo' : 'p
 /* ---------- loading (cached for offline viewing) ---------- */
 let serverOk = true;
 async function load() {
+  if (!kfCo.base()) { serverOk = false; $('view').innerHTML = '<div class="card">This device is not connected to the company yet. Office: open Quote and sign in. Drivers and the mechanic: open Drivers and log in.</div>'; return; }
   if (navigator.onLine === false) { $('note').textContent = 'No signal: showing what this phone saw last (' + (S.at ? new Date(S.at).toLocaleString() : 'nothing yet') + ').'; return; }
   try {
     const [u, w] = await Promise.all([call({ action: 'listUnits' }), call({ action: 'listWorkOrders', limit: 400 })]);
