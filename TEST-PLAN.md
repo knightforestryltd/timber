@@ -5,7 +5,8 @@ Nothing in this plan touches the live sheet, the live script or the live website
 ## A. Set up the TEST copy (about 20 minutes, once)
 
 1. **Copy the sheet.** Open *Company Data* → File → **Make a copy** → name it `Company Data TEST`. Copy its id from the address bar (the long part between `/d/` and `/edit`).
-2. **A separate TEST script.**
+2. **A separate TEST script.** Easiest way, the one the owner used: open `Company Data TEST` → **Extensions → Apps Script** → paste the new `company-apps-script.gs` → Save. A script made this way uses the copy it belongs to by itself (no `ssId` needed). Then do steps 2.2–2.5 below, skipping the `ssId` line.
+   Or, the other way:
    1. script.google.com → **New project** → name it `Company TEST` → paste the new `company-apps-script.gs` → Save.
    2. Project Settings (gear) → **Script Properties** → Add:
       - `ssId` = the id of `Company Data TEST`;

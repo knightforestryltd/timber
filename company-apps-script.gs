@@ -172,6 +172,12 @@ var ss__ = null, tabs__ = {};
 function ss_() {
   if (ss__) return ss__;
   var id = props_().getProperty('ssId');
+  // A script made from the sheet itself (Extensions → Apps Script, e.g. on a TEST copy) uses that sheet when there is
+  // no ssId, when it is the same sheet, or in TEST_MODE. A live script with an ssId always keeps using the ssId sheet.
+  try {
+    var active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active && (!id || active.getId() === id || testMode_())) { ss__ = active; if (!id) props_().setProperty('ssId', active.getId()); return ss__; }
+  } catch (e) {}
   if (id) { try { ss__ = SpreadsheetApp.openById(id); return ss__; } catch (e) { /* deleted: make a new one */ } }
   ss__ = SpreadsheetApp.create(SHEET_NAME); props_().setProperty('ssId', ss__.getId());
   return ss__;
