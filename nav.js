@@ -41,7 +41,7 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
     var el = document.getElementById('kfBackHint');
     if (!el) {
       el = document.createElement('div'); el.id = 'kfBackHint';
-      el.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;font:14px Arial,sans-serif;z-index:5000;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:90vw;text-align:center;display:none';
+      el.style.cssText = 'position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;font:14px Arial,sans-serif;z-index:5000;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:90vw;text-align:center;display:none';
       document.body.appendChild(el);
     }
     el.textContent = msg; el.style.display = 'block';

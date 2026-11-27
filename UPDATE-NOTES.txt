@@ -202,3 +202,12 @@ DEPLOY v14.1
   deployed they reconnect by themselves when opened. A phone that shows the connect screen anyway: enter the
   company password once.
 - Tests: node tests/e2e-launch-fixes.test.js (30 checks).
+
+--- v14.2: pop-ups and buttons hidden under the Android navigation buttons ---
+Cause: every page had viewport-fit=cover in its viewport tag. In the Android app (Capacitor 8, Android 15+),
+that tells the app to draw the page behind the status bar and the 3 navigation buttons. Only the header and the
+Quote action bar made room for them, so everything else near the bottom went under the buttons: the Drivers
+messages ("Driving logged automatically", GPS warnings, unit reminders), the back-button hint, the last buttons
+of pop-ups (Close shift, pre-trip, fuel, Edit load...) and the last button on every page.
+Fixed: viewport-fit=cover removed from every page. The app now keeps the page between the status bar and the
+navigation buttons. Website-only change: no new APK needed.

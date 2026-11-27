@@ -1,4 +1,4 @@
-const CACHE = 'kf-quotes-v14.1';
+const CACHE = 'kf-quotes-v14.2';
 // Pages and files kept on the phone so the app still opens without signal (Drivers especially).
 const FILES = ['/', '/index.html', '/drivers.html', '/dispatch.html', '/invoices.html', '/scale.html', '/yards.html', '/trucks.html', '/statistics.html', '/kf-config.js', '/kf-stock.js', '/kf-stats.js', '/theme.css', '/theme.js', '/nav.js', '/logo.jpg', '/html2pdf.bundle.min.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
