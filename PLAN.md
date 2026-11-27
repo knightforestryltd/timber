@@ -302,3 +302,20 @@ Which one? With A, is "before go-live counts as paid" right?
 **Q11. The live company link for kf-config.js.** Please paste the live `/exec` link, or I'll leave a clearly marked placeholder for you to fill in before upload. Is it only Knight for now, or should I list the brothers' companies too (name + link each)?
 
 **Q12. Size and risk.** This one release is very large: two new pages, five pages and the script heavily extended, roughly 8–12k new lines. I'll build it exactly as one deploy as asked, with one commit per step and the full TEST-PLAN on a copy. If you'd rather deploy in two halves (Q + 1 + 2 + 2b + 3 first, then 4 + 7 + 5 + 6), say so now. The code would be the same; only the deploy notes change.
+
+---
+
+## 8. Answers (owner, Phase 1 review)
+
+- Q1 **A**: Paid = invoiced/finished (unchanged). Payments tracked separately. Loads completed before v14 go-live count as fully paid.
+- Q2 **Yes**: Invoices tab for manual invoices.
+- Q3 Requested date is set in **Dispatch → Edit load** (not in the booking pop-up).
+- Q4 **Yes**: Assign driver + truck in Dispatch.
+- Q5 OK (key devices keep data access; admin needs the password once).
+- Q6 Tokens last until the office changes the passcode or deactivates the person.
+- Q7 **Yes**: ticket Purchase = $ total wood cost of the load.
+- Q8 **A**: keep Shift rows forever; after 12 months drop json detail + GPS trail.
+- Q9 **Void** rows instead of deleting.
+- Q10 Out-of-service override lasts **until the office turns it off**.
+- Q11 Knight only. Live link not supplied: kf-config.js ships with a placeholder that is ignored until replaced.
+- Q12 **One deploy.**
