@@ -1203,7 +1203,7 @@ function moneyPost_(p, d) {
     var p2 = byKey_(rows_('Payments'), 'id', d.id); if (p2) { tab_('Payments').deleteRow(p2._row); log_('money', 'payment deleted', p2.invoiceNo || p2.loadId, { amount: p2.amount, by: who }); }
     return json_({ status: 'ok' });
   }
-  if (a === 'listPayments') return json_({ status: 'ok', payments: rows_('Payments').map(plain_), goLive: goLive_() });
+  if (a === 'listPayments') return json_({ status: 'ok', payments: rows_('Payments').map(plain_), invoices: rows_('Invoices').map(function (x) { var o = plain_(x); o.model = parse_(x.json); delete o.json; return o; }), goLive: goLive_() });
   if (a === 'listPeople') return json_({ status: 'ok', people: rows_('People').map(plain_) });
   if (a === 'savePeople') {
     (d.people || []).forEach(function (x) {

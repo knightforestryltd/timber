@@ -45,11 +45,20 @@ textarea { min-height: 90px; }
   <div id="menu">
     <button class="menu-item" onclick="showPending()">Pending Invoices</button>
     <button class="menu-item" onclick="showNew()">New Ticket Invoice (manual)</button>
+    <button class="menu-item hidden" id="owingBtn" onclick="showOwing()">Owing (unpaid invoices)</button>
     <button class="menu-item" onclick="showSettings()">Settings</button>
     <div id="paidHistory" style="margin-top:20px;">
       <h3 style="color:var(--muted);font-size:0.9rem;margin-bottom:10px;">Recent Paid (10 days)</h3>
       <div id="paidList"></div>
     </div>
+  </div>
+
+  <!-- OWING (v14): unpaid and part-paid invoices by customer -->
+  <div id="owingView" class="hidden">
+    <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
+    <h2>Owing</h2>
+    <div class="small" style="color:var(--muted);margin-bottom:8px;">Invoices not fully paid, grouped by customer. Days since invoiced: 0-30, 31-60, 61-90, 90+. Invoices made before this version count as paid.</div>
+    <div id="owingList"></div>
   </div>
 
   <!-- PENDING LIST -->
@@ -182,6 +191,7 @@ textarea { min-height: 90px; }
       <button class="btn btn-outline" onclick="showMenu()">&larr; Back</button>
       <h2 id="paidTitle">Invoice</h2>
       <div id="paidBody"></div>
+      <div id="paidPay" style="margin-top:10px;"></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
         <button class="btn btn-outline" onclick="previewPaid()">Preview</button>
         <button class="btn" onclick="shareClient(paidCtx())">Share to Client</button>
@@ -243,19 +253,21 @@ let paidInvoices = [];
 let paidCurrent = null;
 
 /* ---------- navigation ---------- */
-const VIEWS = ['menu','pendingView','invoiceView','newView','settingsView','paidView'];
+const VIEWS = ['menu','pendingView','invoiceView','newView','settingsView','paidView','owingView'];
 // phone back button (nav.js): one level at a time
 window.kfBack = function () {
   const sh = $('shareSheet').style.display;
   if (sh && sh !== 'none') { closeShareSheet(); return true; }
   if ($('busy').style.display === 'flex') return true;
   if (!$('invoiceView').classList.contains('hidden')) { showPending(); return true; }
-  if (['pendingView', 'newView', 'settingsView', 'paidView'].some(id => !$(id).classList.contains('hidden'))) { showMenu(); return true; }
+  if (window.__payOv && window.__payOv.parentNode) { window.__payOv.remove(); return true; }
+  if (['pendingView', 'newView', 'settingsView', 'paidView', 'owingView'].some(id => !$(id).classList.contains('hidden'))) { showMenu(); return true; }
   return false;
 };
 function hideAll() { VIEWS.forEach(id => $(id).classList.add('hidden')); }
 function show(id) { hideAll(); $(id).classList.remove('hidden'); window.scrollTo(0, 0); }
-function showMenu() { show('menu'); loadPaidHistory(); }
+function showMenu() { show('menu'); loadPaidHistory(); $('owingBtn').classList.toggle('hidden', !v14()); }
+const v14 = () => !!(window.kfServerV && kfServerV() >= 14);
 function showPending() { show('pendingView'); loadPending(); }
 function showNew() { show('newView'); loadTrucks(); if (!$('newInvNum').value) genNewInvNum(false); calcNew(); }
 function showSettings() {
@@ -452,14 +464,17 @@ function calcInvoice() {
   $('invLines').innerHTML = lines.map(l => `<p>${esc(l.d)} — ${esc(l.q)} = $${money(l.a)}</p>`).join('');
   $('invSub').textContent = money(sub); $('invGst').textContent = money(gst); $('invTotal').textContent = money(total);
 
-  return {
+  // v14: keep the revenue split (product / trucking / fuel surcharge, all before GST); scaled so they add up to the subtotal
+  const raw = product + trip + fuel, k = raw > 0 ? sub / raw : 0;
+  const split = raw > 0 ? { product: r2(product * k), trucking: r2(trip * k), fsc: r2(sub - r2(product * k) - r2(trip * k)) } : { product: sub, trucking: 0, fsc: 0 };
+  return Object.assign({
     idLabel: 'Load ID', idValue: current.loadId || '', invNo: current.loadId || '',
     date: new Date().toLocaleDateString('en-CA'),
     customer: current.customerName || '', address: current.address || '', phone: current.phone || '',
     lines, sub, gst, total,
     pays,
-    notes: $('invNotes').value.trim(), cash: pays.includes('Cash'), mode
-  };
+    notes: $('invNotes').value.trim(), cash: pays.includes('Cash'), mode, billedHours: hours
+  }, split);
 }
 function previewInvoice() { const m = calcInvoice(); if (m) openPreview([invoiceHtml(m)]); }
 function pendingCtx() {
@@ -546,7 +561,9 @@ function calcNew() {
   if (fscOn && (!unitCfg || !fuelL100 || !fuelPrice)) $('newTicketResult').textContent = 'FSC is $0: pick a truck with a fuel (L/100) value and set the fuel price in Quote settings.';
   $('newLines').innerHTML = lines.map(l => `<p>${esc(l.d)} — ${esc(l.q)} = $${money(l.a)}</p>`).join('');
   $('newSub').textContent = money(sub); $('newGst').textContent = money(gst); $('newTotal').textContent = money(total);
+  const isHour = unit === 'hour';
   return {
+    product: isHour ? 0 : r2(sub - fsc), trucking: isHour ? r2(sub - fsc) : 0, fsc: r2(fsc),
     idLabel: 'Invoice', idValue: $('newInvNum').value.trim(), invNo: $('newInvNum').value.trim(),
     date: new Date().toLocaleDateString('en-CA'),
     customer: $('newCust').value.trim(), address: $('newAddr').value.trim(), phone: $('newPhone').value.trim(),
@@ -578,7 +595,7 @@ async function loadPaidHistory() {
     box.innerHTML = paidInvoices.map((l, i) => `
       <div class="card" style="cursor:pointer;padding:12px;" onclick="openPaid(${i})">
         <strong>${esc(l.loadId || l._inv.model.invNo || 'No ID')}</strong> - ${esc(l.customerName)}<br>
-        <span style="color:var(--good);font-weight:600;">Paid</span> · $${money(l._inv.model.total)}
+        <span style="color:var(--good);font-weight:600;">Completed</span> · $${money(l._inv.model.total)} ${v14() ? payBadge(l.loadId, l._inv.model.total, l._inv.paidAt) : ''}
       </div>`).join('') || '<p style="color:var(--muted);font-size:0.85rem;">No recent paid invoices.</p>';
   } catch(e) { box.innerHTML = ''; }
 }
@@ -590,6 +607,7 @@ function openPaid(i) {
   $('paidBody').innerHTML = `<p><strong>${esc(m.customer)}</strong></p>` +
     m.lines.map(l => `<p>${esc(l.d)} — ${esc(l.q)} = $${money(l.a)}</p>`).join('') +
     `<p><strong>Total:</strong> $${money(m.total)}</p>`;
+  if (v14()) drawPayBox($('paidPay'), { loadId: paidCurrent.loadId || '', invoiceNo: m.invNo || paidCurrent.loadId || '', customer: m.customer, total: m.total, at: paidCurrent._inv.paidAt }, () => openPaid(i));
 }
 function paidCtx() {
   if (!paidCurrent) return null;
@@ -861,12 +879,99 @@ async function completeNew() {
     const load = await fetchLoad(ctx.tripId, ctx.ticket);
     const r = await markPaid(ctx, { loadId: (load && load.loadId) || id, customerName: ctx.model.customer });
     busy(false);
-    if (r.status === 'notfound') { alert('No load row with ID ' + id + ' was found, so nothing was marked Paid.'); return; }
+    if (r.status === 'notfound') {
+      if (v14()) {
+        const s = await moneyPost({ action: 'saveInvoice', invoice: { invoiceNo: ctx.model.invNo || id, customer: ctx.model.customer, address: ctx.model.address, phone: ctx.model.phone, ticket: ctx.ticket, loadId: ctx.tripId,
+          sub: ctx.model.sub, gst: ctx.model.gst, total: ctx.model.total, product: ctx.model.product, trucking: ctx.model.trucking, fsc: ctx.model.fsc, model: ctx.model } });
+        if (s.status === 'ok') { alert('No load row with ID ' + id + ' was found, so it was saved as a manual invoice (it shows under Owing until paid).'); return; }
+      }
+      alert('No load row with ID ' + id + ' was found, so nothing was marked Paid.'); return;
+    }
     alert('Marked Paid.');
   } catch(e) { busy(false); alert('Could not mark Paid: ' + e.message); }
 }
 
+/* ======================= v14: payments (Unpaid / Part paid / Paid worked out from the Payments tab, on screen only) =======================
+   The Loads Status column is never changed by a payment: "Complete Load" marks a load Paid when it is invoiced, exactly as before. */
+let PAY = null;               // { payments, invoices, goLive }
+async function moneyPost(body) {
+  let r = await kfCo.post('money', body);
+  if (r.status === 'badpassword' || r.status === 'noadmin') { const pw = prompt('Company password:'); if (!pw) return { status: 'cancelled' }; r = await kfCo.post('money', Object.assign({}, body, { password: pw })); }
+  return r;
+}
+async function loadPayments(force) {
+  if (PAY && !force) return PAY;
+  try { const r = await kfCo.post('money', { action: 'listPayments' }); if (r.status === 'ok') PAY = r; } catch (e) {}
+  return PAY;
+}
+function paidSum(key) { if (!PAY || !key) return 0; return r2(PAY.payments.filter(p => sameId(p.loadId, key) || sameId(p.invoiceNo, key)).reduce((s, p) => s + (+p.amount || 0), 0)); }
+function payState(key, total, at) {
+  if (PAY && PAY.goLive && at && +at < Date.parse(PAY.goLive) && !paidSum(key)) return { s: 'Paid', left: 0, legacy: true };
+  const paid = paidSum(key), left = r2((+total || 0) - paid);
+  return { s: left <= 0.009 ? 'Paid' : paid > 0 ? 'Part paid' : 'Unpaid', left: Math.max(0, left), paid };
+}
+function payBadge(key, total, at) { if (!PAY) return ''; const st = payState(key, total, at), c = st.s === 'Paid' ? 'var(--good)' : st.s === 'Part paid' ? '#d97706' : 'var(--bad)'; return `<span style="color:${c};font-weight:700;">· ${st.s}${st.s !== 'Paid' ? ' $' + money(st.left) + ' owing' : ''}</span>`; }
+async function drawPayBox(box, inv, reopen) {
+  box.innerHTML = '<div class="small" style="color:var(--muted)">Loading payments…</div>';
+  await loadPayments(true);
+  if (!PAY) { box.innerHTML = '<div class="small" style="color:var(--muted)">Payments need signal and an admin device (or the company password).</div>'; return; }
+  const key = inv.loadId || inv.invoiceNo, st = payState(key, inv.total, inv.at), list = PAY.payments.filter(p => sameId(p.loadId, key) || sameId(p.invoiceNo, key));
+  box.innerHTML = `<div class="card" style="padding:12px;"><strong>Payment: <span style="color:${st.s === 'Paid' ? 'var(--good)' : st.s === 'Part paid' ? '#d97706' : 'var(--bad)'}">${st.s}</span></strong>${st.legacy ? ' <span class="small">(invoiced before payments were tracked)</span>' : ''}
+    ${list.map(p => `<div class="small">${esc(p.paidAt)} · $${money(p.amount)} · ${esc(p.method)}${p.note ? ' · ' + esc(p.note) : ''}</div>`).join('')}
+    ${st.s !== 'Paid' ? `<div class="small">Still owing: <b>$${money(st.left)}</b></div>` : ''}
+    <button class="btn" style="margin-top:8px;" id="recPay">Record payment</button></div>`;
+  $('recPay').onclick = () => recordPayment(inv, st.left || inv.total, reopen);
+}
+function recordPayment(inv, amount, after) {
+  const ov = document.createElement('div'); window.__payOv = ov;
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1001;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;';
+  ov.innerHTML = `<div class="card" style="max-width:420px;width:100%;margin:auto 0;"><h3 style="margin-top:0">Record payment</h3><div class="small">${esc(inv.invoiceNo || inv.loadId)} · ${esc(inv.customer)} · invoice $${money(inv.total)}</div>
+    <label>Date paid</label><input type="date" id="rpD" value="${new Date().toLocaleDateString('en-CA')}">
+    <label>Amount ($)</label><input type="number" id="rpA" step="0.01" inputmode="decimal" value="${money(amount)}">
+    <label>Method</label><select id="rpM"><option value="e-transfer">E-transfer</option><option value="cheque">Cheque</option><option value="cash">Cash</option><option value="other">Other</option></select>
+    <label>Note</label><input id="rpN" placeholder="cheque #, etc.">
+    <div id="rpE" style="color:var(--bad);font-weight:700;"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-outline" id="rpNo" style="flex:1">Cancel</button><button class="btn" id="rpGo" style="flex:1">Save</button></div></div>`;
+  document.body.appendChild(ov);
+  const id = 'PAY-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  $('rpNo').onclick = () => ov.remove();
+  $('rpGo').onclick = async () => {
+    const a = +$('rpA').value; if (!(a > 0)) { $('rpE').textContent = 'Enter the amount paid.'; return; }
+    if (a > (+amount || 0) + 0.009 && !confirm('That is more than what is owing ($' + money(amount) + '). Save anyway?')) return;
+    $('rpGo').disabled = true;
+    try {
+      const r = await moneyPost({ action: 'savePayment', payment: { id, loadId: inv.loadId || '', invoiceNo: inv.invoiceNo || '', customer: inv.customer, paidAt: $('rpD').value, amount: a, method: $('rpM').value, note: $('rpN').value.trim() } });
+      if (r.status === 'cancelled') { $('rpGo').disabled = false; return; }
+      if (r.status !== 'ok') { $('rpE').textContent = r.message || 'Not saved.'; $('rpGo').disabled = false; return; }
+      ov.remove(); PAY = null; if (window.kfAlertsRefresh) kfAlertsRefresh(true); if (after) after();
+    } catch (e) { $('rpE').textContent = 'No signal: nothing was saved.'; $('rpGo').disabled = false; }
+  };
+}
+async function showOwing() {
+  show('owingView'); const box = $('owingList'); box.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
+  await loadPayments(true);
+  if (!PAY) { box.innerHTML = '<p>Needs signal and an admin device (or the company password).</p>'; return; }
+  let rows = []; try { const s = getSettings(); rows = (await (await fetch(s.sheetsUrl + (s.sheetsUrl.includes('?') ? '&' : '?') + 't=' + Date.now())).json()).rows || []; } catch (e) {}
+  const now = Date.now(), list = [];
+  rows.forEach(r => {
+    if ((r.status || '').toLowerCase() !== 'paid' || !r.invoiceData) return; let inv = null; try { inv = JSON.parse(r.invoiceData); } catch (e) {}
+    if (!inv || !inv.model) return; const st = payState(r.loadId, inv.model.total, inv.paidAt); if (st.s === 'Paid') return;
+    list.push({ loadId: r.loadId, invoiceNo: inv.model.invNo || r.loadId, customer: inv.model.customer || r.customerName, total: inv.model.total, at: +inv.paidAt || Date.parse(r.timestamp), left: st.left, s: st.s });
+  });
+  (PAY.invoices || []).forEach(iv => { const st = payState(iv.invoiceNo, iv.total, Date.parse(iv.at)); if (st.s !== 'Paid') list.push({ loadId: '', invoiceNo: iv.invoiceNo, customer: iv.customer, total: iv.total, at: Date.parse(iv.at), left: st.left, s: st.s, manual: true }); });
+  const bucket = d => d <= 30 ? '0-30' : d <= 60 ? '31-60' : d <= 90 ? '61-90' : '90+';
+  const by = {}; list.forEach(x => { x.days = Math.floor((now - x.at) / 86400000); (by[x.customer || '(no name)'] = by[x.customer || '(no name)'] || []).push(x); });
+  const custs = Object.keys(by).sort((a, b) => by[b].reduce((s, x) => s + x.left, 0) - by[a].reduce((s, x) => s + x.left, 0));
+  const grand = r2(list.reduce((s, x) => s + x.left, 0));
+  box.innerHTML = `<div class="card" style="padding:12px;"><strong>Total owing: $${money(grand)}</strong> · ${list.length} invoice(s)<div class="small">${['0-30', '31-60', '61-90', '90+'].map(b => b + ' days: $' + money(list.filter(x => bucket(x.days) === b).reduce((s, x) => s + x.left, 0))).join(' · ')}</div></div>` +
+    custs.map(c => `<div class="card" style="padding:12px;"><div style="display:flex;justify-content:space-between;"><strong>${esc(c)}</strong><strong>$${money(by[c].reduce((s, x) => s + x.left, 0))}</strong></div>
+      ${by[c].sort((a, b) => b.days - a.days).map(x => `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--border);"><span class="small">${esc(x.invoiceNo)}${x.manual ? ' (manual)' : ''} · ${x.days} days (${bucket(x.days)}) · ${x.s}<br>invoice $${money(x.total)} · owing $${money(x.left)}</span><button class="btn btn-sm" data-k="${esc(x.invoiceNo)}|${esc(x.loadId)}">Paid</button></div>`).join('')}</div>`).join('') || '<p style="color:var(--muted);">Nothing owing.</p>';
+  box.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const [no, lid] = b.dataset.k.split('|'), x = list.find(y => y.invoiceNo === no && (y.loadId || '') === lid); if (x) recordPayment(x, x.left, showOwing); });
+}
+if (location.hash === '#owing') setTimeout(() => { if (v14()) showOwing(); }, 300);
+
 showMenu();
+if (v14()) loadPayments().then(() => { if (!$('menu').classList.contains('hidden')) loadPaidHistory(); });
 // delivered loads and payments from other devices show up by themselves
 if (window.kfLive) kfLive(() => {
   if (!$('pendingView').classList.contains('hidden')) return loadPending();
