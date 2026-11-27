@@ -18,7 +18,7 @@
 //   Changing the company password makes a new key: every device must connect again.
 //   Drivers' phones only need the link + their own passcode (no company key).
 // ============================================================================
-var SCRIPT_VERSION = 1;
+var SCRIPT_VERSION = 14;     // pages check v >= 14 for the Trucks / Statistics / admin-token features
 var APP = 'company';
 var SHEET_NAME = 'Company Data';
 var CHUNK = 8000;              // Script Properties hold ~9 KB per value
@@ -29,13 +29,37 @@ var LOAD_HEADERS = ['Timestamp', 'Customer Name', 'Phone', 'Address', 'Source Lo
   'One-way km', 'Trip Time', 'Drive Hours', 'Total Hours', 'Fuel Litres', 'Total (incl GST)', 'Status', 'Load ID', 'Net Tonnes', 'Invoice Data', 'Notes'];
 var TICKET_HEADERS = ['Ticket', 'Product', 'Customer', 'Source', 'Tare', 'Gross', 'Net', 'Purchase', 'Sale', 'Time', 'Notes'];
 var YARD_HEADERS = ['Timestamp', 'Yard', 'Species', 'Type', 'Tonnes', 'Cords', 'Price/Tonne', 'Price/Cord', 'Ticket', 'Notes', 'Source', 'Unit'];
-var TABS = {   // keyed tabs (row 1 = these keys)
-  Drivers:  ['id', 'name', 'salt', 'hash', 'active', 'licenseNo', 'licenseExpiry', 'licenseLink', 'expenseNotes', 'lastLat', 'lastLon', 'lastPlace', 'lastSeen', 'lastStatus', 'lastUnit', 'phone'],
-  Shifts:   ['shiftId', 'driverId', 'driverName', 'date', 'unit', 'startedAt', 'submittedAt', 'status', 'startOdo', 'endOdo', 'onDutyHrs', 'drivingHrs', 'remarks', 'json', 'signature', 'editedAt'],
+// v14: new columns are only ever added on the RIGHT. Columns A..T (Loads) and A..L (Yards) never move.
+var LOAD_HEADERS_V14 = ['Quoted Total', 'Price Adj', 'Adj Reason', 'Billed Hours', 'Booking ID', 'Product', 'Requested Date', 'Unit ID', 'Driver Name',
+  'Booking Data', 'Empty Out km', 'Empty Out h', 'Loaded km', 'Loaded h', 'Empty Back km', 'Empty Back h', 'Empty Fuel L'];
+var LOAD_ALL = LOAD_HEADERS.concat(LOAD_HEADERS_V14);              // 37 columns
+var YARD_HEADERS_V14 = ['Product', 'CostPerTonne', 'CostPerCord', 'HaulCost', 'ProcessId', 'Status', 'LoadId', 'PendingTonnes', 'EntryId', 'By'];
+var YARD_ALL = YARD_HEADERS.concat(YARD_HEADERS_V14);              // 22 columns
+var TABS = {   // keyed tabs (row 1 = these keys). New keys go at the END of each list only.
+  Drivers:  ['id', 'name', 'salt', 'hash', 'active', 'licenseNo', 'licenseExpiry', 'licenseLink', 'expenseNotes', 'lastLat', 'lastLon', 'lastPlace', 'lastSeen', 'lastStatus', 'lastUnit', 'phone',
+    'roles', 'tokenVer'],
+  Shifts:   ['shiftId', 'driverId', 'driverName', 'date', 'unit', 'startedAt', 'submittedAt', 'status', 'startOdo', 'endOdo', 'onDutyHrs', 'drivingHrs', 'remarks', 'json', 'signature', 'editedAt',
+    'shiftType', 'startHours', 'endHours', 'unitId'],
   Pretrips: ['shiftId', 'driverName', 'unit', 'at', 'result', 'json', 'signature'],
   Positions: ['at', 'driverName', 'unit', 'lat', 'lon', 'place', 'status', 'shiftId', 'kph', 'driverId'],
   Log:      ['at', 'svc', 'action', 'ref', 'detail'],
-  Places:   ['address', 'place', 'lat', 'lon', 'at']        // delivery addresses already looked up (village + nearest city)
+  Places:   ['address', 'place', 'lat', 'lon', 'at'],       // delivery addresses already looked up (village + nearest city)
+  // ---- v14: Trucks & Equipment ----
+  Units:    ['id', 'type', 'name', 'unitNo', 'plate', 'vin', 'year', 'make', 'model', 'purchaseDate', 'purchasePrice', 'trackHours', 'currentOdo', 'currentHours', 'regExpiry', 'insExpiry', 'cvipExpiry',
+    'status', 'outReason', 'notes', 'photo', 'updatedAt', 'pricingUnit', 'hasCrane', 'fuelBurnLph', 'fuelType', 'wearPerHour', 'pmOverrides', 'homeBase', 'trailerA', 'trailerB', 'oosOverride'],
+  WorkOrders: ['id', 'unitId', 'unitName', 'openedAt', 'source', 'shiftId', 'driverName', 'defect', 'severity', 'status', 'where', 'shopName', 'mechanicName', 'mechHours', 'mechRate', 'laborCost',
+    'partsCost', 'shopLabor', 'shopParts', 'gst', 'total', 'odoAt', 'hoursAt', 'closedAt', 'closedBy', 'workDone', 'invoicePhoto', 'downDays', 'notes', 'inspectionId', 'itemName', 'photo', 'woKey', 'seenAt', 'seenBy'],
+  WOParts:  ['woId', 'at', 'part', 'qty', 'unitCost', 'total', 'vendor', 'receiptPhoto', 'id'],
+  ServicePlans: ['id', 'unitId', 'task', 'everyKm', 'everyHours', 'everyDays', 'lastDoneAt', 'lastDoneOdo', 'lastDoneHours', 'notes'],
+  UnitReadings: ['at', 'unitId', 'unitName', 'odo', 'hours', 'source', 'shiftId', 'by', 'id'],
+  Inspections: ['id', 'unitId', 'unitName', 'template', 'doneAt', 'doneBy', 'role', 'odo', 'hours', 'result', 'itemsJson', 'measurementsJson', 'signature', 'notes', 'woIds'],
+  InspectionTemplates: ['id', 'name', 'appliesTo', 'intervalHours', 'intervalKm', 'intervalDays', 'includesTemplateId', 'itemsJson', 'active'],
+  // ---- v14: Money ----
+  Expenses: ['id', 'at', 'date', 'amount', 'gst', 'total', 'category', 'vendor', 'payMethod', 'unitId', 'driverName', 'loadId', 'yard', 'recurringId', 'source', 'sourceRef', 'note', 'receiptPhoto', 'by'],
+  Recurring: ['id', 'name', 'category', 'amount', 'gst', 'dayOfMonth', 'unitId', 'startDate', 'endDate', 'active', 'lastPostedFor'],
+  Payments: ['id', 'loadId', 'invoiceNo', 'customer', 'paidAt', 'amount', 'method', 'note', 'by'],
+  People:   ['id', 'name', 'role', 'hourlyRate', 'active', 'roles', 'rates'],
+  Invoices: ['invoiceNo', 'at', 'customer', 'address', 'phone', 'loadId', 'ticket', 'sub', 'gst', 'total', 'product', 'trucking', 'fsc', 'json']
 };
 
 /* =============================== basics =============================== */
@@ -70,6 +94,56 @@ function companyId_() {
   return id;
 }
 
+/* =============================== v14: admin devices + people sign-in =============================== */
+// ADMIN = the company password, or a random admin token that a device got by entering the password once.
+// Only a SHA-256 of each token is kept (Script Property adminTokens). Tokens are never logged.
+// Before a company password exists, every device is admin (same as keyOk_).
+function same_(a, b) { a = String(a == null ? '' : a); b = String(b == null ? '' : b); var x = a.length ^ b.length, n = Math.max(a.length, b.length); for (var i = 0; i < n; i++) x |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0); return x === 0; }
+function adminTokens_() { return parse_(props_().getProperty('adminTokens') || '[]') || []; }
+function saveAdminTokens_(l) { props_().setProperty('adminTokens', JSON.stringify(l.slice(-40))); }
+function newToken_() { return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''); }
+function tokenAdmin_(t) {
+  if (!t) return null;
+  var h = sha_(String(t)), list = adminTokens_(), hit = null;
+  list.forEach(function (x) { if (same_(x.h, h)) hit = x; });            // checks every entry (constant time per entry)
+  if (hit && Date.now() - (Number(hit.seen) || 0) > 3600000) { hit.seen = Date.now(); try { saveAdminTokens_(list); } catch (e) {} }
+  return hit;
+}
+function isAdmin_(p, d) {
+  if (!hasPassword_()) return { ok: true, none: true };
+  var t = (d && d.adminToken) || (p && p.at);
+  if (t && tokenAdmin_(t)) return { ok: true, token: true };
+  if (d && d.password != null && d.password !== '') { var c = checkPw_(d.password); return { ok: c.ok, locked: c.locked }; }
+  return { ok: false, noadmin: !!t };
+}
+function adminFail_(a) { return json_({ status: a.locked ? 'locked' : a.noadmin ? 'noadmin' : 'badpassword', message: a.noadmin ? 'This device is no longer an admin. Enter the company password.' : 'Wrong company password.', v: SCRIPT_VERSION }); }
+function adminName_(d) { var t = d && d.adminToken; if (!t) return d && d.password ? 'company password' : ''; var h = tokenAdmin_(t); return h ? h.name : ''; }
+
+// PEOPLE (drivers, mechanic, yard) sign in with name + passcode and get a session token that is signed with a secret
+// (nothing stored per phone). Changing the person's passcode or deactivating them ends every token.
+function personSecret_() { var s = props_().getProperty('personSecret'); if (!s) { s = newToken_(); props_().setProperty('personSecret', s); } return s; }
+function personSig_(d) { return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(String(d.id) + '|' + String(d.tokenVer || 0) + '|' + String(d.hash || ''), personSecret_())).replace(/=+$/, ''); }
+function personToken_(d) { return String(d.id) + '.' + personSig_(d); }
+function personFromToken_(t, list) {
+  t = String(t || ''); var i = t.lastIndexOf('.'); if (i < 1) return null;
+  var id = t.slice(0, i), sig = t.slice(i + 1), rows = list || rows_('Drivers');
+  for (var j = 0; j < rows.length; j++) { var x = rows[j]; if (String(x.id) === id) return (String(x.active) !== 'false' && x.hash && same_(personSig_(x), sig)) ? x : null; }
+  return null;
+}
+// name + passcode (old cached pages) OR token (v14 pages)
+function personAuth_(d) {
+  if (d && d.token) { var x = personFromToken_(d.token); return x ? { ok: true, driver: x } : { bad: true }; }
+  return drvAuth_(d && d.name, d && d.passcode);
+}
+function rolesOf_(drv) { var r = String((drv && drv.roles) || '').toLowerCase().split(/[,\s]+/).filter(String); return r.length ? r : ['driver']; }
+
+// TEST copy: Script Property TEST_MODE=1 sends EVERY email only to the owner with [TEST] in the subject.
+function testMode_() { return String(props_().getProperty('TEST_MODE') || '') === '1'; }
+function sendMail_(opts) {
+  if (testMode_()) { opts.subject = '[TEST] ' + (opts.subject || '') + ' (would have gone to ' + opts.to + ')'; opts.to = Session.getEffectiveUser().getEmail(); }
+  MailApp.sendEmail(opts);
+}
+
 /* =============================== company settings blob (Quote page "Company Sync") =============================== */
 function readSettings_() {
   var p = props_(), n = parseInt(p.getProperty('companySettings_n') || '0', 10), raw = '';
@@ -88,7 +162,7 @@ function rev_() { return parseInt(props_().getProperty('companyRev') || '0', 10)
 function bumpRev_() { var r = rev_() + 1; props_().setProperty('companyRev', String(r)); return r; }
 function meta_() {
   var s = readSettings_(), pr = s.profile || {};
-  return { v: SCRIPT_VERSION, app: APP, unified: true, rev: rev_(), hasPassword: hasPassword_(), companyId: companyId_(), companyName: pr.name || s.companyName || '' };
+  return { v: SCRIPT_VERSION, app: APP, unified: true, rev: rev_(), hasPassword: hasPassword_(), companyId: companyId_(), companyName: pr.name || s.companyName || '', test: testMode_() };
 }
 // Link fields are derived on each device from this script's own link, so they are never stored.
 var LINK_KEYS = ['sheetsUrl', 'sheetsUrlAt', 'syncUrl', 'scriptUrl', 'scriptUrlAt', 'yardUrl', 'yardUrlAt', 'driversUrl', 'driversUrlAt', 'trucksUrl', 'trucksUrlAt', 'movedTo'];
@@ -103,23 +177,44 @@ function ss_() {
   return ss__;
 }
 function styleHeader_(rng) { try { rng.setFontWeight('bold').setBackground('#166534').setFontColor('#ffffff'); } catch (e) {} }
+// The header a tab should have (v14 names included). Loads keeps its header on row 4.
+function headOf_(name) { return name === 'Loads' ? LOAD_ALL : name === 'Tickets' ? TICKET_HEADERS : name === 'Yards' ? YARD_ALL : TABS[name]; }
+// A new tab starts with 26 columns; make room on the RIGHT only (existing columns never move).
+function ensureCols_(sh, n) { var m = sh.getMaxColumns(); if (m < n) sh.insertColumnsAfter(m, n - m); }
+// Write the header names of NEW columns into an existing tab, once. Only empty header cells are written,
+// so nothing that is already there is ever changed.
+function extendHeader_(name, sh) {
+  var head = headOf_(name), row = name === 'Loads' ? 4 : 1, key = 'hdr_' + name;
+  if (String(props_().getProperty(key)) === String(head.length)) return;
+  ensureCols_(sh, head.length);
+  var cur = sh.getRange(row, 1, 1, head.length).getValues()[0], wrote = false;
+  for (var i = 0; i < head.length; i++) {
+    if (cur[i] === '' || cur[i] == null) { sh.getRange(row, i + 1).setValue(head[i]); styleHeader_(sh.getRange(row, i + 1)); wrote = true; }
+  }
+  if (wrote) try { log_('sync', 'columns added', name, head.length + ' columns'); } catch (e) {}
+  props_().setProperty(key, String(head.length));
+}
 function sheet_(name) {
   if (tabs__[name]) return tabs__[name];
   var ss = ss_(), sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
+    var head = headOf_(name);
+    ensureCols_(sh, head.length);
     if (name === 'Loads') {
       sh.getRange(1, 1).setValue('Trip Log');
       try { sh.getRange(1, 1).setFontSize(18).setFontWeight('bold').setFontColor('#166534'); } catch (e) {}
-      sh.getRange(4, 1, 1, LOAD_HEADERS.length).setValues([LOAD_HEADERS]); styleHeader_(sh.getRange(4, 1, 1, LOAD_HEADERS.length));
+      sh.getRange(4, 1, 1, head.length).setValues([head]); styleHeader_(sh.getRange(4, 1, 1, head.length));
       try { sh.setFrozenRows(4); } catch (e) {}
     } else {
-      var head = name === 'Tickets' ? TICKET_HEADERS : name === 'Yards' ? YARD_HEADERS : TABS[name];
       try { sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@'); } catch (e) {}
       sh.getRange(1, 1, 1, head.length).setValues([head]); styleHeader_(sh.getRange(1, 1, 1, head.length));
       try { sh.setFrozenRows(1); } catch (e) {}
     }
     try { var d = ss.getSheetByName('Sheet1'); if (d && ss.getSheets().length > 1) ss.deleteSheet(d); } catch (e) {}
+    props_().setProperty('hdr_' + name, String(head.length));
+  } else if (name !== 'Log') {
+    extendHeader_(name, sh);
   }
   tabs__[name] = sh;
   return sh;
@@ -214,11 +309,13 @@ function syncPost_(p, d) {
     var salt = Utilities.getUuid(), key = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
     props_().setProperties({ companyPwSalt: salt, companyPwHash: pwHash_(salt, np), companyKey: key }, false);
     companyId_(); ensureTriggers_();
-    log_('sync', first ? 'company created' : 'password changed', '', '');
-    return json_({ status: 'ok', v: SCRIPT_VERSION, unified: true, key: key, companyId: companyId_(), meta: meta_() });
+    // v14: changing the password removes every admin device; the device that set it becomes admin
+    var tok = newToken_(); saveAdminTokens_([{ h: sha_(tok), id: Utilities.getUuid().slice(0, 8), name: cap_(d.deviceName, 60) || 'Device that set the password', at: Date.now(), seen: Date.now() }]);
+    log_('sync', first ? 'company created' : 'password changed', '', first ? '' : 'all admin devices removed');
+    return json_({ status: 'ok', v: SCRIPT_VERSION, unified: true, key: key, adminToken: tok, companyId: companyId_(), meta: meta_() });
   }
   if (a === 'saveSettings') {
-    if (hasPassword_()) { var c3 = checkPw_(d.password); if (!c3.ok) return pwFail_(c3); }
+    var c3 = isAdmin_(p, d); if (!c3.ok) return adminFail_(c3);
     var rev = rev_();
     if (!d.force && d.baseRev != null && rev > 0 && Number(d.baseRev) !== rev) return json_({ status: 'conflict', rev: rev, v: SCRIPT_VERSION });
     var inc = d.settings || {}, cur = readSettings_();
@@ -229,12 +326,13 @@ function syncPost_(p, d) {
     if (!inc.profile && cur.profile) inc.profile = cur.profile;        // company profile is saved separately (Billing → Settings)
     if (!inc.dispatch && cur.dispatch) inc.dispatch = cur.dispatch;    // customer-text settings are saved from Dispatch → Settings
     if (!inc.apiKey && cur.apiKey) inc.apiKey = cur.apiKey;            // a blank Maps key never erases the saved one
+    mergeGuard_(inc, cur);                                             // an old cached Quote page cannot wipe v14 settings
     writeSettings_(inc);
     var r2 = bumpRev_(); log_('sync', 'settings saved', 'rev ' + r2, '');
     return json_({ status: 'saved', rev: r2, v: SCRIPT_VERSION });
   }
   if (a === 'saveProfile') {
-    if (hasPassword_()) { var c4 = checkPw_(d.password); if (!c4.ok) return pwFail_(c4); }
+    var c4 = isAdmin_(p, d); if (!c4.ok) return adminFail_(c4);
     var pr = d.profile || {}, s = readSettings_();
     if (pr.logo && String(pr.logo).length > 150000) return json_({ status: 'error', message: 'The logo picture is too large to store. Choose it again (the app shrinks it).' });
     s.profile = { name: cap_(pr.name, 120), gst: cap_(pr.gst, 40), wcb: cap_(pr.wcb, 40), email: cap_(pr.email, 120), phone: cap_(pr.phone, 40),
@@ -246,7 +344,7 @@ function syncPost_(p, d) {
     return json_({ status: 'saved', rev: r3, profile: s.profile, v: SCRIPT_VERSION });
   }
   if (a === 'saveDispatch') {
-    if (hasPassword_()) { var c6 = checkPw_(d.password); if (!c6.ok) return pwFail_(c6); }
+    var c6 = isAdmin_(p, d); if (!c6.ok) return adminFail_(c6);
     var ds = d.dispatch || {}, s2 = readSettings_();
     s2.dispatch = { texts: !!ds.texts, template: cap_(ds.template, 600) };
     if (!Array.isArray(s2.locations)) s2.locations = [];
@@ -267,11 +365,58 @@ function syncPost_(p, d) {
     var c5 = checkPw_(d.password); if (!c5.ok) return pwFail_(c5);
     return json_(importOld_(d));
   }
+  // ---- v14: admin devices ----
+  if (a === 'makeAdmin') {
+    if (!hasPassword_()) return json_({ status: 'nopassword', v: SCRIPT_VERSION, meta: meta_() });
+    var cm = checkPw_(d.password); if (!cm.ok) return pwFail_(cm);
+    var t1 = newToken_(), list1 = adminTokens_(), nm = cap_(d.deviceName, 60) || 'Device';
+    list1.push({ h: sha_(t1), id: Utilities.getUuid().slice(0, 8), name: nm, at: Date.now(), seen: Date.now() });
+    saveAdminTokens_(list1); log_('sync', 'admin device added', nm, '');
+    return json_({ status: 'ok', v: SCRIPT_VERSION, adminToken: t1, key: companyKey_(), companyId: companyId_(), meta: meta_() });
+  }
+  if (a === 'whoami') {
+    var wa = isAdmin_(p, { adminToken: d.adminToken }), pe = d.token ? personFromToken_(d.token) : null;
+    return json_({ status: 'ok', v: SCRIPT_VERSION, admin: !!wa.ok, noPassword: !hasPassword_(), person: pe ? { id: pe.id, name: pe.name, roles: rolesOf_(pe) } : null, meta: meta_() });
+  }
+  if (a === 'listAdmins' || a === 'removeAdmin' || a === 'removeAllAdmins') {
+    var ca = isAdmin_(p, d); if (!ca.ok) return adminFail_(ca);
+    var list2 = adminTokens_(), mine = d.adminToken ? sha_(String(d.adminToken)) : '';
+    if (a === 'removeAdmin') { var gone = list2.filter(function (x) { return x.id === d.id; })[0]; list2 = list2.filter(function (x) { return x.id !== d.id; }); saveAdminTokens_(list2); log_('sync', 'admin device removed', gone ? gone.name : d.id, ''); }
+    if (a === 'removeAllAdmins') { list2 = []; saveAdminTokens_(list2); log_('sync', 'admin removed from all devices', '', ''); }
+    return json_({ status: 'ok', v: SCRIPT_VERSION, devices: list2.map(function (x) { return { id: x.id, name: x.name, at: x.at, seen: x.seen, me: !!mine && same_(x.h, mine) }; }) });
+  }
+  if (a === 'stopAdmin') {
+    var h3 = d.adminToken ? sha_(String(d.adminToken)) : '', l3 = adminTokens_(), me3 = l3.filter(function (x) { return same_(x.h, h3); })[0];
+    if (me3) { saveAdminTokens_(l3.filter(function (x) { return x !== me3; })); log_('sync', 'admin device removed', me3.name, 'by itself'); }
+    return json_({ status: 'ok', v: SCRIPT_VERSION });
+  }
+  if (a === 'alerts') return json_(alerts_(p, d));
   if (a === 'getLog') {
     if (!keyOk_(p.k || d.k)) return json_({ status: 'nokey' });
     var lg = rows_('Log'); return json_({ status: 'ok', rows: lg.slice(-Math.min(Number(d.limit) || 200, 2000)) });
   }
   return json_({ status: 'error', message: 'Unknown action: ' + a, v: SCRIPT_VERSION });
+}
+
+// v14 settings that an OLD cached Quote page does not know about. If a save is missing them, the stored value is kept.
+var GUARD_KEYS = ['money', 'homeBase', 'offRoadFuelPrice'];
+var GUARD_UNIT_FIELDS = ['aliases', 'haulsSplit', 'splitCords', 'homeBase'];
+var GUARD_SPECIES_FIELDS = ['splitPricePerCord', 'splitCostPerCord'];
+function mergeGuard_(inc, cur) {
+  GUARD_KEYS.forEach(function (k) { if (!(k in inc) && cur[k] != null) inc[k] = cur[k]; });
+  if (Array.isArray(inc.units) && Array.isArray(cur.units)) inc.units.forEach(function (u) {
+    var old = cur.units.filter(function (x) { return String(x.id) === String(u.id); })[0]; if (!old) return;
+    GUARD_UNIT_FIELDS.forEach(function (f) { if (!(f in u) && old[f] != null) u[f] = old[f]; });
+  });
+  if (Array.isArray(inc.locations) && Array.isArray(cur.locations)) inc.locations.forEach(function (l) {
+    var old = cur.locations.filter(function (x) { return String(x.id) === String(l.id); })[0]; if (!old || !Array.isArray(l.species)) return;
+    l.species.forEach(function (sp) {
+      var os = (old.species || []).filter(function (x) { return String(x.name) === String(sp.name); })[0]; if (!os) return;
+      GUARD_SPECIES_FIELDS.forEach(function (f) { if (!(f in sp) && os[f] != null) sp[f] = os[f]; });
+    });
+  });
+  delete inc.yardPassword;                                             // v14: no saved passwords in settings
+  return inc;
 }
 
 /* =============================== loads (Quote bookings, Dispatch, Billing) =============================== */
@@ -336,7 +481,7 @@ function loadsPost_(d) {
     var opts = { to: d.to || Session.getEffectiveUser().getEmail(), subject: d.subject || 'Invoice', body: d.body || 'See attached invoice.' };
     if (d.pdfBase64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(d.pdfBase64), 'application/pdf', d.filename || 'package.pdf')];
     else if (d.html) opts.attachments = [Utilities.newBlob(d.html, 'text/html', (d.filename || 'package') + '.html')];
-    MailApp.sendEmail(opts); log_('loads', 'invoice emailed', d.subject || '', opts.to);
+    sendMail_(opts); log_('loads', 'invoice emailed', d.subject || '', opts.to);
     return json_({ status: 'sent', attached: !!(opts.attachments && d.pdfBase64), version: 2 });
   }
   if (d.action) return json_({ status: 'error', message: 'Unknown action: ' + d.action });
@@ -423,6 +568,9 @@ function yardsPost_(d) {
   }
   return json_({ status: 'ok' });
 }
+
+/* =============================== v14: action alerts (worked out each time, never stored) =============================== */
+function alerts_(p, d) { return { status: 'ok', v: SCRIPT_VERSION, pages: {} }; }
 
 /* =============================== nightly backup + clean-up =============================== */
 function ensureTriggers_() {
@@ -571,9 +719,10 @@ function drvConfig_() {
   return out;
 }
 function drvAdminOk_(p, d) {
-  if (keyOk_(p.k) && hasPassword_()) return { ok: true };
-  if (!hasPassword_()) return { ok: false, none: true };
-  var c = checkPw_(d.password); return { ok: c.ok, locked: c.locked };
+  // v14: admin = admin token or the company password. Holding the company key alone no longer makes a device admin.
+  // Before a company password exists every device is admin.
+  var a = isAdmin_(p, d);
+  return { ok: a.ok, locked: a.locked, noadmin: a.noadmin };
 }
 function drvLocked_(who) { return Number(CacheService.getScriptCache().get('fail_' + who) || 0) >= 10; }
 function drvFail_(who) { var c = CacheService.getScriptCache(); c.put('fail_' + who, String(Number(c.get('fail_' + who) || 0) + 1), 600); }
@@ -644,7 +793,7 @@ function drvPost_(p, d) {
   var a = d.action, lock = LockService.getScriptLock();
   try {
     if (a === 'place') {
-      var okp = drvAdminOk_(p, d).ok || (d.name && drvAuth_(d.name, d.passcode).ok);
+      var okp = drvAdminOk_(p, d).ok || ((d.token || d.name) && personAuth_(d).ok);
       if (!okp) return json_({ status: 'badpassword' });
       try { return json_(drvPlace_(d.lat, d.lon)); } catch (err) { return json_({ status: 'error', message: String(err) }); }
     }
@@ -733,7 +882,7 @@ function drvPost_(p, d) {
     }
 
     if (a === 'driverLogin' || a === 'saveShift' || a === 'submitShift' || a === 'driverHistory') {
-      var au = drvAuth_(d.name, d.passcode); if (!au.ok) return drvAuthFail_(au);
+      var au = personAuth_(d); if (!au.ok) return drvAuthFail_(au);
       var drv = au.driver, cfg = drvConfig_();
       if (a === 'driverLogin') {
         var mine = rows_('Shifts').filter(function (s) { return String(s.driverId) === String(drv.id); });
@@ -746,7 +895,7 @@ function drvPost_(p, d) {
         var allOdo = {}, odoAt = {};
         rows_('Shifts').forEach(function (s) { if (s.status !== 'Submitted' || !s.unit || s.endOdo === '') return; var tt = ms_(s.submittedAt); if (!odoAt[s.unit] || tt >= odoAt[s.unit]) { allOdo[s.unit] = s.endOdo; odoAt[s.unit] = tt; } });
         var ob = drvOnBlocks_(mine, Date.now() - 40 * 86400000);
-        return json_({ status: 'ok', v: 3, driver: drvPublic_(drv), company: cfg.company, units: cfg.units, rules: cfg.rules, history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? drvFullShift_(open) : null, onBlocks: ob.blocks, knownSince: ob.knownSince });
+        return json_({ status: 'ok', v: 3, sv: SCRIPT_VERSION, token: personToken_(drv), roles: rolesOf_(drv), driver: drvPublic_(drv), company: cfg.company, units: cfg.units, rules: cfg.rules, history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? drvFullShift_(open) : null, onBlocks: ob.blocks, knownSince: ob.knownSince });
       }
       if (a === 'driverHistory') {
         var since = Date.now() - Math.min(Number(d.days) || 15, 31) * 86400000, pret2 = rows_('Pretrips');
@@ -815,6 +964,31 @@ function drvEmail_(cfg, drv, sh, pdfBase64) {
     '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse"><tr><th>Time</th><th>Status</th><th>Location</th><th>Note</th></tr>' + ev + '</table><p><b>Closing remarks:</b> ' + esc_(sh.remarks) + '</p></div>';
   var opts = { to: to, subject: 'Driver log - ' + drv.name + ' - ' + sh.date + ' - ' + sh.unit, htmlBody: html, name: cfg.company.name || 'Driver log' };
   if (pdfBase64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(String(pdfBase64)), 'application/pdf', 'Driver log ' + drv.name + ' ' + sh.date + '.pdf')];
-  MailApp.sendEmail(opts);
+  sendMail_(opts);
   return true;
+}
+
+/* =============================== v14: structure check (run from the editor: testAll_) =============================== */
+// Read-only. Checks every tab's header is where the code expects it (no column moved or renamed).
+// Columns the new version adds on the right show as "not added yet" until the tab is next used; that is fine.
+function testAll_() {
+  var out = [], problems = 0, ss = ss_();
+  var check = function (name, row, head) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) { out.push('·  ' + name + ': not created yet (it is made the first time it is used)'); return; }
+    var w = Math.min(sh.getMaxColumns(), head.length), cur = sh.getRange(row, 1, 1, w).getValues()[0], missing = 0;
+    head.forEach(function (h, i) {
+      if (i >= w || cur[i] === '' || cur[i] == null) { missing++; return; }
+      if (String(cur[i]).trim() !== String(h)) { problems++; out.push('PROBLEM ' + name + ' column ' + (i + 1) + ': expected "' + h + '" but found "' + cur[i] + '"'); }
+    });
+    out.push((missing ? '·  ' : 'OK ') + name + ': ' + (head.length - missing) + ' of ' + head.length + ' columns in place' + (missing ? ' (' + missing + ' new columns not added yet)' : ''));
+  };
+  check('Loads', 4, LOAD_ALL); check('Tickets', 1, TICKET_HEADERS); check('Yards', 1, YARD_ALL);
+  Object.keys(TABS).forEach(function (n) { check(n, 1, TABS[n]); });
+  try { var t = adminTokens_(); out.push('OK admin devices: ' + t.length); } catch (e) { problems++; out.push('PROBLEM admin device list: ' + e); }
+  try { var s = readSettings_(); out.push('OK settings: ' + ((s.locations || []).length) + ' locations, ' + ((s.units || []).length) + ' units' + (s.yardPassword ? ' (old yardPassword still stored; removed on next Save to Company)' : '')); } catch (e) { problems++; out.push('PROBLEM settings: ' + e); }
+  out.push('Script version ' + SCRIPT_VERSION + (testMode_() ? '  ·  TEST MODE (emails only go to the owner)' : ''));
+  out.unshift(problems ? problems + ' PROBLEM(S) FOUND' : 'All checks passed');
+  Logger.log(out.join('\n'));
+  return out;
 }

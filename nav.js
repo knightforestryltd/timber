@@ -4,6 +4,9 @@
       Each page defines window.kfBack(): return true if it closed something / went up a level.
    2) Sheet links: kfLinks reads/writes the script links each page uses, stamped with the time so
       Company Sync (Quote page) knows which copy is newest, and flags "not saved to company yet". */
+// v14: the company link lives in kf-config.js (loaded here, before the page's own scripts run).
+// Pages include kf-config.js before nav.js; this is only a fallback (then the early steps below run right after it loads).
+if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-config.js"><\/script><script>window.__kfEarly && __kfEarly();<\/script>'); } catch (e) {} }
 (function () {
   var HOME = 'index.html';
   function isHome() { var f = (location.pathname.split('/').pop() || '').toLowerCase(); return f === '' || f === 'index.html'; }
@@ -76,6 +79,8 @@
     valid: function (u) { return !u || /^https:\/\/script\.google(usercontent)?\.com\//.test(u); },
     // Draws a "Sheet links" card into `box` for the given keys.
     card: function (box, keys, onSaved) {
+      // v14: no link fields anywhere once the site knows its company (kf-config.js). The old code paths stay.
+      if (window.kfConfigUrl && window.kfConfigUrl()) { box.innerHTML = ''; box.style.display = 'none'; return; }
       if (kfCo.unified()) {
         box.innerHTML = '<h2 style="margin-top:0">Sheet link</h2><div style="font-size:.9rem">This device uses the single company link for everything:</div><div style="word-break:break-all;font-size:.85rem;margin:6px 0;padding:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px">' +
           kfCo.base().replace(/[&<>"]/g, '') + '</div><div style="font-size:.85rem;color:var(--muted,#64748b)">To connect to a different company, use Quote → Settings → Switch company.</div>';
@@ -133,7 +138,8 @@
     },
     sameCompany: function (meta) { var id = LS.get('kfCompanyId'); return !!(id && meta && meta.companyId === id); },
     post: function (svc, body) {
-      return fetch(kfCo.url(svc), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' }).then(function (r) { return r.json(); });
+      return fetch(kfCo.url(svc), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(window.kfAuth ? kfAuth(body) : body), redirect: 'follow' })
+        .then(function (r) { return r.json(); }).then(function (j) { if (j && j.status === 'noadmin' && window.kfLostAdmin) kfLostAdmin(); return j; });
     }
   };
   window.kfCo = kfCo;
@@ -168,6 +174,9 @@
     ['companyName', 'quoteShow', 'apiKey', 'dispatch'].forEach(function (k) { if (data[k]) s[k] = data[k]; });
     ['speed', 'fuelPrice', 'gst'].forEach(function (k) { if (data[k] != null && data[k] !== '') s[k] = +data[k]; });
     if (data.costFuelPrice != null && data.costFuelPrice !== '') s.costFuelPrice = +data.costFuelPrice; else delete s.costFuelPrice;
+    ['money', 'homeBase'].forEach(function (k) { if (data[k] != null && data[k] !== '') s[k] = data[k]; });          // v14
+    if (data.offRoadFuelPrice != null && data.offRoadFuelPrice !== '') s.offRoadFuelPrice = +data.offRoadFuelPrice;
+    delete s.yardPassword;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
     if (data.profile && typeof data.profile === 'object') {
       var pr = data.profile;
@@ -178,6 +187,7 @@
     if (!kfCo.unified() || window.kfOwnSync) return Promise.resolve(false);
     return fetch(kfCo.url('sync') + '&settings=1&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.status === 'nokey') { hint('This device is no longer connected (the company password was changed). Open Quote → Settings to connect again.'); return false; }
+      if (j && j._meta) { LS.set('kfServerV', String(j._meta.v || 0)); if (j._meta.hasPassword === false) LS.set('kfNoPassword', '1'); else LS.del('kfNoPassword'); if (j._meta.test) LS.set('kfTestMode', '1'); else LS.del('kfTestMode'); }
       var rev = j && j._meta && j._meta.rev;
       if (rev == null || String(rev) === LS.get('kfCompanyRev')) return false;
       if (LS.get('kfDirty') === '1') return false;                   // this device has unsaved company changes: never overwrite them
@@ -231,6 +241,237 @@
     if (/^data:image\/jpeg;base64,/.test(logo)) { try { var t = atob(logo.split(',')[1].slice(-8)); return t.charCodeAt(t.length - 2) !== 0xFF || t.charCodeAt(t.length - 1) !== 0xD9; } catch (e) { return true; } }
     return false;
   };
+
+  /* ======================================================================================
+     v14: company from kf-config.js, sign-in (admin token / person), menu, alert badges
+     ====================================================================================== */
+  function cfgList() {
+    var c = window.KF_COMPANY_URL, ok = function (u) { return /^https:\/\/script\.google\.com\//.test(String(u || '').trim()); };
+    if (Array.isArray(c)) return c.filter(function (x) { return x && ok(x.url); });
+    return ok(c) ? [{ name: '', url: String(c).trim() }] : [];
+  }
+  // The company link this site belongs to ('' = not set: behave exactly as before v14).
+  window.kfConfigUrl = function () {
+    var l = cfgList(); if (!l.length) return '';
+    if (l.length === 1) return kfCo.clean(l[0].url);
+    var pick = LS.get('kfCompanyPick'), hit = l.filter(function (x) { return x.name === pick; })[0];
+    return hit ? kfCo.clean(hit.url) : '';
+  };
+  var FILE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  function session() { try { return JSON.parse(localStorage.getItem('kfDrvSession') || 'null'); } catch (e) { return null; } }
+  window.kfAdminToken = function () { return LS.get('kfAdminToken'); };
+  // admin device = has an admin token, or the company has no password yet (then every device is admin)
+  window.kfIsAdmin = function () { return !!LS.get('kfAdminToken') || LS.get('kfNoPassword') === '1'; };
+  // the person signed in on this phone (driver / mechanic / yard), or null
+  window.kfPerson = function () { var s = session(); return s && s.name ? s : null; };
+  window.kfRoles = function () { try { var c = JSON.parse(localStorage.getItem('kfDrvCtx') || 'null'); return (c && c.roles) || (kfPerson() ? ['driver'] : []); } catch (e) { return []; } };
+  // a phone used only by a person (no company key, not admin): office pages are not shown
+  window.kfPeopleOnly = function () { return !!kfPerson() && !kfIsAdmin() && !LS.get('kfKey'); };
+  window.kfServerV = function () { return Number(LS.get('kfServerV') || 0); };
+  // every request to the company script carries this device's admin token / person token (never a password)
+  window.kfAuth = function (body) {
+    body = Object.assign({}, body || {});
+    var t = LS.get('kfAdminToken'); if (t && !body.adminToken) body.adminToken = t;
+    var s = session(); if (s && s.token && !body.token && !body.passcode) body.token = s.token;
+    return body;
+  };
+  window.kfLostAdmin = function () { LS.del('kfAdminToken'); hint('This device is no longer an admin. Enter the company password to make it one again.'); };
+
+  // A device that has never connected joins the company from kf-config.js by itself.
+  // People-only phones never see office pages (Quote, Dispatch, Billing, Tickets, Inventory, Statistics).
+  var OFFICE = { 'index.html': 1, '': 1, 'dispatch.html': 1, 'invoices.html': 1, 'scale.html': 1, 'yards.html': 1, 'statistics.html': 1 };
+  var earlyDone = false;
+  window.__kfEarly = function () {
+    if (earlyDone || !('KF_COMPANY_URL' in window)) return; earlyDone = true;
+    var base = window.kfConfigUrl();
+    if (base && !LS.get('kfCompanyUrl')) LS.set('kfCompanyUrl', base);
+    if (base && !LS.get('driversUrl') && !LS.get('kfKey')) LS.set('driversUrl', base + '?svc=drivers');
+    if (OFFICE[FILE] && window.kfPeopleOnly()) { try { location.replace('drivers.html'); } catch (e) {} }
+  };
+  window.__kfEarly();
+
+  function el(html) { var d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
+  function escH(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function syncPost(body) {
+    var base = kfCo.base() || window.kfConfigUrl();
+    return fetch(base + '?svc=sync' + (LS.get('kfKey') ? '&k=' + encodeURIComponent(LS.get('kfKey')) : ''), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' }).then(function (r) { return r.json(); });
+  }
+  // Make this device an admin: the company password is checked once and a random admin token is kept instead.
+  window.kfMakeAdmin = function (password, deviceName) {
+    var base = kfCo.base() || window.kfConfigUrl();
+    return syncPost({ action: 'makeAdmin', password: password, deviceName: deviceName }).then(function (r) {
+      if (r && r.status === 'ok' && r.adminToken) {
+        if (!LS.get('kfKey') || LS.get('kfKey') !== r.key) kfCo.apply(base, r.key, r.meta || { companyId: r.companyId });
+        LS.set('kfAdminToken', r.adminToken); LS.set('kfDeviceName', deviceName || ''); LS.set('kfServerV', String((r.meta && r.meta.v) || r.v || 14));
+        return { ok: true };
+      }
+      if (r && r.status === 'error' && /Unknown action/.test(r.message || '')) {         // the script is not updated yet: connect the old way
+        return syncPost({ action: 'checkPassword', password: password }).then(function (c) {
+          if (c && c.status === 'ok' && c.key) { kfCo.apply(base, c.key, c.meta || { companyId: c.companyId }); return { ok: true, old: true }; }
+          return { ok: false, msg: c && c.status === 'locked' ? 'Too many wrong passwords. Wait 10 minutes.' : 'Wrong company password.' };
+        });
+      }
+      if (r && r.status === 'nopassword') return { ok: false, setup: true };
+      return { ok: false, msg: r && r.status === 'locked' ? 'Too many wrong passwords. Wait 10 minutes.' : 'Wrong company password.' };
+    });
+  };
+  window.kfStopAdmin = function () {
+    if (!confirm('Stop being an admin on this device? Office pages will ask for the company password again.')) return;
+    var t = LS.get('kfAdminToken');
+    syncPost({ action: 'stopAdmin', adminToken: t }).catch(function () {});
+    LS.del('kfAdminToken'); location.reload();
+  };
+
+  // ---- sign-in screen (first open of a device that knows its company but has no sign-in yet) ----
+  window.kfShowSignIn = function (why) {
+    if (document.getElementById('kfSignIn')) return;
+    var list = cfgList(), many = list.length > 1;
+    var ov = el('<div id="kfSignIn" style="position:fixed;inset:0;z-index:7000;background:var(--bg,#f1f5f9);color:var(--text,#0f172a);overflow:auto;font-family:Arial,sans-serif">' +
+      '<div style="max-width:440px;margin:0 auto;padding:22px 16px 40px">' +
+      '<h2 style="margin:6px 0 4px">Sign in</h2><div style="color:var(--muted,#475569);font-size:.95rem;margin-bottom:14px">' + escH(why || 'Sign in once on this phone.') + '</div>' +
+      (many ? '<label style="display:block;font-weight:700;margin:8px 0 4px">Which company?</label><select id="kfsCo" style="width:100%;padding:12px;font-size:1rem">' + list.map(function (x) { return '<option>' + escH(x.name) + '</option>'; }).join('') + '</select>' : '') +
+      '<button id="kfsPerson" style="display:block;width:100%;padding:16px;margin:12px 0;border:0;border-radius:12px;background:var(--btn-bg,#1e3a5f);color:#fff;font-size:1.05rem;font-weight:800">I drive, fix trucks or work in the yard</button>' +
+      '<div style="border-top:1px solid var(--border,#cbd5e1);margin:18px 0 10px"></div><b>Office / owner</b>' +
+      '<label style="display:block;margin:10px 0 4px" for="kfsPw">Company password</label><input id="kfsPw" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;font-size:1rem">' +
+      '<label style="display:block;margin:10px 0 4px" for="kfsName">Name for this device</label><input id="kfsName" placeholder="e.g. Owner\'s phone" style="width:100%;box-sizing:border-box;padding:12px;font-size:1rem">' +
+      '<button id="kfsAdmin" style="display:block;width:100%;padding:14px;margin-top:12px;border:2px solid var(--btn-bg,#1e3a5f);border-radius:12px;background:transparent;color:var(--text,#0f172a);font-size:1rem;font-weight:800">Make this device an admin</button>' +
+      '<div id="kfsMsg" style="margin-top:10px;font-weight:700"></div></div></div>');
+    document.body.appendChild(ov);
+    var pickCo = function () { if (many) { LS.set('kfCompanyPick', document.getElementById('kfsCo').value); LS.del('kfCompanyUrl'); LS.del('driversUrl'); var b = window.kfConfigUrl(); LS.set('kfCompanyUrl', b); LS.set('driversUrl', b + '?svc=drivers'); } };
+    if (many && LS.get('kfCompanyPick')) document.getElementById('kfsCo').value = LS.get('kfCompanyPick');
+    document.getElementById('kfsPerson').onclick = function () { pickCo(); location.replace('drivers.html'); };
+    document.getElementById('kfsAdmin').onclick = function () {
+      var msg = document.getElementById('kfsMsg'), pw = document.getElementById('kfsPw').value, nm = document.getElementById('kfsName').value.trim();
+      if (!pw) { msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = 'Enter the company password.'; return; }
+      if (!nm) { msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = 'Give this device a name (so you can remove it later).'; return; }
+      pickCo(); msg.style.color = ''; msg.textContent = 'Checking…';
+      window.kfMakeAdmin(pw, nm).then(function (r) {
+        if (r.ok) { msg.textContent = 'Done.'; setTimeout(function () { location.replace(FILE === 'drivers.html' ? 'drivers.html' : (FILE || 'index.html')); }, 300); return; }
+        if (r.setup) { location.replace('index.html#setup'); return; }
+        msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = r.msg;
+      }).catch(function () { msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = 'No signal. Try again when you have signal.'; });
+    };
+  };
+  window.kfCloseSignIn = function () { var o = document.getElementById('kfSignIn'); if (o) o.remove(); };
+  function needsSignIn() {
+    if (!window.kfConfigUrl() && cfgList().length < 2) return false;
+    if (cfgList().length > 1 && !LS.get('kfCompanyPick')) return true;
+    return !LS.get('kfKey') && !LS.get('kfAdminToken') && !window.kfPerson() && !LS.get('kfSkipConnect');
+  }
+
+  // ---- menu: same order on every page, Trucks linked, Statistics for admins, alert badges ----
+  var PAGES = [['index.html', 'Quote', 'quote'], ['dispatch.html', 'Dispatch', 'dispatch'], ['invoices.html', 'Billing', 'billing'], ['scale.html', 'Tickets', 'tickets'],
+    ['drivers.html', 'Drivers', 'drivers'], ['trucks.html', 'Trucks', 'trucks'], ['yards.html', 'Inventory', 'inventory'], ['statistics.html', 'Statistics', 'statistics']];
+  var KEY_OF = {}; PAGES.forEach(function (p) { KEY_OF[p[0]] = p[2]; }); KEY_OF[''] = 'quote';
+  window.kfPageKey = function () { return KEY_OF[FILE] || ''; };
+  function fixMenu() {
+    var a0 = document.querySelector('header a[href="dispatch.html"]'); if (!a0) return;
+    var grid = a0.parentElement, anchors = [].slice.call(grid.querySelectorAll('a'));
+    var byText = {}; anchors.forEach(function (a) { byText[a.textContent.trim()] = a; });
+    var people = window.kfPeopleOnly(), admin = window.kfIsAdmin(), shown = 0;
+    PAGES.forEach(function (p) {
+      var a = byText[p[1]];
+      if (!a) { a = a0.cloneNode(false); a.textContent = p[1]; a.removeAttribute('id'); grid.appendChild(a); }
+      if (a.getAttribute('href') === '#' || p[0] === 'trucks.html' || p[0] === 'statistics.html') {
+        a.setAttribute('href', p[0]); a.onclick = function (e) { e.preventDefault(); location.replace(p[0]); };
+        a.removeAttribute('onclick');
+      }
+      a.dataset.kfPage = p[2]; a.style.position = 'relative';
+      var show = p[2] === 'statistics' ? admin : (!people || p[2] === 'drivers' || p[2] === 'trucks');
+      a.style.display = show ? '' : 'none'; if (show) shown++;
+      grid.appendChild(a);                                                     // same order everywhere
+    });
+    grid.style.gridTemplateColumns = 'repeat(' + Math.max(shown, 1) + ',1fr)';
+    if (shown > 7) [].forEach.call(grid.querySelectorAll('a'), function (a) { a.style.fontSize = '0.62rem'; a.style.paddingLeft = a.style.paddingRight = '1px'; });
+    var cur = grid.querySelector('a[data-kf-page="' + window.kfPageKey() + '"]'); if (cur) cur.style.background = 'rgba(255,255,255,0.32)';
+  }
+  function headerBadges() {
+    var name = document.getElementById('companyNameBanner'); if (!name || document.getElementById('kfAdminBadge')) return;
+    if (LS.get('kfAdminToken')) {
+      var b = el('<button id="kfAdminBadge" type="button" title="This device is an admin" style="margin-left:8px;background:#facc15;color:#0f172a;border:0;border-radius:999px;padding:3px 9px;font-size:.7rem;font-weight:800;cursor:pointer">Admin</button>');
+      b.onclick = function () { window.kfStopAdmin(); };
+      name.parentNode.insertBefore(b, name.nextSibling);
+    }
+    if (window.KF_TEST || LS.get('kfTestMode') === '1') {
+      document.body.insertBefore(el('<div style="background:#dc2626;color:#fff;text-align:center;font-weight:900;letter-spacing:2px;padding:6px;font-family:Arial,sans-serif">TEST SITE: emails only go to the owner</div>'), document.body.firstChild);
+    }
+  }
+  // An existing office device that holds the company key but has no admin token is asked once (not forced).
+  function adminAsk() {
+    if (!OFFICE[FILE] || !LS.get('kfKey') || LS.get('kfAdminToken') || window.kfIsAdmin() || window.kfServerV() < 14) return;
+    if (Date.now() - Number(LS.get('kfAdminAskAt') || 0) < 7 * 86400000) return;
+    var box = document.querySelector('.container'); if (!box) return;
+    var card = el('<div style="border:2px solid #facc15;background:var(--card,#fff);border-radius:12px;padding:12px;margin:10px 0">' +
+      '<b>Make this device an admin?</b><div style="font-size:.9rem;color:var(--muted,#475569);margin:4px 0 8px">Enter the company password once. After that this device never asks for it again (nothing is lost if you do it later).</div>' +
+      '<input id="kfaPw" type="password" placeholder="Company password" style="width:100%;box-sizing:border-box;margin-bottom:6px"><input id="kfaName" placeholder="Name for this device, e.g. Office tablet" style="width:100%;box-sizing:border-box">' +
+      '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn" id="kfaGo" type="button">Make admin</button><button class="btn btn-outline" id="kfaLater" type="button">Later</button></div><div id="kfaMsg" style="font-weight:700;margin-top:6px"></div></div>');
+    box.insertBefore(card, box.firstChild);
+    document.getElementById('kfaLater').onclick = function () { LS.set('kfAdminAskAt', String(Date.now())); card.remove(); };
+    document.getElementById('kfaGo').onclick = function () {
+      var m = document.getElementById('kfaMsg'), pw = document.getElementById('kfaPw').value, nm = document.getElementById('kfaName').value.trim() || 'Office device';
+      if (!pw) { m.textContent = 'Enter the company password.'; return; }
+      m.textContent = 'Checking…';
+      window.kfMakeAdmin(pw, nm).then(function (r) { if (r.ok) location.reload(); else m.textContent = r.msg || 'Could not make this device an admin.'; }).catch(function () { m.textContent = 'No signal.'; });
+    };
+  }
+
+  // ---- action alerts: one light call, cached 5 minutes, never blocks the page ----
+  function renderAlerts(j) {
+    var pages = (j && j.pages) || {};
+    [].forEach.call(document.querySelectorAll('header a[data-kf-page]'), function (a) {
+      var p = pages[a.dataset.kfPage], old = a.querySelector('.kfBadge'); if (old) old.remove();
+      if (!p || !(p.red || p.amber)) return;
+      a.appendChild(el(p.red ? '<span class="kfBadge" style="position:absolute;top:-5px;right:-3px;background:#dc2626;color:#fff;border-radius:999px;min-width:16px;height:16px;line-height:16px;font-size:10px;font-weight:800;text-align:center;padding:0 3px">' + p.red + '</span>'
+        : '<span class="kfBadge" style="position:absolute;top:-3px;right:-1px;background:#f59e0b;border-radius:50%;width:10px;height:10px"></span>'));
+    });
+    var mine = pages[window.kfPageKey()], box = document.querySelector('.container'), old = document.getElementById('kfNeeds');
+    if (old) old.remove();
+    if (!mine || !box || !(mine.items || []).length || window.kfPageKey() === 'statistics') return;
+    var open = LS.get('kfNeedsOpen_' + window.kfPageKey()) !== '0';
+    var d = el('<details id="kfNeeds" ' + (open ? 'open' : '') + ' style="border:1px solid var(--border,#cbd5e1);border-left:5px solid ' + (mine.red ? '#dc2626' : '#f59e0b') + ';background:var(--card,#fff);border-radius:10px;padding:8px 12px;margin:8px 0"><summary style="font-weight:800;cursor:pointer">Needs action (' + mine.items.length + ')</summary>' +
+      mine.items.slice(0, 40).map(function (it) { return '<a href="' + escH(it.href || '#') + '" style="display:block;padding:9px 2px;border-top:1px solid var(--border,#e2e8f0);color:var(--text,#0f172a);text-decoration:none"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:' + (it.lvl === 'red' ? '#dc2626' : '#f59e0b') + '"></span>' + escH(it.t) + '</a>'; }).join('') + '</details>');
+    d.addEventListener('toggle', function () { LS.set('kfNeedsOpen_' + window.kfPageKey(), d.open ? '1' : '0'); });
+    box.insertBefore(d, box.firstChild);
+  }
+  window.kfAlertsRefresh = function (force) {
+    if (!LS.get('kfCompanyUrl') || window.kfServerV() < 14) return;
+    var c = null; try { c = JSON.parse(LS.get('kfAlerts') || 'null'); } catch (e) {}
+    if (c && c.data) renderAlerts(c.data);
+    if (!force && c && Date.now() - c.at < 300000) return;
+    if (navigator.onLine === false) return;
+    kfCo.post('sync', { action: 'alerts' }).then(function (j) { if (j && j.status === 'ok') { LS.set('kfAlerts', JSON.stringify({ at: Date.now(), data: j })); renderAlerts(j); } }).catch(function () {});
+  };
+
+  // ---- photos: shrunk on the phone (max 1600 px, JPEG 0.7), uploaded to Drive; the sheet stores only the link ----
+  window.kfPhoto = {
+    shrink: function (file) {
+      return new Promise(function (res, rej) {
+        var r = new FileReader();
+        r.onload = function () { var im = new Image(); im.onload = function () { var k = Math.min(1, 1600 / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)); }; im.onerror = rej; im.src = r.result; };
+        r.onerror = rej; r.readAsDataURL(file);
+      });
+    },
+    // pick a picture (camera or file) and shrink it; resolves a data URL or '' if cancelled
+    pick: function () {
+      return new Promise(function (res) {
+        var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*,application/pdf';
+        i.onchange = function () { var f = i.files[0]; if (!f) return res(''); if (/pdf/.test(f.type)) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.readAsDataURL(f); } else window.kfPhoto.shrink(f).then(res, function () { res(''); }); };
+        i.click();
+      });
+    },
+    upload: function (dataUrl, name) {
+      return kfCo.post('trucks', { action: 'uploadPhoto', data: dataUrl, name: name || 'photo' }).then(function (j) { if (j && j.status === 'ok' && j.url) return j.url; throw new Error((j && j.message) || 'Upload failed'); });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    try { fixMenu(); headerBadges(); } catch (e) {}
+    if (needsSignIn() && FILE !== 'drivers.html' && FILE !== 'app.html') window.kfShowSignIn('Sign in once on this phone.');
+    try { adminAsk(); } catch (e) {}
+    setTimeout(function () { window.kfAlertsRefresh(false); }, 400);
+  });
+  window.addEventListener('online', function () { window.kfAlertsRefresh(true); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) window.kfAlertsRefresh(false); });
 
   /* ---------------- Android app (Capacitor) ----------------
      The app loads this same site. Inside it, the browser's share screen, downloads, print and
