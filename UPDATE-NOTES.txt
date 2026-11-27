@@ -131,7 +131,7 @@ The script asks to authorize Maps again only if Google requires it.
 === v14: Trucks & Money (one release) ===
 Upload ALL site files (new: trucks.html, statistics.html, kf-config.js, kf-stock.js, kf-stats.js; put the LIVE company
 link in kf-config.js first) AND update the company script: paste company-apps-script.gs -> Save -> Deploy -> Manage
-deployments -> pencil -> New version -> Deploy (same link; never New deployment). Then Run -> testAll_ (must say
+deployments -> pencil -> New version -> Deploy (same link; never New deployment). Then Run -> checkStructure (must say
 "All checks passed"). No new Google permissions. Full steps: DEPLOY.md. Test first on a copy: TEST-PLAN.md.
 Rollback: previous script version + previous site files. New columns are on the right and ignored by the old version.
 

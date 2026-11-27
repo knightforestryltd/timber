@@ -12,7 +12,7 @@ Do this only after TEST-PLAN.md passed on the test copy.
 ## 2. Permissions
 
 No new Google permission is needed: the script uses the same services as v13 (Sheets, Drive, Mail, Maps, URL fetch, triggers).
-If Google ever says "Authorization required" when you save: Run → **testAll_** once and Allow, **before** step 4.
+If Google ever says "Authorization required" when you save: Run → **checkStructure** once and Allow, **before** step 4.
 
 ## 3. Upload all website files
 
@@ -30,7 +30,7 @@ The pages keep working with the old script until step 4. New features stay hidde
 1. Open the LIVE script → select all → paste the new `company-apps-script.gs` → **Save**.
 2. Deploy → **Manage deployments** → pencil → Version: **New version** → **Deploy**.
 3. **NEVER** choose "New deployment": that makes a new link and every phone would point at a dead one.
-4. Run → **testAll_**. The log must start with **All checks passed**. New columns show as "not added yet" until each tab is first used; that is fine.
+4. Run → **checkStructure**. The log must start with **All checks passed**. New columns show as "not added yet" until each tab is first used; that is fine.
 
 ## 5. Check on one office phone and one driver phone
 

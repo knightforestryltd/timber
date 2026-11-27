@@ -1993,3 +1993,7 @@ function testTrucksMoney_() {
   });
   Logger.log(out.join('\n')); return out;
 }
+
+/* Runnable from the editor's function list (names ending in _ are hidden there). */
+function checkStructure() { return testAll_(); }           // read-only structure check: safe on the live script
+function testTrucksMoney() { return testTrucksMoney_(); }  // TEST COPY ONLY: makes sample rows and removes them again

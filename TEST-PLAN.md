@@ -12,7 +12,7 @@ Nothing in this plan touches the live sheet, the live script or the live website
       - `ssId` = the id of `Company Data TEST`;
       - `TEST_MODE` = `1`. With this, every email (invoices, driver logs) goes only to you, with `[TEST]` in the subject.
    3. Copy these Script Properties from the LIVE script (Project Settings → Script Properties) so the copy has the same password, settings and drivers settings: `companyPwSalt`, `companyPwHash`, `companyKey`, `companyId`, `companyRev`, `companySettings_n`, every `companySettings_0`, `companySettings_1` …, and `drvConfig`. Do **not** copy `adminTokens`.
-   4. Run **`testAll_`** once (Run menu). Authorize when Google asks: this is the test project, not the live one. The log must start with **All checks passed**.
+   4. Run **`checkStructure`** once (Run menu). Authorize when Google asks: this is the test project, not the live one. The log must start with **All checks passed**.
    5. Deploy → **New deployment** → Web app → Execute as: Me → Who has access: Anyone → Deploy. Copy the link: this is the **TEST link**. A new deployment is right here, because this is a new, separate project.
 3. **A separate TEST website** (e.g. `timber-test.<account>.workers.dev`).
    1. Upload all site files.
@@ -30,7 +30,7 @@ Last run: every test passed.
 
 | Test | Checks | What it covers |
 |---|---|---|
-| `script.test.js` | 56 | Tokens, merge guard, loads, editLoad, delivery Out rows, drivers, work orders, payments, alerts, inspections, `testAll_`, `testTrucksMoney_` |
+| `script.test.js` | 56 | Tokens, merge guard, loads, editLoad, delivery Out rows, drivers, work orders, payments, alerts, inspections, `checkStructure`, `testTrucksMoney` |
 | `e2e-trucks` | 14 | Sign-in on a fresh device, Trucks, work order close, PM-A sheet |
 | `e2e-drivers` | 22 | An old open shift carries over, passcode swapped for a token, major defect hard stop, engine hours, fuel GST, trip stages, yard clock |
 | `e2e-billing` | 10 | An existing load invoices to the same total in v13 and v14, a renamed unit, billed hours, payments, Owing |
@@ -75,7 +75,7 @@ Write down what you see; anything different from "Expect" is a fail.
 | Existing inventory totals unchanged | Inventory on live vs test: each yard + species. | Same tonnes on hand (v14 shows Logs and Split separately; with no split yet, Logs = the old figure). |
 | `nightly()` runs | TEST script → Run → `nightly`. | No error. A backup copy in Drive ("Company Data TEST backups"). Recurring bills posted once (run it twice: still once). |
 | Second company (only if the brothers will use this site) | Make a second TEST script (own sheet, its own New deployment). On a fresh Chrome profile: sign-in screen → "Setting up a new company? Use its sheet link" → paste its link → name + new password → Save link. On another fresh profile: sign in with that company name + password. | Each phone lands in its own company; the first company's data never shows. |
-| Structure | Run `testAll_` again after all of the above. | **All checks passed** (new columns only on the right). |
-| `testTrucksMoney_` | Run it on the TEST script only. | Every line starts OK; it removes its own TEST- rows. |
+| Structure | Run `checkStructure` again after all of the above. | **All checks passed** (new columns only on the right). |
+| `testTrucksMoney` | Run it on the TEST script only. | Every line starts OK; it removes its own TEST- rows. |
 
 If anything fails: write down the step and what you saw. It gets fixed and the tests are run again before the deploy.
