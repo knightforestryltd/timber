@@ -15,6 +15,7 @@
 <script src="kf-config.js"></script>
 <script src="nav.js"></script>
 <script src="kf-stock.js"></script>
+<script src="kf-stats.js"></script>
 <style>
 /* colors/fields/buttons/header come from theme.css; this file = Quote page layout */
 .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
@@ -1217,6 +1218,7 @@ $('btnCalculate').onclick = async () => {
   renderResults();
   $('quoteActions').classList.remove('hidden');
   loadAlternatives(token);
+  computeLegs(token);
 };
 
 function fmtKm(km) { return km > 0 ? km.toFixed(1) + ' km' : '—'; }
@@ -1288,7 +1290,7 @@ function blockHtml(i) {
         <span class="truck">${esc(truck.label)}</span>
         <span class="price">$${total.toFixed(0)}</span>
         <span class="sub">$${perTonne}/t</span>
-        <span class="sub">$${perCord}/cord</span>${yLogs && yLogs.qty < truck.tonnes ? `<span class="low-note">Low: ${Math.max(0, yLogs.qty).toFixed(1)} t on hand</span>` : ''}
+        <span class="sub">$${perCord}/cord</span>${chipProfit(lastCalcResults[lastCalcResults.length - 1])}${yLogs && yLogs.qty < truck.tonnes ? `<span class="low-note">Low: ${Math.max(0, yLogs.qty).toFixed(1)} t on hand</span>` : ''}
       </div>`;
     });
     h += `</div></div>`;
@@ -1332,6 +1334,49 @@ $('results').addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('price-chip')) { e.preventDefault(); toggleSelect(e.target.dataset.id, e.target); }
 });
 
+/* ======================= v14: estimated profit per option, real costs, empty legs from home base ======================= */
+function chipProfit(r) {
+  const c = r && r.cost; if (!c) return '';
+  const p = (c.productBilled + c.truckBilled + c.fuelBilled) - (c.productCost + c.truckCost + c.fuelCost);
+  return `<span class="sub" style="color:${p < 0 ? 'var(--bad)' : 'var(--good)'}">~$${Math.round(p)} profit</span>`;
+}
+// "Use real costs": the unit's actual cost per hour over the last 90 days (repairs, payments, driver wages per shift hour;
+// fuel is priced separately in the quote). Billed prices are NOT changed: only the cost rate and the margin shown.
+window.kfUseRealCosts = async function (unitId) {
+  const u = (settings.units || []).find(x => String(x.id) === String(unitId)); if (!u) return;
+  if (!(window.kfServerV && kfServerV() >= 14)) return alert('Real costs need the updated company script.');
+  let r; try { r = await kfCo.post('money', { action: 'summary', from: KFS.day(Date.now() - 100 * 86400000) }); } catch (e) { return alert('Needs signal.'); }
+  if (r.status === 'badpassword' || r.status === 'noadmin') { const pw = prompt('Company password:'); if (!pw) return; r = await kfCo.post('money', { action: 'summary', from: KFS.day(Date.now() - 100 * 86400000), password: pw }); }
+  if (r.status !== 'ok') return alert(r.message || 'Could not load the real costs.');
+  const M = KFS.prep(r, settings), x = KFS.realCostPerHour(M, u.name, 90);
+  if (!x.units) return alert(`No truck on the Trucks page is linked to "${u.name}". In Trucks → unit → Edit, set its Pricing unit to ${u.name}.`);
+  if (!(x.perH > 0)) return alert(`No shift hours on ${u.name} between ${x.from} and ${x.to}, so there is no real cost per hour yet.`);
+  if (!confirm(`${u.name}: actual cost ${x.from} to ${x.to}\n\nRepairs, payments and other unit costs $${x.costs.toFixed(2)}\nDriver wages (incl. employer cost) $${x.wages.toFixed(2)}\nShift hours ${x.hours}\n\n= $${x.perH.toFixed(2)} per hour (fuel is priced separately).\nNow: $${unitCostHourly(u).toFixed(2)} per hour.\n\nSave $${x.perH.toFixed(2)} as this unit's cost per hour? Billed prices stay the same.`)) return;
+  const billed = +u.hourly || 0; u.costHourly = x.perH; u.marginPct = x.perH > 0 ? Math.round((billed / x.perH - 1) * 1000) / 10 : 0; u.hourly = billed;
+  saveSettings(); markDirty(); renderUnits();
+  alert('Saved on this device. Company settings → Save to Company shares it.');
+};
+// Home base -> pickup (empty out), pickup -> customer (loaded), customer -> home base (empty back). Tracking only: price unchanged.
+window.kfLegs = {};
+async function computeLegs(token) {
+  window.kfLegs = {};
+  const homes = {}; (settings.units || []).forEach(u => { const hb = (u.homeBase || settings.homeBase || '').trim(); if (hb) (homes[hb] = homes[hb] || []).push(u); });
+  const hbList = Object.keys(homes); if (!hbList.length || !settings.apiKey || !calcState.origins.length) return;
+  const wp = a => { const c = parseCoords(a); return c ? { waypoint: { location: { latLng: { latitude: c.lat, longitude: c.lng } } } } : { waypoint: { address: a } }; };
+  const ll = g => ({ waypoint: { location: { latLng: { latitude: g.lat(), longitude: g.lng() } } } });
+  const matrix = async (origins, dests) => {
+    try { const r = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': settings.apiKey, 'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters' }, body: JSON.stringify({ origins, destinations: dests, travelMode: 'DRIVE' }) }); const j = await r.json(); return Array.isArray(j) ? j : []; } catch (e) { return []; }
+  };
+  const out = await matrix(hbList.map(wp), calcState.origins.map(o => ll(o.latLng))), back = calcState.dest ? await matrix([ll(calcState.dest)], hbList.map(wp)) : [];
+  if (token !== calcToken) return;
+  const km = (arr, o, d) => { const e = arr.find(x => x.originIndex === o && x.destinationIndex === d); return e && e.distanceMeters ? e.distanceMeters / 1000 : null; };
+  hbList.forEach((hb, hi) => calcState.origins.forEach((o, oi) => homes[hb].forEach(u => {
+    const outKm = km(out, hi, oi), backKm = km(back, 0, hi); if (outKm == null && backKm == null) return;
+    const sp = +settings.speed || 90, f = +u.fuel || 0;
+    window.kfLegs[o.loc.id + '|' + u.id] = { homeBase: hb, emptyOutKm: r2(outKm || 0), emptyOutH: r2((outKm || 0) / sp), loadedKm: r2(o.km), loadedH: r2(o.km / sp), emptyBackKm: r2(backKm || 0), emptyBackH: r2((backKm || 0) / sp), emptyFuelL: r2(((outKm || 0) + (backKm || 0)) / 100 * f) };
+  })));
+}
+
 /* ======================= v14: yard stock, SPLIT rows (sold per cord), low stock never blocks ======================= */
 let yardInfo = {};          // yard name -> species -> { Logs: {qty, avg}, Split: {qty, avg} }
 function setYardStock(rows) {
@@ -1367,7 +1412,7 @@ function splitRowHtml(o, sp, km) {
       km: +km.toFixed(1), duration: o.durText || '', driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2), fuelLitres: +lt.fuelLitres.toFixed(1),
       hourly: u.hourly, unitId: u.id, costHourly: unitCostHourly(u), fuelL100: u.fuel, loadHrs: u.hours, product: 'Split', fuelCost: +parts.fuelBilled.toFixed(2),
       cost: { productCost: cords * costPerCord, productBilled: woodCost, truckCost: parts.truckCost, truckBilled: parts.truckBilled, fuelCost: parts.fuelCost, fuelBilled: parts.fuelBilled, hrs: parts.hrs, litres: parts.litres, gstPct: settings.gst } });
-    h += `<div class="price-chip${selectedOptions.has(id) ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(id)}"><span class="truck">${esc(u.name)} <span class="split-tag">SPLIT</span></span><span class="price">$${total.toFixed(0)}</span><span class="sub">${cords} cords</span><span class="sub">$${(total / cords).toFixed(0)}/cord</span>${ys && ys.qty < cords ? `<span class="low-note">Low: ${Math.max(0, ys.qty).toFixed(1)} cords on hand</span>` : ''}</div>`;
+    h += `<div class="price-chip${selectedOptions.has(id) ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(id)}"><span class="truck">${esc(u.name)} <span class="split-tag">SPLIT</span></span><span class="price">$${total.toFixed(0)}</span><span class="sub">${cords} cords</span><span class="sub">$${(total / cords).toFixed(0)}/cord</span>${chipProfit(lastCalcResults[lastCalcResults.length - 1])}${ys && ys.qty < cords ? `<span class="low-note">Low: ${Math.max(0, ys.qty).toFixed(1)} cords on hand</span>` : ''}</div>`;
   });
   return h + '</div></div>';
 }
@@ -1642,12 +1687,14 @@ function askBookingNotes(selected) {
         if (adj && !why && !confirm('No reason entered for the price adjustment. Book anyway?')) return;
         bookingAdj = { adj, reason: why };
       }
-      m.classList.remove('show'); $('btnNotesOk').onclick = $('btnNotesCancel').onclick = null; $('bookAdj').oninput = null; resolve(v);
+      m.classList.remove('show'); $('btnNotesOk').onclick = $('btnNotesCancel').onclick = null; $('bookAdj').oninput = null; const ln = $('legsNote'); if (ln) ln.remove(); resolve(v);
     };
     $('btnNotesOk').onclick = () => done(ta.value.trim());
     $('btnNotesCancel').onclick = () => done(null);
     ta.value = ''; $('bookAdj').value = ''; $('bookAdjWhy').value = ''; $('bookAdjNote').value = '';
     $('bookAdj').oninput = preview; preview();
+    const legs = (selected || []).map(r => { const g = window.kfLegs && kfLegs[r.locId + '|' + r.unitId]; return g ? `${esc(r.truck)}: empty driving ${(g.emptyOutH + g.emptyBackH).toFixed(1)} h, ${Math.round(g.emptyOutKm + g.emptyBackKm)} km (from ${esc(g.homeBase)} to the pickup and back from the customer), not billed` : ''; }).filter(Boolean);
+    $('adjPreview').insertAdjacentHTML('afterend', legs.length ? `<div id="legsNote" class="small" style="margin-top:6px;">${legs.join('<br>')}</div>` : '');
     if (window.kfLowStockNote) kfLowStockNote(selected); else $('lowStockNote').classList.add('hidden');
     m.classList.add('show');
     setTimeout(() => { try { ta.focus(); } catch (e) {} }, 50);

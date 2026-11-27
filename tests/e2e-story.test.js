@@ -78,6 +78,13 @@ const { start, BASE } = require('./e2e');
   // add an expense from the page
   await pg.click('#tabs [data-t="add"]'); await pg.waitForTimeout(200); await pg.fill('#xA', '100'); await pg.fill('#xV', 'Telus'); await pg.selectOption('#xC', 'Office & phone'); await pg.click('#xGo'); await pg.waitForTimeout(1500);
   t(env.ctx.rows_('Expenses').some(x => x.vendor === 'Telus' && Number(x.gst) === 5), 'Add expense: saved with GST 5% filled in');
+  // Quote: "Use real costs" fills the unit's cost per hour from the actual numbers (billed price unchanged)
+  env.post('trucks', { action: 'saveUnit', adminToken: TOK, unit: { id: U1, name: 'Truck 1', pricingUnit: 'Super B' } });
+  const qp = await h.open('index.html', ls); await qp.waitForTimeout(800);
+  await qp.evaluate(() => kfUseRealCosts(7)); await qp.waitForTimeout(1500);
+  const su = await qp.evaluate(() => settings.units[0]);
+  t(Math.abs(su.costHourly - 62.6) < 0.01 && su.hourly === 185, 'Use real costs: Super B cost $' + su.costHourly + '/h from Truck 1 (232 + 268.80) / 8 h; billed $185 unchanged');
+  t(h.errs.length === 0, 'no page errors' + (h.errs.length ? ': ' + h.errs.join(' | ') : ''));
   await h.browser.close(); console.log(n + ' checks, ' + bad + ' failed'); process.exitCode = bad ? 1 : 0;
   function r2(x) { return Math.round(x * 100) / 100; }
 })();
