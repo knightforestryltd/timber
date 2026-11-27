@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Statistics</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<script src="kf-config.js"></script>
+<script src="nav.js"></script>
+<script src="kf-stats.js"></script>
+<style>
+.container { max-width: 900px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
+.tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; padding-bottom: 2px; }
+.tabs button, .seg button { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: .88rem; cursor: pointer; white-space: nowrap; }
+.tabs button.on, .seg button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.chartbox { background: #ffffff; border-radius: 12px; border: 1px solid #cbd5e1; padding: 8px 6px 4px; position: relative; color: #0f172a; }
+.legend { display: flex; gap: 14px; justify-content: center; font-size: .82rem; font-weight: 700; color: #0f172a; margin: 2px 0 4px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.tip { position: absolute; pointer-events: none; background: #0f172a; color: #fff; font-size: .8rem; padding: 7px 9px; border-radius: 8px; white-space: nowrap; display: none; z-index: 3; line-height: 1.45; }
+.big3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.big3 div { border-radius: 10px; padding: 10px; text-align: center; cursor: pointer; background: var(--card); border: 1px solid var(--border); }
+.big3 b { display: block; font-size: 1.25rem; } .big3 span { font-size: .78rem; color: var(--muted); }
+.k-sales { color: #15803d; } .k-costs { color: #dc2626; } .k-profit { color: #2563eb; }
+table.t { width: 100%; border-collapse: collapse; font-size: .86rem; } table.t th, table.t td { border-bottom: 1px solid var(--border); padding: 7px 5px; text-align: right; white-space: nowrap; }
+table.t th:first-child, table.t td:first-child { text-align: left; white-space: normal; } table.t th { cursor: pointer; font-size: .78rem; color: var(--muted); }
+table.t tr.tap { cursor: pointer; } table.t tr.tap:active { background: var(--surface-2); }
+.scroll { overflow-x: auto; } .good { color: #15803d; font-weight: 700; } .bad { color: #dc2626; font-weight: 700; }
+.small { font-size: .8rem; color: var(--muted); } .num { cursor: pointer; text-decoration: underline dotted; }
+label { display: block; margin: 8px 0 4px; font-size: .9rem; font-weight: 600; }
+input, select, textarea { width: 100%; padding: 12px; min-height: 46px; font-size: 16px; box-sizing: border-box; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } .big3 b { font-size: 1.05rem; } }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; } .btnrow .btn { flex: 1; }
+.ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: none; align-items: flex-start; justify-content: center; padding: 10px; overflow: auto; }
+.ov.show { display: flex; } .ov .sheet { background: var(--card); color: var(--text); border-radius: 16px; width: 100%; max-width: 760px; padding: 16px; margin: auto 0; }
+.hidden { display: none !important; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; margin: 6px 0; } .filters select, .filters input { min-height: 40px; padding: 8px; font-size: 14px; }
+.row { display: flex; justify-content: space-between; gap: 8px; }
+</style>
+</head>
+<body>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1></div>
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" onclick="location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="trucks.html" onclick="location.replace('trucks.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+      <a href="statistics.html" onclick="location.replace('statistics.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Statistics</a>
+    </div>
+  </div>
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
+</header>
+<div class="container">
+  <div class="tabs" id="tabs">
+    <button data-t="home" class="on">Bottom line</button><button data-t="add">Add expense</button><button data-t="rec">Recurring bills</button><button data-t="brk">Breakdowns</button>
+    <button data-t="cmp">Comparisons</button><button data-t="acc">Quote accuracy</button><button data-t="over">Overhead</button><button data-t="exp">Export</button>
+  </div>
+  <div id="note" class="small" style="margin:-4px 0 8px;"></div>
+  <div id="view"></div>
+</div>
+<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+<script src="html2pdf.bundle.min.js" defer></script>
+<script>
+/* ======================================================================
+   Statistics (v14): the company's own bottom line. Office only. One svc=money summary call; all maths here (kf-stats.js).
+   ====================================================================== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const { r2, num, day } = KFS;
+const money = n => (n < 0 ? '-$' : '$') + Math.abs(+n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money0 = n => (n < 0 ? '-$' : '$') + Math.round(Math.abs(+n || 0)).toLocaleString('en-CA');
+const short$ = n => { const a = Math.abs(n), s = n < 0 ? '-$' : '$'; return a >= 1e6 ? s + (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? s + (a / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k' : s + Math.round(a); };
+const QS = () => { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch (e) { return {}; } };
+const LSJ = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { try { localStorage.removeItem(k); } catch (er) {} } } };
+let DATA = null, M = null, view = LSJ.get('kfStatsView', 'month'), anchor = new Date(), tab = 'home', overhead = LSJ.get('kfStatsOverhead', true);
+function sheetOpen(html, mount) { $('sheet').innerHTML = html + '<div class="btnrow"><button class="btn" onclick="sheetClose()">Close</button></div>'; $('ov').classList.add('show'); $('ov').scrollTop = 0; if (mount) mount($('sheet')); }
+function sheetClose() { $('ov').classList.remove('show'); }
+$('ov').addEventListener('mousedown', e => { if (e.target === $('ov')) sheetClose(); });
+window.kfBack = function () { if ($('ov').classList.contains('show')) { sheetClose(); return true; } if (tab !== 'home') { setTab('home'); return true; } return false; };
+
+/* ---------- data: one summary call (cached for offline viewing) ---------- */
+async function moneyPost(body) {
+  let r = await kfCo.post('money', body);
+  if (r.status === 'badpassword' || r.status === 'noadmin') { const pw = prompt('Statistics is office only. Company password:'); if (!pw) return { status: 'cancelled' }; r = await kfCo.post('money', Object.assign({}, body, { password: pw })); }
+  return r;
+}
+async function load(force) {
+  const cache = LSJ.get('kfStatsCache', null);
+  if (cache && !DATA) { DATA = cache.data; M = KFS.prep(DATA, QS()); $('note').textContent = 'Last loaded ' + new Date(cache.at).toLocaleString() + (navigator.onLine === false ? ' (no signal: showing the saved copy)' : ''); }
+  if (navigator.onLine === false && !force) return;
+  try {
+    const from = day(new Date(new Date().getFullYear() - 2, 0, 1));
+    const r = await moneyPost({ action: 'summary', from });
+    if (r.status === 'ok') { DATA = r; M = KFS.prep(DATA, QS()); $('note').textContent = 'Up to date ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); LSJ.set('kfStatsCache', { at: Date.now(), data: r }); }
+    else if (r.status === 'error' && /Unknown part/.test(r.message || '')) $('note').textContent = 'Statistics needs the updated company script.';
+    else if (r.status !== 'cancelled' && !DATA) $('note').textContent = r.message || 'Could not load.';
+  } catch (e) { if (!DATA) $('note').textContent = 'No signal and nothing saved yet.'; }
+}
+
+/* ---------- tabs ---------- */
+function setTab(t) { tab = t; [...$('tabs').children].forEach(b => b.classList.toggle('on', b.dataset.t === t)); render(); window.scrollTo(0, 0); }
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); });
+function render() {
+  if (tab === 'add') return renderAdd();
+  if (tab === 'rec') return renderRecurring();
+  if (!M) { $('view').innerHTML = '<div class="card">Loading…</div>'; return; }
+  ({ home: renderHome, brk: renderBreakdowns, cmp: renderComparisons, acc: renderAccuracy, over: renderOverhead, exp: renderExport })[tab]();
+}
+function periodRange() { const b = KFS.buckets(view, anchor, num(M.money.weekStartsOn)); return { from: b[0].from, to: b[b.length - 1].to, label: periodLabel() }; }
+function periodLabel() { const a = new Date(anchor); if (view === 'week') { const b = KFS.buckets('week', a, num(M.money.weekStartsOn)); return 'Week of ' + new Date(b[0].from + 'T12:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }); } if (view === 'month') return a.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' }); if (view === 'quarter') return 'Q' + (Math.floor(a.getMonth() / 3) + 1) + ' ' + a.getFullYear(); return String(a.getFullYear()); }
+const P = () => { const r = periodRange(); return KFS.period(M, r.from, r.to, { overhead }); };
+
+/* ---------- 1. Bottom line: graph first ---------- */
+function controlsHtml() {
+  return `<div class="seg">${[['week', 'Week'], ['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']].map(v => `<button class="${view === v[0] ? 'on' : ''}" data-v="${v[0]}">${v[1]}</button>`).join('')}</div>
+    <div class="row" style="align-items:center;margin:4px 0 8px"><button class="btn btn-outline btn-sm" id="prevP" aria-label="Previous">&lt;</button><b id="pLabel">${esc(periodLabel())}</b><span><button class="btn btn-outline btn-sm" id="todayP">Today</button> <button class="btn btn-outline btn-sm" id="nextP" aria-label="Next">&gt;</button></span></div>`;
+}
+function bindControls(redraw) {
+  document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { view = b.dataset.v; LSJ.set('kfStatsView', view); redraw(); });
+  $('prevP').onclick = () => { anchor = KFS.shiftAnchor(view, anchor, -1); redraw(); };
+  $('nextP').onclick = () => { anchor = KFS.shiftAnchor(view, anchor, 1); redraw(); };
+  $('todayP').onclick = () => { anchor = new Date(); redraw(); };
+}
+function renderHome() {
+  const s = KFS.series(M, view, anchor, { overhead }), p = s.all, T = p.totals;
+  const owed = owedToUs();
+  $('view').innerHTML = controlsHtml() + `<div class="chartbox"><div class="legend"><span><i style="background:#15803d"></i>Sales</span><span><i style="background:#dc2626"></i>Costs</span><span><i style="background:#2563eb"></i>Net profit</span></div>
+    <div id="chart"></div><div class="tip" id="tip"></div></div>
+    <div class="big3"><div data-drill="sales"><span>Sales</span><b class="k-sales">${money0(T.sales)}</b></div><div data-drill="costs"><span>Costs</span><b class="k-costs">${money0(T.costs)}</b></div><div data-drill="profit"><span>Net profit</span><b class="k-profit">${money0(T.profit)}</b><span>${T.margin}% margin</span></div></div>
+    <div class="small" style="margin-top:6px">Before GST. Sales = completed invoices. Costs = wood sold, wages (incl. ${num(M.money.employerCostPct)}% employer cost and overtime), fuel, repairs and every expense.</div>
+    <div class="card" style="margin-top:10px"><div class="row"><span>Cash in (payments received)</span><b class="num" data-drill="cash">${money(T.cashIn)}</b></div><div class="row"><span>Owed to us (all unpaid invoices)</span><b class="num" data-drill="owed">${money(owed.total)}</b></div>
+      <div class="row"><span>GST collected / GST paid</span><b>${money(T.gstIn)} / ${money(T.gstOut)}</b></div></div>
+    <div class="card"><h3 style="margin:0 0 6px">Where the money went</h3><div id="flow"></div>
+      <table class="t" style="margin-top:8px"><tr><th>Cost category</th><th>$</th><th>% of sales</th></tr>${Object.keys(p.byCat).sort((a, b) => p.byCat[b] - p.byCat[a]).map(c => `<tr class="tap" data-cat="${esc(c)}"><td>${esc(c)}</td><td>${money(p.byCat[c])}</td><td>${T.sales ? (p.byCat[c] / T.sales * 100).toFixed(1) + '%' : '—'}</td></tr>`).join('')}
+      <tr><td><i>Empty driving $ (not billed, included in the lines above)</i></td><td>${money(p.loads.reduce((t, x) => t + (x.empty ? Math.max(0, x.empty.emptyCost) : 0), 0))}</td><td></td></tr></table></div>`;
+  bindControls(renderHome);
+  drawChart($('chart'), s.buckets);
+  drawFlow($('flow'), T, p.byCat);
+  document.querySelectorAll('[data-drill]').forEach(el => el.onclick = () => drill(el.dataset.drill, p, owed));
+  document.querySelectorAll('[data-cat]').forEach(el => el.onclick = () => drill('cat:' + el.dataset.cat, p));
+}
+// Line graph in plain SVG: Sales green, Costs red, Net profit blue (3 px, dots), $0 line, short $ labels, tap/drag tooltip
+function drawChart(box, B) {
+  const W = Math.max(320, box.clientWidth || 600), H = 260, L = 46, R = 44, T = 10, Bm = 28, w = W - L - R, h = H - T - Bm;
+  const vals = B.flatMap(b => [b.sales, b.costs, b.profit]); let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); if (hi === lo) hi = lo + 100;
+  // round axis steps ($500, $1k, $2.5k ...)
+  const raw = (hi - lo) / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(m => m >= raw) || raw;
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step; if (hi === lo) hi = lo + step;
+  const X = i => L + (B.length === 1 ? w / 2 : i * w / (B.length - 1)), Y = v => T + (hi - v) / (hi - lo) * h;
+  const grid = []; for (let g = lo; g <= hi + step / 2; g += step) grid.push(g);
+  const line = (k, c) => `<polyline fill="none" stroke="${c}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${B.map((b, i) => X(i) + ',' + Y(b[k])).join(' ')}"/>` + B.map((b, i) => `<circle cx="${X(i)}" cy="${Y(b[k])}" r="4.5" fill="${c}" stroke="#fff" stroke-width="2"/>`).join('');
+  // direct labels at the right end, nudged apart so they never sit on top of each other
+  const lastI = B.length - 1, ends = [['sales', 'Sales'], ['costs', 'Costs'], ['profit', 'Profit']].map(x => ({ t: x[1], y: Y(B[lastI][x[0]]) + 4 })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 12) ends[i].y = ends[i - 1].y + 12;
+  const over = ends[ends.length - 1].y - (T + h + 2); if (over > 0) ends.forEach(e => { e.y -= over; });
+  const endLab = (k) => { const e = ends.find(x => x.t === k); return `<text x="${X(lastI) + 6}" y="${e.y}" font-size="11" font-weight="700" fill="#0f172a">${e.t}</text>`; };
+  const every = Math.ceil(B.length / 7);
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block;font-family:Arial,sans-serif" role="img" aria-label="Sales, costs and net profit">
+    ${grid.map(g => `<line x1="${L}" x2="${L + w}" y1="${Y(g)}" y2="${Y(g)}" stroke="#e2e8f0"/><text x="${L - 6}" y="${Y(g) + 4}" font-size="11" text-anchor="end" fill="#334155">${short$(g)}</text>`).join('')}
+    <line x1="${L}" x2="${L + w}" y1="${Y(0)}" y2="${Y(0)}" stroke="#475569" stroke-width="1"/>
+    ${B.map((b, i) => i % every === 0 || i === lastI ? `<text x="${X(i)}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#334155">${esc(b.label)}</text>` : '').join('')}
+    ${line('costs', '#dc2626')}${line('sales', '#15803d')}${line('profit', '#2563eb')}
+    ${endLab('Sales')}${endLab('Costs')}${endLab('Profit')}
+    <line id="xh" x1="0" x2="0" y1="${T}" y2="${T + h}" stroke="#94a3b8" stroke-dasharray="3 3" style="display:none"/>
+    <rect x="${L - 10}" y="0" width="${w + 20}" height="${H}" fill="transparent" id="hit"/></svg>`;
+  const svg = box.querySelector('svg'), tip = $('tip'), xh = box.querySelector('#xh');
+  const at = e => { const r = svg.getBoundingClientRect(), x = ((e.touches ? e.touches[0].clientX : e.clientX) - r.left) * W / r.width; let best = 0; B.forEach((b, i) => { if (Math.abs(X(i) - x) < Math.abs(X(best) - x)) best = i; }); return best; };
+  const show = e => { const i = at(e), b = B[i], r = svg.getBoundingClientRect(); xh.setAttribute('x1', X(i)); xh.setAttribute('x2', X(i)); xh.style.display = '';
+    tip.innerHTML = `<b>${esc(b.from === b.to ? b.from : b.from + ' to ' + b.to)}</b><br><span style="color:#86efac">Sales ${money(b.sales)}</span><br><span style="color:#fca5a5">Costs ${money(b.costs)}</span><br><span style="color:#93c5fd">Profit ${money(b.profit)}</span><br><span style="opacity:.7">tap again for the rows</span>`;
+    tip.style.display = 'block'; const px = X(i) / W * r.width; tip.style.left = Math.min(Math.max(4, px - 70), r.width - 150) + 'px'; tip.style.top = '30px'; return i; };
+  let lastTap = -1;
+  svg.addEventListener('pointermove', show); svg.addEventListener('pointerdown', e => { const i = show(e); if (i === lastTap) bucketRows(B[i]); lastTap = i; });
+  svg.addEventListener('pointerleave', () => { tip.style.display = 'none'; xh.style.display = 'none'; });
+}
+function bucketRows(b) {
+  sheetOpen(`<h3>${esc(b.from === b.to ? b.from : b.from + ' to ' + b.to)}</h3><div class="row"><span class="k-sales">Sales ${money(b.sales)}</span><span class="k-costs">Costs ${money(b.costs)}</span><span class="k-profit">Profit ${money(b.profit)}</span></div>` +
+    salesTable(b.salesRows) + costsTable(b.costRows));
+}
+// "where the money went": revenue sources -> sales -> costs + profit (plain SVG flow)
+function drawFlow(box, T, byCat) {
+  const W = Math.max(320, box.clientWidth || 600), H = 220, src = [['Product', T.product, '#15803d'], ['Trucking', T.trucking, '#16a34a'], ['FSC', T.fsc, '#4ade80']].filter(x => x[1] > 0);
+  const nm = c => c.replace(' (cost of goods)', '').replace('Repairs - ', 'Repairs ').replace('Wages - ', 'Wages '), cats = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]), dst = cats.slice(0, 6).map(c => [nm(c), byCat[c], '#dc2626']);
+  const rest = cats.slice(6).reduce((t, c) => t + byCat[c], 0); if (rest > 0) dst.push(['Other costs', rest, '#ef4444']);
+  dst.push([T.profit >= 0 ? 'Net profit' : 'Loss', Math.abs(T.profit), '#2563eb']);
+  const tot = Math.max(T.sales, dst.reduce((t, x) => t + x[1], 0)) || 1, k = (H - 20) / tot, gap = 3;
+  let y1 = 10, y2 = 10; const L = W * 0.3, R = W * 0.52;
+  const left = src.map(x => { const o = { y: y1, h: Math.max(2, x[1] * k), x }; y1 += o.h + gap; return o; }), right = dst.map(x => { const o = { y: y2, h: Math.max(2, x[1] * k), x }; y2 += o.h + gap; return o; });
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${Math.max(y1, y2) + 10}" width="100%" style="display:block;font-family:Arial,sans-serif;font-size:10.5px">
+    ${left.map(o => `<rect x="${L - 14}" y="${o.y}" width="14" height="${o.h}" rx="2" fill="${o.x[2]}"/><text x="${L - 18}" y="${o.y + o.h / 2 + 4}" text-anchor="end" fill="currentColor">${esc(o.x[0])} ${short$(o.x[1])}</text>`).join('')}
+    ${right.map((o, i) => { const sy = 10 + right.slice(0, i).reduce((t, q) => t + q.h + gap, 0) * (left.length ? 1 : 1); return `<path d="M${L},${Math.min(sy, y1)} C${(L + R) / 2},${Math.min(sy, y1)} ${(L + R) / 2},${o.y} ${R},${o.y} L${R},${o.y + o.h} C${(L + R) / 2},${o.y + o.h} ${(L + R) / 2},${Math.min(sy + o.h, y1)} ${L},${Math.min(sy + o.h, y1)} Z" fill="${o.x[2]}" opacity=".18"/>`; }).join('')}
+    ${right.map(o => `<rect x="${R}" y="${o.y}" width="14" height="${o.h}" rx="2" fill="${o.x[2]}"/><text x="${R + 18}" y="${o.y + o.h / 2 + 4}" fill="currentColor">${esc(o.x[0])} ${short$(o.x[1])}</text>`).join('')}</svg>`;
+}
+function owedToUs() {
+  const pays = {}; M.payments.forEach(p => { const k = String(p.loadId || p.invoiceNo).toLowerCase(); pays[k] = (pays[k] || 0) + p.amount; });
+  const gl = Date.parse((DATA && DATA.goLive) || 0) || 0, rows = [];
+  M.loads.forEach(l => { if (!l.inv || String(l.status).toLowerCase() !== 'paid' || (l.invoicedAt && l.invoicedAt < gl)) return; const left = r2(l.rev.total - (pays[String(l.loadId).toLowerCase()] || 0)); if (left > 0.009) rows.push({ who: l.customerName, ref: l.loadId, left, d: day(l.invoicedAt) }); });
+  M.invoices.forEach(iv => { const left = r2(iv.rev.total - (pays[String(iv.invoiceNo).toLowerCase()] || 0)); if (left > 0.009) rows.push({ who: iv.customer, ref: iv.invoiceNo, left, d: iv.d }); });
+  return { rows, total: r2(rows.reduce((t, x) => t + x.left, 0)) };
+}
+function salesTable(rows) { return `<h4>Sales (${rows.length})</h4><div class="scroll"><table class="t"><tr><th>Invoice</th><th>Date</th><th>Product</th><th>Trucking</th><th>FSC</th><th>Before GST</th></tr>${rows.map(s => `<tr class="tap" ${s.l ? `data-load="${esc(s.l.key)}"` : ''}><td>${esc(s.ref)} ${esc(s.who)}</td><td>${esc(s.d)}</td><td>${money(s.rev.product)}</td><td>${money(s.rev.trucking)}</td><td>${money(s.rev.fsc)}</td><td>${money(s.rev.sub)}</td></tr>`).join('')}</table></div>`; }
+function costsTable(rows) { return `<h4>Costs (${rows.length})</h4><div class="scroll"><table class="t"><tr><th>What</th><th>Date</th><th>Category</th><th>$</th></tr>${rows.sort((a, b) => b.amount - a.amount).map(c => `<tr ${c.loadKey ? `class="tap" data-load="${esc(c.loadKey)}"` : ''}><td>${esc(c.src || '')}${c.exp && c.exp.receiptPhoto ? ` · <a href="${esc(c.exp.receiptPhoto)}" target="_blank" rel="noopener">receipt</a>` : ''}${c.exp && c.exp.source === 'workorder' ? ` · <a href="trucks.html#wo=${encodeURIComponent(c.exp.sourceRef)}">work order</a>` : ''}</td><td>${esc(c.d)}</td><td>${esc(c.cat)}</td><td>${money(c.amount)}</td></tr>`).join('')}</table></div>`; }
+function drill(what, p, owed) {
+  if (what === 'sales') sheetOpen('<h3>Sales</h3>' + salesTable(p.sales), bindLoadRows);
+  else if (what === 'costs') sheetOpen('<h3>Costs</h3>' + costsTable(p.costs), bindLoadRows);
+  else if (what === 'profit') sheetOpen('<h3>Net profit per load</h3>' + loadsTable(p.loads), bindLoadRows);
+  else if (what === 'cash') { const r = periodRange(); sheetOpen('<h3>Cash in</h3><table class="t"><tr><th>Payment</th><th>Date</th><th>Method</th><th>$</th></tr>' + M.payments.filter(x => x.d >= r.from && x.d <= r.to).map(x => `<tr><td>${esc(x.invoiceNo || x.loadId)} ${esc(x.customer)}</td><td>${esc(x.d)}</td><td>${esc(x.method)}</td><td>${money(x.amount)}</td></tr>`).join('') + '</table>'); }
+  else if (what === 'owed') sheetOpen('<h3>Owed to us</h3><table class="t"><tr><th>Invoice</th><th>Invoiced</th><th>Owing</th></tr>' + owed.rows.map(x => `<tr><td>${esc(x.ref)} ${esc(x.who)}</td><td>${esc(x.d)}</td><td>${money(x.left)}</td></tr>`).join('') + '</table><a href="invoices.html#owing">Open Owing in Billing</a>');
+  else if (what.startsWith('cat:')) { const c = what.slice(4); sheetOpen('<h3>' + esc(c) + '</h3>' + costsTable(p.costs.filter(x => x.cat === c)), bindLoadRows); }
+}
+function bindLoadRows(box) { box.querySelectorAll('[data-load]').forEach(r => r.onclick = e => { if (e.target.closest('a')) return; openLoad(r.dataset.load); }); }
+function openLoad(key) {
+  const p = P(), x = p.loads.find(y => y.l.key === key) || (() => { const all = KFS.period(M, '2000-01-01', '2999-12-31', { overhead }); return all.loads.find(y => y.l.key === key); })();
+  const l = (x && x.l) || M.loads.find(y => y.key === key); if (!l) return;
+  const e = x && x.empty;
+  sheetOpen(`<h3>${esc(l.loadId || l.bookingId)} · ${esc(l.customerName)}</h3><div class="small">${esc(l.species)} from ${esc(l.location)} · ${esc(l.truck)}${l.driver ? ' · ' + esc(l.driver) : ''} · ${esc(l.status)}</div>
+    ${x ? `<table class="t" style="margin-top:8px"><tr><td>Sales (before GST)</td><td>${money(x.rev)}</td></tr><tr><td>Wood (${esc(l.woodSrc)})</td><td>-${money(x.wood)}</td></tr><tr><td>Driver time</td><td>-${money(x.wage)}</td></tr>
+      <tr><td>Fuel${x.fuelIsEst ? ' (estimated: none logged)' : ''}</td><td>-${money(x.fuel)}</td></tr><tr><td>Truck cost per km x ${Math.round(x.km)} km</td><td>-${money(x.truck)}</td></tr><tr><td>Share of overhead</td><td>-${money(x.over)}</td></tr>
+      <tr><th>True profit</th><th class="${x.profit < 0 ? 'bad' : 'good'}">${money(x.profit)}</th></tr></table>` : '<p class="small">Not invoiced yet.</p>'}
+    ${e ? `<p><b>Billed round trip ${e.billedH} h · actual incl. empty legs ${e.actualH} h</b> (${e.unbilledH >= 0 ? '<span class="bad">' + e.unbilledH + ' h not billed</span>' : '<span class="good">' + Math.abs(e.unbilledH) + ' h saved</span>'}) · empty ${e.emptyKm} km, ${money(e.emptyCost)}</p>` : ''}
+    ${+l.priceAdj ? `<p class="small">Price adjustment ${money(l.priceAdj)}: ${esc(l.adjReason || '')}</p>` : ''}<a href="dispatch.html">Open Dispatch</a>`);
+}
+function loadsTable(rows) {
+  return `<div class="scroll"><table class="t sortable"><tr><th>Load</th><th>Sales</th><th>Wood</th><th>Driver</th><th>Fuel</th><th>Truck</th><th>Overhead</th><th>Profit</th></tr>${rows.map(x => `<tr class="tap" data-load="${esc(x.l.key)}"><td>${x.profit < 0 ? '⚠ ' : ''}${esc(x.l.loadId)} ${esc(x.l.customerName)}</td><td>${money(x.rev)}</td><td>${money(x.wood)}</td><td>${money(x.wage)}</td><td>${money(x.fuel)}${x.fuelIsEst ? '*' : ''}</td><td>${money(x.truck)}</td><td>${money(x.over)}</td><td class="${x.profit < 0 ? 'bad' : 'good'}">${money(x.profit)}</td></tr>`).join('')}</table></div><div class="small">* fuel estimated (km x unit L/100 x fuel price) when none was logged. ⚠ = lost money.</div>`;
+}
+
+/* ---------- 2. Add expense (under 10 seconds) ---------- */
+function renderAdd(edit) {
+  const qs = QS(), cats = (qs.money && qs.money.categories) || ['Fuel', 'Repairs - parts', 'Repairs - shop', 'Wages - drivers', 'Wages - mechanic', 'Wood purchases', 'Insurance', 'Truck/equipment payments', 'Licences & permits', 'Tires', 'Office & phone', 'Yard costs', 'Other'];
+  const vend = LSJ.get('kfVendors', {}), units = (DATA && DATA.units) || [], drivers = (DATA && DATA.drivers) || [], e = edit || {};
+  $('view').innerHTML = `<div class="card"><h2 style="margin:0 0 6px">${edit ? 'Edit' : 'Add'} expense</h2><div class="grid2">
+    <div><label>Amount ($, before GST)</label><input id="xA" type="number" step="0.01" inputmode="decimal" value="${esc(e.amount || '')}"></div><div><label>GST ($)</label><input id="xG" type="number" step="0.01" inputmode="decimal" placeholder="5% filled in" value="${esc(e.gst != null ? e.gst : '')}"></div>
+    <div><label>Vendor</label><input id="xV" list="xVl" value="${esc(e.vendor || '')}"><datalist id="xVl">${Object.keys(vend).map(v => `<option value="${esc(v)}">`).join('')}</datalist></div>
+    <div><label>Category</label><select id="xC">${cats.map(c => `<option ${e.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+    <div><label>Paid with</label><select id="xP"><option value="company card">Company card</option><option value="cheque">Cheque</option><option value="e-transfer">E-transfer</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
+    <div><label>Date</label><input id="xD" type="date" value="${esc(e.date || day(Date.now()))}"></div></div>
+    <details ${e.unitId || e.driverName || e.loadId || e.yard ? 'open' : ''}><summary class="small" style="margin-top:8px">Unit, driver, load or yard (optional)</summary><div class="grid2">
+      <div><label>Unit</label><select id="xU"><option value="">—</option>${units.map(u => `<option value="${esc(u.id)}" ${String(e.unitId) === String(u.id) ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></div>
+      <div><label>Driver</label><select id="xDr"><option value="">—</option>${drivers.map(d => `<option ${e.driverName === d.name ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>
+      <div><label>Load ID</label><input id="xL" value="${esc(e.loadId || '')}"></div><div><label>Yard</label><input id="xY" value="${esc(e.yard || '')}"></div></div></details>
+    <label>Note</label><input id="xN" value="${esc(e.note || '')}">
+    <div class="btnrow"><button class="btn btn-outline" id="xPh" type="button">📷 Receipt photo</button><span class="small" id="xPhS" style="align-self:center">${e.receiptPhoto ? 'attached' : ''}</span></div>
+    <div id="xE" class="bad"></div><div class="btnrow"><button class="btn" id="xGo" style="min-height:56px">Save expense</button></div></div>
+    <div class="card"><h3 style="margin:0 0 6px">Recent expenses</h3><div id="xList" class="small">${DATA ? '' : 'Loading…'}</div></div>`;
+  let photo = e.receiptPhoto || '', gTyped = e.gst != null && e.gst !== '';
+  if (e.payMethod) $('xP').value = e.payMethod;
+  $('xA').oninput = () => { if (!gTyped) $('xG').value = $('xA').value ? (Math.round(+$('xA').value * 5) / 100).toFixed(2) : ''; };
+  $('xG').oninput = () => { gTyped = true; };
+  $('xV').oninput = () => { const c = vend[$('xV').value.trim()]; if (c) $('xC').value = c; };                 // remembers each vendor's usual category
+  $('xPh').onclick = async () => { const d = await kfPhoto.pick(); if (!d) return; photo = d; $('xPhS').textContent = 'attached (uploads on save)'; };
+  $('xGo').onclick = async () => {
+    const a = +$('xA').value; if (!(a > 0)) { $('xE').textContent = 'Enter the amount.'; return; }
+    const exp = { id: e.id || 'EXP-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), amount: a, gst: $('xG').value, category: $('xC').value, vendor: $('xV').value.trim(), payMethod: $('xP').value, date: $('xD').value,
+      unitId: $('xU').value, driverName: $('xDr').value, loadId: $('xL').value.trim(), yard: $('xY').value.trim(), note: $('xN').value.trim(), receiptPhoto: photo };
+    $('xGo').disabled = true; $('xE').textContent = 'Saving…';
+    try { const r = await moneyPost({ action: 'saveExpense', expense: exp }); $('xGo').disabled = false; if (r.status !== 'ok') { $('xE').textContent = r.message || 'Not saved.'; return; } }
+    catch (er) { $('xGo').disabled = false; $('xE').textContent = 'No signal: nothing was saved.'; return; }
+    if (exp.vendor) { vend[exp.vendor] = exp.category; LSJ.set('kfVendors', vend); }
+    await load(true); renderAdd();
+  };
+  if (DATA) $('xList').innerHTML = `<table class="t">${M.expenses.slice().sort((x, y) => (y.d || '').localeCompare(x.d || '')).slice(0, 25).map(x => `<tr ${x.source === 'manual' || x.source === 'ticket' ? `class="tap" data-x="${esc(x.id)}"` : ''}><td>${esc(x.vendor || x.category)}<br><span class="small">${esc(x.category)} · ${esc(x.source)}${x.receiptPhoto ? ` · <a href="${esc(x.receiptPhoto)}" target="_blank" rel="noopener">receipt</a>` : ''}</span></td><td>${esc(x.d)}</td><td>${money(x.amount)}</td></tr>`).join('')}</table><div class="small">Tap a manual expense to change or delete it. Fuel and work-order costs are changed where they came from.</div>`;
+  document.querySelectorAll('[data-x]').forEach(r => r.onclick = ev => { if (ev.target.closest('a')) return; const x = M.expenses.find(y => y.id === r.dataset.x); if (!x) return;
+    sheetOpen(`<h3>${esc(x.vendor || x.category)} · ${money(x.amount)}</h3><div class="btnrow"><button class="btn" id="xEd">Change</button><button class="btn btn-outline" id="xDel" style="color:var(--bad)">Delete</button></div>`, () => {
+      $('xEd').onclick = () => { sheetClose(); renderAdd(x); window.scrollTo(0, 0); };
+      $('xDel').onclick = async () => { if (!confirm('Delete this expense?')) return; const r2_ = await moneyPost({ action: 'deleteExpense', id: x.id }); if (r2_.status !== 'ok') return alert(r2_.message || 'Not deleted.'); sheetClose(); await load(true); renderAdd(); };
+    }); });
+}
+
+/* ---------- 3. Recurring bills ---------- */
+async function renderRecurring() {
+  $('view').innerHTML = '<div class="card">Loading…</div>';
+  let r; try { r = await moneyPost({ action: 'listRecurring' }); } catch (e) { $('view').innerHTML = '<div class="card">Needs signal.</div>'; return; }
+  if (r.status !== 'ok') { $('view').innerHTML = `<div class="card">${esc(r.message || r.status)}</div>`; return; }
+  const list = r.recurring || [];
+  $('view').innerHTML = `<div class="card"><h2 style="margin:0 0 6px">Recurring bills</h2><div class="small">Posted to the costs once a month on their day (by the nightly job). Insurance, truck payments, leases, phones…</div>
+    <table class="t" style="margin-top:8px"><tr><th>Bill</th><th>Day</th><th>$ before GST</th><th>Active</th></tr>${list.map((x, i) => `<tr class="tap" data-i="${i}"><td>${esc(x.name)}<br><span class="small">${esc(x.category)}${x.lastPostedFor ? ' · last posted ' + esc(x.lastPostedFor) : ''}</span></td><td>${esc(x.dayOfMonth)}</td><td>${money(x.amount)}</td><td>${x.active === 'no' ? 'no' : 'yes'}</td></tr>`).join('')}</table>
+    <div class="btnrow"><button class="btn" id="rcNew">+ Add a bill</button></div></div>`;
+  const edit = x => {
+    const cats = ((QS().money || {}).categories) || ['Insurance', 'Truck/equipment payments', 'Office & phone', 'Other'], units = (DATA && DATA.units) || [];
+    sheetOpen(`<h3>${x.id ? 'Edit' : 'New'} recurring bill</h3><label>Name</label><input id="rN" value="${esc(x.name || '')}" placeholder="e.g. Truck insurance">
+      <div class="grid2"><div><label>Category</label><select id="rC">${cats.map(c => `<option ${x.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div><div><label>Day of month</label><input id="rD" type="number" min="1" max="31" value="${esc(x.dayOfMonth || 1)}"></div>
+      <div><label>Amount ($, before GST)</label><input id="rA" type="number" step="0.01" value="${esc(x.amount || '')}"></div><div><label>GST ($)</label><input id="rG" type="number" step="0.01" value="${esc(x.gst || '')}"></div>
+      <div><label>Unit (optional)</label><select id="rU"><option value="">—</option>${units.map(u => `<option value="${esc(u.id)}" ${String(x.unitId) === String(u.id) ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select></div><div><label>Active</label><select id="rAc"><option value="yes">Yes</option><option value="no" ${x.active === 'no' ? 'selected' : ''}>No</option></select></div>
+      <div><label>Start</label><input id="rS" type="date" value="${esc(x.startDate || '')}"></div><div><label>End</label><input id="rE" type="date" value="${esc(x.endDate || '')}"></div></div>
+      <div id="rErr" class="bad"></div><div class="btnrow"><button class="btn" id="rGo">Save</button></div>`, () => {
+      $('rGo').onclick = async () => {
+        const rec = { id: x.id || 'REC' + Date.now().toString(36), name: $('rN').value.trim(), category: $('rC').value, dayOfMonth: +$('rD').value || 1, amount: +$('rA').value || 0, gst: $('rG').value, unitId: $('rU').value, active: $('rAc').value, startDate: $('rS').value, endDate: $('rE').value };
+        if (!rec.name || !(rec.amount > 0)) { $('rErr').textContent = 'Name and amount are needed.'; return; }
+        const res = await moneyPost({ action: 'saveRecurring', recurring: rec }); if (res.status !== 'ok') { $('rErr').textContent = res.message || 'Not saved.'; return; }
+        sheetClose(); renderRecurring();
+      };
+    });
+  };
+  $('rcNew').onclick = () => edit({});
+  document.querySelectorAll('[data-i]').forEach(r0 => r0.onclick = () => edit(list[+r0.dataset.i]));
+}
+
+/* ---------- generic table: sortable, CSV, rows open the load/shift/unit ---------- */
+let TABLES = {};
+function table(id, title, cols, rows, opts) {
+  opts = opts || {}; TABLES[id] = { title, cols, rows };
+  const st = TABLES[id].sort || {}, sorted = rows.slice();
+  if (st.k != null) sorted.sort((a, b) => { const x = a[st.k], y = b[st.k]; return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * st.dir; });
+  const cell = (c, v, row) => { if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) return '<td>—</td>'; const cls = c.color ? (c.color(row) > 0 ? 'good' : c.color(row) < 0 ? 'bad' : '') : ''; return `<td class="${cls}">${c.fmt ? c.fmt(v) : esc(v)}</td>`; };
+  return `<div class="card"><div class="row"><h3 style="margin:0">${esc(title)}</h3><button class="btn btn-outline btn-sm" data-csv="${id}">CSV</button></div>${opts.note ? `<div class="small">${opts.note}</div>` : ''}
+    <div class="scroll"><table class="t" data-tbl="${id}"><tr>${cols.map((c, i) => `<th data-sort="${i}">${esc(c.t)}</th>`).join('')}</tr>${sorted.length ? sorted.map(r => `<tr class="${r._open ? 'tap' : ''}" ${r._open ? `data-open="${esc(r._open)}"` : ''}>${cols.map(c => cell(c, r[c.k], r)).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" class="small">${esc(opts.empty || 'No data for this period.')}</td></tr>`}</table></div></div>`;
+}
+function bindTables(rerender) {
+  document.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => csv(b.dataset.csv));
+  document.querySelectorAll('table[data-tbl] th[data-sort]').forEach(th => th.onclick = () => { const id = th.closest('table').dataset.tbl, T = TABLES[id], k = T.cols[+th.dataset.sort].k; T.sort = { k, dir: T.sort && T.sort.k === k ? -T.sort.dir : -1 }; TABLES_SORT[id] = T.sort; rerender(); });
+  document.querySelectorAll('[data-open]').forEach(r => r.onclick = () => { const o = r.dataset.open; if (o.startsWith('load:')) openLoad(o.slice(5)); else if (o.startsWith('unit:')) location.href = 'trucks.html#unit=' + encodeURIComponent(o.slice(5)); else if (o.startsWith('wo:')) location.href = 'trucks.html#wo=' + encodeURIComponent(o.slice(3)); else if (o.startsWith('shift:')) location.href = 'drivers.html#admin'; });
+}
+const TABLES_SORT = {}; const _tbl = table; table = function (id, ...a) { const r = _tbl(id, ...a); if (TABLES_SORT[id]) { TABLES[id].sort = TABLES_SORT[id]; return _tbl(id, ...a); } return r; };
+function csv(id) {
+  const T = TABLES[id]; if (!T) return; const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const text = [T.cols.map(c => q(c.t)).join(',')].concat(T.rows.map(r => T.cols.map(c => q(typeof r[c.k] === 'number' ? r2(r[c.k]) : r[c.k])).join(','))).join('\n');
+  const file = new File([text], (T.title || 'table').replace(/[^\w]+/g, '_') + '.csv', { type: 'text/csv' });
+  if (window.kfShareFile) kfShareFile(file, T.title).then(done => { if (!done) dl(file); }); else dl(file);
+}
+function dl(file) { const u = URL.createObjectURL(file), a = document.createElement('a'); a.href = u; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); }
+const $c = { t: '', k: '', fmt: money }, pct = v => (v > 0 ? '+' : '') + v.toFixed(1) + '%', hrs = v => r2(v) + ' h', kmf = v => Math.round(v).toLocaleString() + ' km';
+
+/* ---------- 4. Breakdowns ---------- */
+function groupBy(rows, key) { const o = {}; rows.forEach(r => { const k = key(r) || '(none)'; (o[k] = o[k] || []).push(r); }); return o; }
+function renderBreakdowns() {
+  const p = P(), G = (k, f) => groupBy(p.loads, f);
+  const agg = (list) => ({ n: list.length, rev: list.reduce((t, x) => t + x.rev, 0), cost: list.reduce((t, x) => t + x.wood + x.wage + x.fuel + x.truck + x.over, 0), profit: list.reduce((t, x) => t + x.profit, 0), t: list.reduce((t, x) => t + (x.l.tActual || 0), 0), km: list.reduce((t, x) => t + (x.km || 0), 0) });
+  const dimTable = (id, title, f) => { const g = groupBy(p.loads, f); return table(id, title, [{ t: title.replace('Per ', ''), k: 'name' }, { t: 'Loads', k: 'n' }, { t: 'Sales', k: 'rev', fmt: money }, { t: 'Costs', k: 'cost', fmt: money }, { t: 'Profit', k: 'profit', fmt: money, color: r => r.profit }, { t: 'Margin', k: 'm', fmt: pct, color: r => r.m }, { t: '$/t', k: 'pt', fmt: money }, { t: '$/km', k: 'pk', fmt: money }],
+    Object.keys(g).map(k => { const a = agg(g[k]); return Object.assign({ name: k, m: a.rev ? a.profit / a.rev * 100 : 0, pt: a.t ? a.profit / a.t : null, pk: a.km ? a.profit / a.km : null }, a); })); };
+  const uc = p.unitCostKm, units = M.S.units || [];
+  const unitRows = units.map(u => { const x = uc[String(u.id)] || {}, mine = p.loads.filter(y => String((y.l.unit && y.l.unit.id) || y.l.shiftUnitKey) === String(u.id)), em = mine.filter(y => y.empty);
+    const rev = mine.reduce((t, y) => t + y.rev, 0), emptyKm = em.reduce((t, y) => t + y.empty.emptyKm, 0), emptyH = em.reduce((t, y) => t + y.empty.emptyH, 0);
+    return { name: u.name, _open: 'unit:' + u.id, km: x.km || 0, h: x.hours || 0, costs: (x.costs || 0) + (x.fuel || 0) + (x.wages || 0), perKm: x.km ? ((x.costs || 0) + (x.fuel || 0)) / x.km : null, perH: x.perH || null, rev, revKm: x.km ? rev / x.km : null, emptyPct: x.km ? emptyKm / x.km * 100 : null, emptyHPct: x.hours ? emptyH / x.hours * 100 : null, emptyCost: em.reduce((t, y) => t + y.empty.emptyCost, 0) }; });
+  const drv = groupBy(M.shifts.filter(s => s.date >= p.from && s.date <= p.to), s => s.driverName);
+  const drvRows = Object.keys(drv).map(n => { const l = drv[n], mine = p.loads.filter(y => y.l.driver === n), em = mine.filter(y => y.empty);
+    return { name: n, paidH: l.reduce((t, s) => t + s.paidH, 0), drivingH: l.reduce((t, s) => t + num(s.drivingHrs), 0), otH: l.reduce((t, s) => t + s.otH, 0), wage: l.reduce((t, s) => t + s.wage, 0), rev: mine.reduce((t, y) => t + y.rev, 0), emptyCost: em.reduce((t, y) => t + y.empty.emptyCost, 0), emptyH: em.reduce((t, y) => t + y.empty.emptyH, 0) }; });
+  const cats = groupBy(p.costs, c => c.cat), vendors = groupBy(p.costs.filter(c => c.exp), c => c.exp.vendor || c.cat);
+  const fixedCats = ['Insurance', 'Truck/equipment payments', 'Licences & permits', 'Office & phone'], fixed = p.costs.filter(c => c.kind === 'recurring' || fixedCats.includes(c.cat)).reduce((t, c) => t + c.amount, 0), variable = p.totals.costs - fixed;
+  const perLoad = p.loads.length ? { rev: p.totals.sales / p.loads.length, varCost: variable / p.loads.length } : null, be = perLoad && perLoad.rev > perLoad.varCost ? fixed / (perLoad.rev - perLoad.varCost) : null;
+  const yardRows = []; const yr = groupBy((M.S.yards || []).filter(r => r.status !== 'Void' && r.status !== 'Pending'), r => r.yard + ' · ' + (r.product || 'Logs'));
+  Object.keys(yr).forEach(k => { const [y, pr] = k.split(' · '); const sps = [...new Set(yr[k].map(r => r.species))]; sps.forEach(sp => { const st = window.kfStock ? null : null; const rows = yr[k].filter(r => r.species === sp), split = pr === 'Split';
+    const inQ = rows.filter(r => r.type !== 'Out').reduce((t, r) => t + (split ? num(r.cords) : num(r.tonnes)), 0), outQ = rows.filter(r => r.type === 'Out').reduce((t, r) => t + (split ? num(r.cords) : num(r.tonnes)), 0);
+    const haul = rows.reduce((t, r) => t + num(r.haulCost), 0), sold = rows.filter(r => r.type === 'Out' && r.loadId).reduce((t, r) => t + (split ? num(r.cords) : num(r.tonnes)), 0);
+    yardRows.push({ name: y + ' · ' + sp + ' · ' + pr, onHand: inQ - outQ, unit: split ? 'cords' : 't', sold, haul, cogs: rows.filter(r => r.type === 'Out' && r.loadId).reduce((t, r) => t + (split ? num(r.cords) * num(r.costPerCord) : num(r.tonnes) * num(r.costPerTonne || r.pricePerTonne)), 0) }); }); });
+  $('view').innerHTML = controlsHtml() + `<div class="small">Overhead share is ${overhead ? 'ON' : 'OFF'} (Overhead tab). Tap a row to see what is behind it.</div>` +
+    table('perload', 'Per load: true profit', [{ t: 'Load', k: 'name' }, { t: 'Sales', k: 'rev', fmt: money }, { t: 'Wood', k: 'wood', fmt: money }, { t: 'Driver', k: 'wage', fmt: money }, { t: 'Fuel', k: 'fuel', fmt: money }, { t: 'Truck', k: 'truck', fmt: money }, { t: 'Overhead', k: 'over', fmt: money }, { t: 'Profit', k: 'profit', fmt: money, color: r => r.profit }],
+      p.loads.map(x => Object.assign({ name: (x.profit < 0 ? '⚠ ' : '') + (x.l.loadId || '') + ' ' + x.l.customerName, _open: 'load:' + x.l.key }, x)), { note: '⚠ = the load lost money. Fuel is the logged fuel shared over the shift\'s loads, else km x unit L/100 x fuel price.' }) +
+    table('perunit', 'Per truck / unit', [{ t: 'Unit', k: 'name' }, { t: 'Km', k: 'km', fmt: kmf }, { t: 'Shift h', k: 'h', fmt: hrs }, { t: 'Costs', k: 'costs', fmt: money }, { t: '$/km', k: 'perKm', fmt: money }, { t: '$/h', k: 'perH', fmt: money }, { t: 'Sales', k: 'rev', fmt: money }, { t: 'Sales/km', k: 'revKm', fmt: money }, { t: 'Empty km %', k: 'emptyPct', fmt: pct }, { t: 'Empty h %', k: 'emptyHPct', fmt: pct }, { t: 'Empty $', k: 'emptyCost', fmt: money }], unitRows) +
+    table('perdriver', 'Per driver', [{ t: 'Driver', k: 'name' }, { t: 'Paid h', k: 'paidH', fmt: hrs }, { t: 'Driving h', k: 'drivingH', fmt: hrs }, { t: 'Overtime h', k: 'otH', fmt: hrs }, { t: 'Wages', k: 'wage', fmt: money }, { t: 'Sales hauled', k: 'rev', fmt: money }, { t: 'Empty h', k: 'emptyH', fmt: hrs }, { t: 'Empty $', k: 'emptyCost', fmt: money }], drvRows) +
+    dimTable('percust', 'Per customer', x => x.l.customerName) + dimTable('perspecies', 'Per species / product', x => x.l.species + (x.l.product === 'Split' ? ' (split)' : '')) + dimTable('perroute', 'Per route', x => x.l.location + ' → ' + (x.l.place || x.l.address || '').split(/[·,]/)[0]) +
+    table('peryard', 'Per yard and product', [{ t: 'Yard · species · product', k: 'name' }, { t: 'On hand', k: 'onHand', fmt: v => r2(v) }, { t: 'Unit', k: 'unit' }, { t: 'Sold', k: 'sold', fmt: v => r2(v) }, { t: 'Cost of goods sold', k: 'cogs', fmt: money }, { t: 'Haul into yard', k: 'haul', fmt: money }], yardRows) +
+    table('percat', 'Per category', [{ t: 'Category', k: 'name' }, { t: '$', k: 'v', fmt: money }, { t: '% of costs', k: 'pc', fmt: v => v.toFixed(1) + '%' }], Object.keys(cats).map(k => { const v = cats[k].reduce((t, c) => t + c.amount, 0); return { name: k, v, pc: p.totals.costs ? v / p.totals.costs * 100 : 0 }; })) +
+    table('pervendor', 'Per vendor', [{ t: 'Vendor', k: 'name' }, { t: '$', k: 'v', fmt: money }, { t: 'Bills', k: 'n' }], Object.keys(vendors).map(k => ({ name: k, v: vendors[k].reduce((t, c) => t + c.amount, 0), n: vendors[k].length }))) +
+    `<div class="card"><h3 style="margin:0 0 6px">Fixed vs variable and break-even</h3><div class="row"><span>Fixed (insurance, payments, licences, office, recurring)</span><b>${money(fixed)}</b></div><div class="row"><span>Variable</span><b>${money(variable)}</b></div>
+      <div class="row"><span>Break-even loads this period</span><b>${be ? Math.ceil(be) : '—'}</b></div><div class="row"><span>Actual loads</span><b>${p.loads.length}</b></div>
+      <div class="row"><span>GST collected / paid / to remit</span><b>${money(p.totals.gstIn)} / ${money(p.totals.gstOut)} / ${money(p.totals.gstIn - p.totals.gstOut)}</b></div></div>`;
+  bindControls(renderBreakdowns); bindTables(renderBreakdowns);
+}
+
+/* ---------- 5. Comparisons: Booked / Expected vs Actual (green = in our favour) ---------- */
+let cmpGroup = 'A', cmpItem = 'A1', cmpF = { truck: '', driver: '', customer: '', species: '', route: '' };
+const routeOf = l => l.location + ' → ' + (l.place || l.address || '').split(/[·,]/)[0];
+function cmpRow(name, booked, actual, opts) {
+  opts = opts || {}; const ok = booked != null && actual != null && isFinite(booked) && isFinite(actual);
+  const diff = ok ? actual - booked : null, dpct = ok && booked ? diff / Math.abs(booked) * 100 : null, good = ok ? (opts.better === 'higher' ? diff > 0.0001 ? 1 : diff < -0.0001 ? -1 : 0 : diff < -0.0001 ? 1 : diff > 0.0001 ? -1 : 0) : 0;
+  return Object.assign({ name, booked, actual, diff, dpct, good, _open: opts.open }, opts.extra || {});
+}
+const CMP = {
+  A: { title: 'A. Booked vs actual, per load', items: [
+    ['A1', 'Cycle time (round trip hours)', 'h', l => [num(l.l.totalHours), l.l.legs ? l.empty && l.empty.actualH : null]],
+    ['A1a', 'Wait / load at pickup', 'h', l => [num(l.l.bd.loadHrs) / 2 || null, l.l.legs && l.l.legs.waitPickupH]],
+    ['A1b', 'Loaded leg (pickup → customer)', 'h', l => [num(l.l.driveHours) / 2 || null, l.l.legs && l.l.legs.loadedH]],
+    ['A1c', 'Wait / unload at customer', 'h', l => [num(l.l.bd.loadHrs) / 2 || null, l.l.legs && l.l.legs.waitCustH]],
+    ['A1d', 'Return leg (after unloading)', 'h', l => [num(l.l.driveHours) / 2 || null, l.l.legs && l.l.legs.returnH]],
+    ['A1e', 'Share of the run\'s positioning (base → first pickup)', 'h', l => [0, l.l.legs ? num(l.l.legs.posH) : null]],
+    ['A2', 'Drive hours', 'h', l => [num(l.l.driveHours) || null, l.l.legs ? num(l.l.legs.loadedH) + num(l.l.legs.returnH) + num(l.l.legs.posH) : null]],
+    ['A3', 'Distance (round trip km)', 'km', l => [num(l.l.km) * 2 || null, l.l.kmActual || null]],
+    ['A4', 'Fuel litres', 'L', l => [num(l.l.fuelLitres) || null, l.l.fuelLActual || null]],
+    ['A5', 'Fuel $', '$', l => [num(l.l.fuelLitres) * l.l.bookedFuelPrice || null, l.l.fuelActual != null ? l.l.fuelActual : null]],
+    ['A6', 'Fuel surcharge billed vs actual fuel cost', '$', l => [l.l.rev ? l.l.rev.fsc : null, l.l.fuelActual != null ? l.l.fuelActual : null], 'lower'],
+    ['A7', 'Tonnes (booked vs scale net)', 't', l => [num(l.l.tonnes) || null, KFS.toT(l.l.netTonnes) || null], 'higher'],
+    ['A7b', 'Cords (booked vs delivered)', 'cords', l => { const sp = ((QS().locations || []).find(x => x.name === l.l.location) || { species: [] }).species.find(s => s.name === l.l.species), f = sp && +sp.tonnesPerCord || 1.8; return [num(l.l.cords) || null, KFS.toT(l.l.netTonnes) ? KFS.toT(l.l.netTonnes) / f : null]; }, 'higher'],
+    ['A8', 'Price: quoted vs invoiced', '$', l => [num(l.l.quotedTotal) || num(l.l.total) || null, l.l.rev ? l.l.rev.total : null], 'higher'],
+    ['A8b', 'Price: invoiced vs collected', '$', l => [l.l.rev ? l.l.rev.total : null, l.l.rev ? M.payments.filter(x => String(x.loadId).toLowerCase() === String(l.l.loadId).toLowerCase()).reduce((t, x) => t + x.amount, 0) : null], 'higher'],
+    ['A9', 'Truck cost (cost rate x hours)', '$', l => { const uc = P().unitCostKm[String((l.l.unit && l.l.unit.id) || l.l.shiftUnitKey)] || {}; return [l.l.bookedCostH * num(l.l.totalHours) || null, l.empty && uc.perH ? l.empty.actualH * uc.perH : null]; }],
+    ['A10', 'Wood cost', '$', l => [l.l.bd.spCostTonne != null ? num(l.l.bd.spCostTonne) * num(l.l.tonnes) : null, l.wood || null]],
+    ['A11', 'Profit (estimated at booking vs true profit)', '$', l => [l.l.bd.estProfit != null ? num(l.l.bd.estProfit) : null, l.profit], 'higher'],
+    ['A12', 'Timing: requested vs delivered (days late)', 'days', l => { const un = (l.l.stages || []).find(g => g.k === 'unloaded'), dd = un ? KFS.day(un.t) : null; return [l.l.requestedDate ? 0 : null, l.l.requestedDate && dd ? (Date.parse(dd) - Date.parse(l.l.requestedDate)) / 86400000 : null]; }],
+    ['A13', 'EMPTY driving: billed round trip vs actual hours incl. empty legs', 'h', l => [l.empty ? l.empty.billedH : null, l.empty ? l.empty.actualH : null]]] },
+  B: { title: 'B. Per truck / equipment', items: [['B1', 'L/100 km: Quote vs actual'], ['B2', 'Cost per hour and per km: Quote vs actual'], ['B3', 'Revenue vs cost per km and per hour'], ['B4', 'Hours on a load vs hours in shifts (utilisation)'], ['B5', 'Planned service vs done'], ['B6', 'Repairs in-house vs shop; repair $/km vs last period'], ['B7', 'Downtime days vs working days'], ['B8', 'Truck vs truck on the same route']] },
+  C: { title: 'C. Per driver', items: [['C1', 'Paid vs driving vs on duty vs on a load (idle)'], ['C2', 'Cycle time vs booked on the same routes'], ['C3', 'Fuel economy on the same truck'], ['C4', 'Regular vs overtime; weeks over the limit'], ['C5', 'Revenue per paid hour vs wage per hour'], ['C6', 'Pre-trip defects reported; repairs after a missed defect']] },
+  D: { title: 'D. Per customer / route / species', items: [['D1', 'Quoted vs invoiced vs paid; days to pay'], ['D2', 'Margin per customer, route, species, tonne and km'], ['D3', 'Buy vs sell per species; yard book vs counts']] },
+  E: { title: 'E. Money over time', items: [['E1', 'This period vs previous and same period last year'], ['E2', 'Revenue mix'], ['E3', 'Cash in vs invoiced'], ['E4', 'GST collected vs paid'], ['E5', 'Fixed vs variable; break-even loads per month'], ['E6', 'Labour as % of sales']] }
+};
+function fmtU(u) { return u === '$' ? money : u === 'h' ? hrs : u === 'km' ? kmf : v => r2(v) + ' ' + u; }
+function filterLoads(list) { return list.filter(x => (!cmpF.truck || x.l.truck === cmpF.truck || (x.l.shiftUnit || '') === cmpF.truck) && (!cmpF.driver || x.l.driver === cmpF.driver) && (!cmpF.customer || x.l.customerName === cmpF.customer) && (!cmpF.species || x.l.species === cmpF.species) && (!cmpF.route || routeOf(x.l) === cmpF.route)); }
+function renderComparisons() {
+  const p = P(), g = CMP[cmpGroup], loads = filterLoads(p.loads);
+  const opt = (k, vals) => `<select data-f="${k}"><option value="">All ${k === 'species' ? 'species' : k + 's'}</option>${[...new Set(vals.filter(Boolean))].sort().map(v => `<option ${cmpF[k] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+  let body = '';
+  if (cmpGroup === 'A') {
+    const it = g.items.find(i => i[0] === cmpItem) || g.items[0], u = it[2], better = it[4] || 'lower';
+    const rows = loads.map(x => { const [b, a] = it[3](x); return cmpRow((x.l.loadId || '') + ' ' + x.l.customerName, b, a, { better, open: 'load:' + x.l.key }); });
+    const have = rows.filter(r => r.diff != null), skipped = rows.length - have.length;
+    body = table('cmpA', it[1], [{ t: 'Load', k: 'name' }, { t: 'Booked', k: 'booked', fmt: fmtU(u) }, { t: 'Actual', k: 'actual', fmt: fmtU(u) }, { t: 'Difference', k: 'diff', fmt: fmtU(u), color: r => r.good }, { t: 'Diff %', k: 'dpct', fmt: pct, color: r => r.good }], have,
+      { note: (skipped ? skipped + ' load(s) skipped: one side has no data (no trip stages, no fuel logged, no ticket, etc.). ' : '') + (cmpItem === 'A13' ? 'Unbilled driving is tracked, never billed. A negative difference (home closer than the pickup) is a saving.' : '') });
+    if (cmpItem === 'A13') body += emptyRuns(p);
+  } else body = cmpOther(cmpGroup, cmpItem, p, loads);
+  $('view').innerHTML = controlsHtml() + `<div class="seg">${Object.keys(CMP).map(k => `<button class="${k === cmpGroup ? 'on' : ''}" data-g="${k}">${k}</button>`).join('')}</div>
+    <select id="cmpI">${g.items.map(i => `<option value="${i[0]}" ${i[0] === cmpItem ? 'selected' : ''}>${esc(i[0] + '. ' + i[1])}</option>`).join('')}</select>
+    <div class="filters">${opt('truck', p.loads.map(x => x.l.shiftUnit || x.l.truck))}${opt('driver', p.loads.map(x => x.l.driver))}${opt('customer', p.loads.map(x => x.l.customerName))}${opt('species', p.loads.map(x => x.l.species))}${opt('route', p.loads.map(x => routeOf(x.l)))}</div>` + body;
+  bindControls(renderComparisons); bindTables(renderComparisons);
+  document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { cmpGroup = b.dataset.g; cmpItem = CMP[cmpGroup].items[0][0]; renderComparisons(); });
+  $('cmpI').onchange = () => { cmpItem = $('cmpI').value; renderComparisons(); };
+  document.querySelectorAll('[data-f]').forEach(s => s.onchange = () => { cmpF[s.dataset.f] = s.value; renderComparisons(); });
+}
+// runs (base -> ... -> base): billed vs actual hours incl. empty legs; positioning shared by loaded hours
+function emptyRuns(p) {
+  const byShift = groupBy(p.loads.filter(x => x.empty), x => x.l.shiftId), rows = [];
+  Object.keys(byShift).forEach(sid => { const list = byShift[sid]; let run = []; const flush = () => { if (!run.length) return; const billed = run.reduce((t, x) => t + x.empty.billedH, 0), actual = run.reduce((t, x) => t + x.empty.actualH, 0); rows.push(cmpRow(list[0].l.driver + ' · ' + run.map(x => x.l.loadId).join(' + '), billed, actual, { extra: { emptyKm: run.reduce((t, x) => t + x.empty.emptyKm, 0), emptyCost: run.reduce((t, x) => t + x.empty.emptyCost, 0) } })); run = []; };
+    list.forEach(x => { if (!x.empty.chain) flush(); run.push(x); }); flush(); });
+  const pick = groupBy(p.loads.filter(x => x.empty), x => x.l.location);
+  return table('runs', 'Per run: billed vs actual (incl. empty legs)', [{ t: 'Run', k: 'name' }, { t: 'Billed h', k: 'booked', fmt: hrs }, { t: 'Actual h', k: 'actual', fmt: hrs }, { t: 'Unbilled h', k: 'diff', fmt: hrs, color: r => r.good }, { t: 'Empty km', k: 'emptyKm', fmt: kmf }, { t: 'Empty $', k: 'emptyCost', fmt: money }], rows) +
+    table('emptyPick', 'Pickups / routes ranked by empty driving cost', [{ t: 'Pickup', k: 'name' }, { t: 'Loads', k: 'n' }, { t: 'Empty $', k: 'v', fmt: money }, { t: 'Share of profit eaten', k: 'pp', fmt: v => v.toFixed(1) + '%' }],
+      Object.keys(pick).map(k => { const v = pick[k].reduce((t, x) => t + x.empty.emptyCost, 0), pr = pick[k].reduce((t, x) => t + Math.max(0, x.profit + x.empty.emptyCost), 0); return { name: k, n: pick[k].length, v, pp: pr ? v / pr * 100 : 0 }; }).sort((a, b) => b.v - a.v));
+}
+function cmpOther(G, id, p, loads) {
+  const units = M.S.units || [], uc = p.unitCostKm, shifts = M.shifts.filter(s => s.date >= p.from && s.date <= p.to && s.type !== 'yard'), qs = QS();
+  const qU = u => (qs.units || []).find(x => x.name === u.pricingUnit) || (qs.units || []).find(x => x.name === u.name);
+  const prevR = () => { const a = KFS.shiftAnchor(view, anchor, -1), b = KFS.buckets(view, a, num(M.money.weekStartsOn)); return KFS.period(M, b[0].from, b[b.length - 1].to, { overhead }); };
+  const yearR = () => { const a = new Date(anchor); a.setFullYear(a.getFullYear() - 1); const b = KFS.buckets(view, a, num(M.money.weekStartsOn)); return KFS.period(M, b[0].from, b[b.length - 1].to, { overhead }); };
+  const C = (t, unit, better) => [{ t, k: 'name' }, { t: 'Booked / expected', k: 'booked', fmt: fmtU(unit) }, { t: 'Actual', k: 'actual', fmt: fmtU(unit) }, { t: 'Difference', k: 'diff', fmt: fmtU(unit), color: r => r.good }, { t: 'Diff %', k: 'dpct', fmt: pct, color: r => r.good }];
+  const none = 'No data yet for this comparison in this period.';
+  switch (id) {
+    case 'B1': { const rows = units.map(u => { const q = qU(u), x = uc[String(u.id)] || {}; return cmpRow(u.name, q ? num(q.fuel) : null, x.l100 || null, { open: 'unit:' + u.id }); }).filter(r => r.actual);
+      const byDr = groupBy(shifts.filter(s => s.km > 0 && s.fuelL > 0), s => s.unitName + ' · ' + s.driverName); const r2rows = Object.keys(byDr).map(k => { const l = byDr[k], km = l.reduce((t, s) => t + s.km, 0), L = l.reduce((t, s) => t + s.fuelL, 0), u = units.find(x => x.name === k.split(' · ')[0]), q = u && qU(u); return cmpRow(k, q ? num(q.fuel) : null, km ? L / km * 100 : null); });
+      return table('b1', 'L/100 km set in Quote vs actual', C('Unit', 'L/100'), rows, { empty: none }) + table('b1d', 'By driver on the same truck', C('Unit · driver', 'L/100'), r2rows, { empty: none }); }
+    case 'B2': { const rows = units.map(u => { const q = qU(u), x = uc[String(u.id)] || {}; return cmpRow(u.name + ' · per hour', q ? num(q.costHourly != null ? q.costHourly : q.hourly) : null, x.perH || null, { open: 'unit:' + u.id }); }).filter(r => r.actual);
+      return table('b2', 'Cost per hour: Quote cost rate vs actual (repairs, payments, wages per shift hour; fuel priced separately)', C('Unit', '$'), rows, { empty: none }); }
+    case 'B3': return table('b3', 'Revenue vs cost per km and per hour', [{ t: 'Unit', k: 'name' }, { t: 'Revenue/km', k: 'rk', fmt: money }, { t: 'Cost/km', k: 'ck', fmt: money }, { t: 'Revenue/h', k: 'rh', fmt: money }, { t: 'Cost/h', k: 'ch', fmt: money }],
+      units.map(u => { const x = uc[String(u.id)] || {}, rev = p.loads.filter(y => String((y.l.unit && y.l.unit.id) || y.l.shiftUnitKey) === String(u.id)).reduce((t, y) => t + y.rev, 0), cost = (x.costs || 0) + (x.fuel || 0) + (x.wages || 0); return { name: u.name, _open: 'unit:' + u.id, rk: x.km ? rev / x.km : null, ck: x.km ? cost / x.km : null, rh: x.hours ? rev / x.hours : null, ch: x.hours ? cost / x.hours : null }; }).filter(r => r.ck || r.ch), { empty: none });
+    case 'B4': return table('b4', 'Hours on a load vs in shifts vs parked', [{ t: 'Unit', k: 'name' }, { t: 'On a load', k: 'load', fmt: hrs }, { t: 'In shifts', k: 'sh', fmt: hrs }, { t: 'Parked (rest of the period)', k: 'park', fmt: hrs }, { t: 'Utilisation', k: 'u', fmt: v => v.toFixed(0) + '%' }],
+      units.map(u => { const x = uc[String(u.id)] || {}, onL = p.loads.filter(y => String((y.l.unit && y.l.unit.id) || y.l.shiftUnitKey) === String(u.id)).reduce((t, y) => t + (y.empty ? y.empty.actualH : 0), 0), span = (Date.parse(p.to) - Date.parse(p.from)) / 3600000 + 24; return { name: u.name, load: onL, sh: x.hours || 0, park: Math.max(0, span - (x.hours || 0)), u: x.hours ? onL / x.hours * 100 : 0 }; }).filter(r => r.sh), { empty: none });
+    case 'B5': return table('b5', 'Planned service vs done', [{ t: 'Unit · task', k: 'name' }, { t: 'Every', k: 'ev' }, { t: 'Last done', k: 'ld' }, { t: 'Status', k: 'st' }], (M.S.plans || []).map(pl => { const u = units.find(x => String(x.id) === String(pl.unitId)) || {}; const due = pl.everyDays && pl.lastDoneAt ? (Date.parse(pl.lastDoneAt) + num(pl.everyDays) * 86400000 - Date.now()) / 86400000 : null;
+      return { name: (u.name || '?') + ' · ' + pl.task, _open: 'unit:' + pl.unitId, ev: [pl.everyKm && pl.everyKm + ' km', pl.everyHours && pl.everyHours + ' h', pl.everyDays && pl.everyDays + ' d'].filter(Boolean).join(' / '), ld: pl.lastDoneAt ? KFS.day(pl.lastDoneAt) : 'never', st: due == null ? 'see Trucks → Due soon' : due < 0 ? 'late ' + Math.round(-due) + ' days' : 'on time' }; }), { empty: 'No service plans yet (Trucks → unit → Service plan).' });
+    case 'B6': { const wos = (M.S.workOrders || []).filter(w => w.status === 'Done' && KFS.day(w.closedAt) >= p.from && KFS.day(w.closedAt) <= p.to), pp = prevR();
+      const rows = units.map(u => { const mine = wos.filter(w => String(w.unitId) === String(u.id)), inh = mine.filter(w => w.where !== 'shop'), sh = mine.filter(w => w.where === 'shop'), x = uc[String(u.id)] || {}, px = pp.unitCostKm[String(u.id)] || {};
+        return { name: u.name, _open: 'unit:' + u.id, inh: inh.reduce((t, w) => t + num(w.total), 0), inhN: inh.length, shop: sh.reduce((t, w) => t + num(w.total), 0), shopN: sh.length, now: x.km ? x.costs / x.km : null, prev: px.km ? px.costs / px.km : null }; }).filter(r => r.inhN || r.shopN || r.now);
+      return table('b6', 'Repairs in-house vs shop; repair $/km this period vs last', [{ t: 'Unit', k: 'name' }, { t: 'In-house $', k: 'inh', fmt: money }, { t: 'Jobs', k: 'inhN' }, { t: 'Shop $', k: 'shop', fmt: money }, { t: 'Jobs', k: 'shopN' }, { t: '$/km now', k: 'now', fmt: money }, { t: '$/km last period', k: 'prev', fmt: money }], rows, { empty: none }); }
+    case 'B7': return table('b7', 'Downtime days vs working days', [{ t: 'Unit', k: 'name' }, { t: 'Working days', k: 'w' }, { t: 'Downtime days', k: 'd', fmt: v => r2(v) }], units.map(u => ({ name: u.name, _open: 'unit:' + u.id, w: new Set(shifts.filter(s => s.unitKey === String(u.id)).map(s => s.date)).size, d: (M.S.workOrders || []).filter(w => String(w.unitId) === String(u.id) && KFS.day(w.closedAt) >= p.from && KFS.day(w.closedAt) <= p.to).reduce((t, w) => t + num(w.downDays), 0) })).filter(r => r.w || r.d), { empty: none });
+    case 'B8': { const g = groupBy(loads.filter(x => x.empty), x => routeOf(x.l) + ' · ' + (x.l.shiftUnit || x.l.truck)); return table('b8', 'Truck vs truck on the same route (average per load)', [{ t: 'Route · truck', k: 'name' }, { t: 'Loads', k: 'n' }, { t: 'Booked h', k: 'b', fmt: hrs }, { t: 'Actual h', k: 'a', fmt: hrs }, { t: 'Fuel $', k: 'f', fmt: money }, { t: 'Profit', k: 'pr', fmt: money, color: r => r.pr }], Object.keys(g).sort().map(k => { const l = g[k], n = l.length; return { name: k, n, b: l.reduce((t, x) => t + x.empty.billedH, 0) / n, a: l.reduce((t, x) => t + x.empty.actualH, 0) / n, f: l.reduce((t, x) => t + x.fuel, 0) / n, pr: l.reduce((t, x) => t + x.profit, 0) / n }; }), { empty: none }); }
+    case 'C1': { const g = groupBy(M.shifts.filter(s => s.date >= p.from && s.date <= p.to), s => s.driverName); return table('c1', 'Paid vs driving vs on duty vs on a load', [{ t: 'Driver', k: 'name' }, { t: 'Paid h', k: 'pd', fmt: hrs }, { t: 'Driving h', k: 'dr', fmt: hrs }, { t: 'On duty h', k: 'od', fmt: hrs }, { t: 'On a load h', k: 'ol', fmt: hrs }, { t: 'Idle h', k: 'id', fmt: hrs }, { t: 'Idle $', k: 'id$', fmt: money }],
+      Object.keys(g).map(n => { const l = g[n], pd = l.reduce((t, s) => t + s.paidH, 0), wage = l.reduce((t, s) => t + s.wage, 0), ol = p.loads.filter(x => x.l.driver === n && x.empty).reduce((t, x) => t + x.empty.actualH, 0); return { name: n, pd, dr: l.reduce((t, s) => t + num(s.drivingHrs), 0), od: l.reduce((t, s) => t + num(s.onDutyHrs), 0), ol, id: Math.max(0, pd - ol), 'id$': pd ? Math.max(0, pd - ol) * wage / pd : 0 }; }), { empty: none, note: 'Idle = paid hours not on a load (yard work included in paid hours).' }); }
+    case 'C2': { const g = groupBy(loads.filter(x => x.empty), x => routeOf(x.l) + ' · ' + (x.l.driver || '?')); return table('c2', 'Cycle time vs booked, by driver on the same routes', C('Route · driver', 'h'), Object.keys(g).sort().map(k => { const l = g[k]; return cmpRow(k + ' (' + l.length + ')', l.reduce((t, x) => t + x.empty.billedH, 0) / l.length, l.reduce((t, x) => t + x.empty.actualH, 0) / l.length); }), { empty: none }); }
+    case 'C3': return cmpOther('B', 'B1', p, loads).split('<div class="card">').slice(-1).map(x => '<div class="card">' + x).join('');
+    case 'C4': { const g = groupBy(M.shifts.filter(s => s.date >= p.from && s.date <= p.to), s => s.driverName); return table('c4', 'Regular vs overtime', [{ t: 'Person', k: 'name' }, { t: 'Regular h', k: 'reg', fmt: hrs }, { t: 'Overtime h', k: 'ot', fmt: hrs }, { t: 'Overtime extra $', k: 'ot$', fmt: money }, { t: 'Weeks over ' + num(M.money.otWeeklyHours) + ' h', k: 'wk' }],
+      Object.keys(g).map(n => { const l = g[n], weeks = new Set(l.filter(s => s.otH > 0).map(s => s.date.slice(0, 7) + ':' + Math.floor(new Date(s.a).getDate() / 7))); return { name: n, reg: l.reduce((t, s) => t + s.regH, 0), ot: l.reduce((t, s) => t + s.otH, 0), 'ot$': l.reduce((t, s) => t + s.otExtra, 0), wk: weeks.size }; }), { empty: none }); }
+    case 'C5': { const g = groupBy(M.shifts.filter(s => s.date >= p.from && s.date <= p.to && s.type !== 'yard'), s => s.driverName); return table('c5', 'Revenue hauled per paid hour vs wage per hour', [{ t: 'Driver', k: 'name' }, { t: 'Revenue / paid h', k: 'r', fmt: money }, { t: 'Wage / h (incl. employer cost)', k: 'w', fmt: money }],
+      Object.keys(g).map(n => { const l = g[n], pd = l.reduce((t, s) => t + s.paidH, 0); return { name: n, r: pd ? p.loads.filter(x => x.l.driver === n).reduce((t, x) => t + x.rev, 0) / pd : null, w: pd ? l.reduce((t, s) => t + s.wage, 0) / pd : null }; }), { empty: none }); }
+    case 'C6': { const wos = M.S.workOrders || [], g = groupBy(shifts, s => s.driverName);
+      return table('c6', 'Pre-trip defects reported; repairs after a missed defect', [{ t: 'Driver', k: 'name' }, { t: 'Shifts', k: 'n' }, { t: 'Defects reported', k: 'd' }, { t: 'Work orders within 3 days after an all-OK pre-trip', k: 'm' }],
+        Object.keys(g).map(n => { const l = g[n]; let missed = 0; l.forEach(s => { if (s.defects) return; missed += wos.filter(w => String(w.unitId) === s.unitKey && w.source !== 'pretrip' && Date.parse(w.openedAt) > s.a && Date.parse(w.openedAt) - s.a < 3 * 86400000).length; }); return { name: n, n: l.length, d: l.reduce((t, s) => t + (s.defects || 0), 0), m: missed }; }), { empty: none }); }
+    case 'D1': { const g = groupBy(loads, x => x.l.customerName); return table('d1', 'Quoted vs invoiced vs paid; days to pay', [{ t: 'Customer', k: 'name' }, { t: 'Quoted', k: 'q', fmt: money }, { t: 'Invoiced', k: 'i', fmt: money }, { t: 'Paid', k: 'pd', fmt: money }, { t: 'Avg days to pay', k: 'dtp', fmt: v => r2(v) }],
+      Object.keys(g).map(n => { const l = g[n]; let days = [], paid = 0; l.forEach(x => { const ps = M.payments.filter(y => String(y.loadId).toLowerCase() === String(x.l.loadId).toLowerCase()); ps.forEach(y => { paid += y.amount; days.push((Date.parse(y.d) - x.l.invoicedAt) / 86400000); }); }); return { name: n, q: l.reduce((t, x) => t + (num(x.l.quotedTotal) || num(x.l.total)), 0), i: l.reduce((t, x) => t + x.l.rev.total, 0), pd: paid, dtp: days.length ? days.reduce((a, b) => a + b, 0) / days.length : null }; }), { empty: none }); }
+    case 'D2': return renderBreakdownsSnippet(p);
+    case 'D3': { const g = groupBy(loads, x => x.l.species); return table('d3', 'Buy vs sell per species (per tonne)', [{ t: 'Species', k: 'name' }, { t: 'Bought $/t', k: 'b', fmt: money }, { t: 'Sold $/t (product)', k: 's', fmt: money }, { t: 'Spread $/t', k: 'd', fmt: money, color: r => r.d }],
+      Object.keys(g).map(n => { const l = g[n], t = l.reduce((a, x) => a + (x.l.tActual || 0), 0); const b = t ? l.reduce((a, x) => a + x.wood, 0) / t : null, s = t ? l.reduce((a, x) => a + x.l.rev.product, 0) / t : null; return { name: n, b, s, d: b != null && s != null ? s - b : null }; }), { empty: none }) + '<div class="card small">Yard book vs actual counts (shrink): no physical yard counts are recorded in the app yet, so this comparison is skipped. Manual adjustments in Inventory show the corrections.</div>'; }
+    case 'E1': { const pr = prevR(), ly = yearR(), T = p.totals, cats = [...new Set([...Object.keys(p.byCat), ...Object.keys(pr.byCat), ...Object.keys(ly.byCat)])];
+      const line = (n, a, b, c, better) => ({ name: n, now: a, prev: b, ly: c, dp: b ? (a - b) / Math.abs(b) * 100 : null, dl: c ? (a - c) / Math.abs(c) * 100 : null, g: better === 'lower' ? (a <= b ? 1 : -1) : (a >= b ? 1 : -1) });
+      return table('e1', 'This period vs previous period vs same period last year', [{ t: '', k: 'name' }, { t: 'This', k: 'now', fmt: money }, { t: 'Previous', k: 'prev', fmt: money }, { t: 'vs previous', k: 'dp', fmt: pct, color: r => r.g }, { t: 'Last year', k: 'ly', fmt: money }, { t: 'vs last year', k: 'dl', fmt: pct }],
+        [line('Sales', T.sales, pr.totals.sales, ly.totals.sales), line('Costs', T.costs, pr.totals.costs, ly.totals.costs, 'lower'), line('Net profit', T.profit, pr.totals.profit, ly.totals.profit)].concat(cats.map(c => line(c, p.byCat[c] || 0, pr.byCat[c] || 0, ly.byCat[c] || 0, 'lower')))); }
+    case 'E2': { const T = p.totals; return table('e2', 'Revenue mix', [{ t: 'Source', k: 'name' }, { t: '$', k: 'v', fmt: money }, { t: '%', k: 'pc', fmt: v => v.toFixed(1) + '%' }], [['Product', T.product], ['Trucking', T.trucking], ['Fuel surcharge', T.fsc]].map(x => ({ name: x[0], v: x[1], pc: T.sales ? x[1] / T.sales * 100 : 0 }))); }
+    case 'E3': return table('e3', 'Cash in vs invoiced', C('', '$', 'higher'), [cmpRow('Invoiced (incl. GST) vs cash received', p.totals.sales + p.totals.gstIn, p.totals.cashIn, { better: 'higher' })]);
+    case 'E4': return table('e4', 'GST collected vs paid', [{ t: '', k: 'name' }, { t: '$', k: 'v', fmt: money }], [{ name: 'GST collected on invoices', v: p.totals.gstIn }, { name: 'GST paid on costs', v: p.totals.gstOut }, { name: 'Net GST to remit', v: p.totals.gstIn - p.totals.gstOut }]);
+    case 'E5': { const fixedCats = ['Insurance', 'Truck/equipment payments', 'Licences & permits', 'Office & phone'], fixed = p.costs.filter(c => c.kind === 'recurring' || fixedCats.includes(c.cat)).reduce((t, c) => t + c.amount, 0), variable = p.totals.costs - fixed, n = p.loads.length;
+      const months = Math.max(1, (Date.parse(p.to) - Date.parse(p.from)) / (30.44 * 86400000)), be = n && p.totals.sales / n > variable / n ? fixed / (p.totals.sales / n - variable / n) : null;
+      return table('e5', 'Fixed vs variable; break-even loads per month', [{ t: '', k: 'name' }, { t: 'Value', k: 'v' }], [{ name: 'Fixed costs', v: money(fixed) }, { name: 'Variable costs', v: money(variable) }, { name: 'Break-even loads per month', v: be ? Math.ceil(be / months) : '—' }, { name: 'Actual loads per month', v: r2(n / months) }]); }
+    case 'E6': { const lab = p.costs.filter(c => /^Wages/.test(c.cat)).reduce((t, c) => t + c.amount, 0) + (M.S.workOrders || []).filter(w => w.status === 'Done' && KFS.day(w.closedAt) >= p.from && KFS.day(w.closedAt) <= p.to).reduce((t, w) => t + num(w.laborCost), 0);
+      return table('e6', 'Labour (drivers, yard, mechanic incl. employer cost) as % of sales', [{ t: '', k: 'name' }, { t: '$', k: 'v', fmt: money }, { t: '% of sales', k: 'pc', fmt: v => v.toFixed(1) + '%' }], [{ name: 'Labour', v: lab, pc: p.totals.sales ? lab / p.totals.sales * 100 : 0 }]); }
+  }
+  return '<div class="card small">' + none + '</div>';
+}
+function renderBreakdownsSnippet(p) {
+  const agg = (k, f) => { const g = groupBy(p.loads, f); return table(k, 'Margin ' + k.replace('d2', '').replace('_', ' '), [{ t: '', k: 'name' }, { t: 'Sales', k: 'rev', fmt: money }, { t: 'Profit', k: 'pr', fmt: money, color: r => r.pr }, { t: 'Margin', k: 'm', fmt: pct, color: r => r.m }, { t: 'Profit/t', k: 'pt', fmt: money }, { t: 'Profit/km', k: 'pk', fmt: money }],
+    Object.keys(g).map(n => { const l = g[n], rev = l.reduce((t, x) => t + x.rev, 0), pr = l.reduce((t, x) => t + x.profit, 0), t = l.reduce((a, x) => a + (x.l.tActual || 0), 0), km = l.reduce((a, x) => a + x.km, 0); return { name: n, rev, pr, m: rev ? pr / rev * 100 : 0, pt: t ? pr / t : null, pk: km ? pr / km : null }; })); };
+  return agg('d2per_customer', x => x.l.customerName) + agg('d2per_route', x => routeOf(x.l)) + agg('d2per_species', x => x.l.species);
+}
+
+/* ---------- 6. Quote accuracy: average % off per truck and per route, with a one-tap fix (confirm first) ---------- */
+function renderAccuracy() {
+  const p = P(), qs = QS(), withData = p.loads.filter(x => x.empty || x.l.fuelLActual);
+  const avg = a => a.length ? a.reduce((t, v) => t + v, 0) / a.length : null, off = (b, a) => b && a != null ? (a - b) / b * 100 : null;
+  const stat = list => ({ n: list.length, h: avg(list.map(x => x.empty ? off(num(x.l.totalHours), x.empty.actualH) : null).filter(v => v != null)), km: avg(list.map(x => off(num(x.l.km) * 2, x.l.kmActual)).filter(v => v != null)), fuel: avg(list.map(x => off(num(x.l.fuelLitres), x.l.fuelLActual)).filter(v => v != null)), t: avg(list.map(x => off(num(x.l.tonnes), KFS.toT(x.l.netTonnes))).filter(v => v != null)) });
+  const cols = [{ t: '', k: 'name' }, { t: 'Loads', k: 'n' }, { t: 'Hours off', k: 'h', fmt: pct }, { t: 'Km off', k: 'km', fmt: pct }, { t: 'Fuel off', k: 'fuel', fmt: pct }, { t: 'Tonnes off', k: 't', fmt: pct }, { t: 'Suggestion', k: 'sug' }];
+  const byTruck = groupBy(withData, x => x.l.truck), byRoute = groupBy(withData, x => routeOf(x.l));
+  const truckRows = Object.keys(byTruck).map(k => { const s = stat(byTruck[k]), u = (qs.units || []).find(x => x.name === k); let sug = '', fix = null;
+    if (s.h != null && Math.abs(s.h) >= 10) sug = `${k} trips run ${Math.abs(s.h).toFixed(0)}% ${s.h > 0 ? 'longer' : 'shorter'} than quoted: ${s.h > 0 ? 'raise its load/unload hours or lower the speed setting' : 'its hours can come down'}.`;
+    if (u && s.fuel != null && Math.abs(s.fuel) >= 8) { const nf = r2(num(u.fuel) * (1 + s.fuel / 100)); sug += ` Fuel ${s.fuel > 0 ? 'higher' : 'lower'} than quoted: set ${u.fuel} → ${nf} L/100.`; fix = { unit: u.id, fuel: nf }; }
+    return Object.assign({ name: k, sug: sug || 'within range', _fix: fix }, s); });
+  $('view').innerHTML = controlsHtml() + `<div class="small">Average % off: actual vs what the quote/booking said (positive = more than quoted). Needs trip stages, fuel and scale tickets.</div>` +
+    table('accT', 'Per truck', cols, truckRows, { empty: 'No loads with actual data in this period.' }) + table('accR', 'Per route (source → customer area)', cols, Object.keys(byRoute).map(k => Object.assign({ name: k, sug: '' }, stat(byRoute[k]))), { empty: 'No loads with actual data in this period.' }) +
+    truckRows.filter(r => r._fix).map(r => `<div class="card"><b>${esc(r.name)}</b>: ${esc(r.sug)}<div class="btnrow"><button class="btn" data-fix='${esc(JSON.stringify(r._fix))}'>Apply to Quote settings</button></div></div>`).join('');
+  bindControls(renderAccuracy); bindTables(renderAccuracy);
+  document.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => { const f = JSON.parse(b.dataset.fix), s = QS(), u = (s.units || []).find(x => String(x.id) === String(f.unit)); if (!u) return;
+    if (!confirm(`Change ${u.name} fuel from ${u.fuel} to ${f.fuel} L/100 in Quote settings? Billed prices of new quotes change. Then open Quote → Company settings → Save to Company to share it.`)) return;
+    u.fuel = f.fuel; localStorage.setItem('knightForestrySettings_v3', JSON.stringify(s)); localStorage.setItem('kfDirty', '1'); alert('Saved on this device. Open Quote → Settings → Save to Company to share it.'); });
+}
+
+/* ---------- 7. Overhead: costs with no unit or load, spread across loads by trucking hours ---------- */
+function renderOverhead() {
+  const p = P(), rows = p.costs.filter(c => c.kind !== 'wood' && c.kind !== 'wage' && c.kind !== 'fuel' && c.kind !== 'workorder' && !c.unitKey && !c.loadKey);
+  $('view').innerHTML = controlsHtml() + `<div class="card"><label style="display:flex;gap:10px;align-items:center;margin:0"><input type="checkbox" id="ovOn" style="width:24px;min-height:24px" ${overhead ? 'checked' : ''}> Spread overhead over loads (per-load profit)</label>
+    <div class="row" style="margin-top:8px"><span>Overhead this period (insurance, office, recurring… with no unit or load)</span><b>${money(p.overheadPool)}</b></div><div class="small">Shared by trucking hours (billed hours of each invoiced load).</div></div>` +
+    table('ovl', 'Overhead share per load', [{ t: 'Load', k: 'name' }, { t: 'Trucking h', k: 'h', fmt: hrs }, { t: 'Overhead share', k: 'o', fmt: money }], p.loads.map(x => ({ name: (x.l.loadId || '') + ' ' + x.l.customerName, _open: 'load:' + x.l.key, h: x.l.billedH, o: x.over }))) + costsTable(rows);
+  bindControls(renderOverhead); bindTables(renderOverhead);
+  $('ovOn').onchange = () => { overhead = $('ovOn').checked; LSJ.set('kfStatsOverhead', overhead); renderOverhead(); };
+}
+
+/* ---------- 8. Export: CSV of any table (CSV buttons everywhere) and a PDF summary of the period ---------- */
+function renderExport() {
+  const p = P(), T = p.totals;
+  $('view').innerHTML = controlsHtml() + `<div class="card"><p>Every table has a <b>CSV</b> button. The PDF summary has the totals, the cost categories and the per-load profit for <b>${esc(periodLabel())}</b>.</p>
+    <div class="btnrow"><button class="btn" id="pdfGo">PDF summary</button><button class="btn btn-outline" id="csvAll">CSV: every sale and cost</button></div></div><div id="pdfBox" style="position:absolute;left:-9999px"></div>`;
+  bindControls(renderExport);
+  $('csvAll').onclick = () => { TABLES.all = { title: 'Sales and costs ' + periodLabel(), cols: [{ t: 'Type', k: 'type' }, { t: 'Date', k: 'd' }, { t: 'What', k: 'what' }, { t: 'Category', k: 'cat' }, { t: 'Before GST', k: 'amt' }, { t: 'GST', k: 'gst' }],
+    rows: p.sales.map(s => ({ type: 'Sale', d: s.d, what: s.ref + ' ' + s.who, cat: 'Sales', amt: s.rev.sub, gst: s.rev.gst })).concat(p.costs.map(c => ({ type: 'Cost', d: c.d, what: c.src, cat: c.cat, amt: c.amount, gst: c.gst || 0 }))) }; csv('all'); };
+  $('pdfGo').onclick = async () => {
+    if (typeof html2pdf === 'undefined') return alert('The PDF tool is still loading. Try again in a moment.');
+    const html = `<div style="font-family:Arial;color:#0f172a;padding:10px;width:700px"><h2>${esc((JSON.parse(localStorage.getItem('kfCompany') || '{}').name) || '')} · Statistics · ${esc(periodLabel())}</h2>
+      <table style="width:100%;border-collapse:collapse" border="1" cellpadding="5"><tr><td>Sales (before GST)</td><td>${money(T.sales)}</td></tr><tr><td>Costs</td><td>${money(T.costs)}</td></tr><tr><td><b>Net profit</b></td><td><b>${money(T.profit)} (${T.margin}%)</b></td></tr><tr><td>Cash in</td><td>${money(T.cashIn)}</td></tr><tr><td>GST collected / paid</td><td>${money(T.gstIn)} / ${money(T.gstOut)}</td></tr></table>
+      <h3>Costs by category</h3><table style="width:100%;border-collapse:collapse" border="1" cellpadding="4">${Object.keys(p.byCat).map(c => `<tr><td>${esc(c)}</td><td>${money(p.byCat[c])}</td></tr>`).join('')}</table>
+      <h3>Per load</h3><table style="width:100%;border-collapse:collapse;font-size:11px" border="1" cellpadding="3"><tr><th>Load</th><th>Sales</th><th>Wood</th><th>Driver</th><th>Fuel</th><th>Truck</th><th>Overhead</th><th>Profit</th></tr>${p.loads.map(x => `<tr><td>${esc(x.l.loadId)} ${esc(x.l.customerName)}</td><td>${money(x.rev)}</td><td>${money(x.wood)}</td><td>${money(x.wage)}</td><td>${money(x.fuel)}</td><td>${money(x.truck)}</td><td>${money(x.over)}</td><td>${money(x.profit)}</td></tr>`).join('')}</table></div>`;
+    const el = document.createElement('div'); el.innerHTML = html; document.body.appendChild(el);
+    try { const blob = await html2pdf().set({ margin: 8, jsPDF: { unit: 'mm', format: 'letter' }, html2canvas: { scale: 2, backgroundColor: '#ffffff' } }).from(el.firstChild).outputPdf('blob'); const f = new File([blob], 'Statistics ' + periodLabel().replace(/[^\w]+/g, '_') + '.pdf', { type: 'application/pdf' }); if (!(window.kfShareFile && await kfShareFile(f, 'Statistics'))) dl(f); }
+    catch (e) { alert('Could not make the PDF: ' + e.message); } finally { el.remove(); }
+  };
+}
+
+/* ---------- start ---------- */
+(async function boot() {
+  if (!(window.kfIsAdmin && kfIsAdmin()) && !localStorage.getItem('kfKey')) { $('view').innerHTML = '<div class="card">Statistics is for office devices only.</div>'; return; }
+  render(); await load(); render();
+})();
+</script>
+</body>
+</html>
