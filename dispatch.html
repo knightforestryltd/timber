@@ -91,6 +91,7 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
       <div id="dOffice" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;">
         <button class="btn btn-outline" type="button" onclick="openEdit()">Edit load</button>
         <button class="btn btn-outline" type="button" onclick="openAssign()">Assign driver &amp; truck</button>
+        <button class="btn btn-outline" type="button" id="delLoadBtn" onclick="deleteLoad()" style="color:var(--bad);border-color:var(--bad);">Delete load</button>
       </div>
       <div id="dEdit" class="hidden"></div>
       <div id="dNotes" style="display:none;padding:10px 12px;margin:8px 0;border-radius:10px;border:1px solid var(--amber);"></div>
@@ -267,6 +268,26 @@ function openLoad(i, list) {
   ['ticketInput', 'deliveredBtn'].forEach(id => document.getElementById(id).classList.toggle('hidden', isDone));
   document.querySelector('#detailView .btn[onclick="checkTicket()"]').classList.toggle('hidden', isDone);
   document.getElementById('textBtn').classList.toggle('hidden', isDone || statusOf(current) !== 'started' || !textSettings().texts || !current.phone);
+  // only loads not delivered yet can be deleted (a delivered load is already out of inventory and may be billed)
+  document.getElementById('delLoadBtn').classList.toggle('hidden', isDone || statusOf(current) === 'delivered' || statusOf(current) === 'paid');
+}
+// Dispatch -> Delete load: removes the row from the Load Log sheet (a copy goes to the sheet's Log tab first).
+async function deleteLoad() {
+  const l = current; if (!l) return;
+  const st = statusOf(l);
+  if (st === 'delivered' || st === 'paid') { alert('A delivered or paid load cannot be deleted. Use Edit load instead.'); return; }
+  const what = (l.customerName || 'No name') + '\n' + [l.species, l.tonnes ? l.tonnes + ' t' : '', l.location ? 'from ' + l.location : '', l.truck].filter(Boolean).join(' · ');
+  if (!confirm('Delete this load?\n\n' + what + (l.loadId ? '\nLoad ID ' + l.loadId + ' (already started)' : '') + '\n\nIt is removed from Dispatch and the Load Log sheet. A copy is kept in the sheet\'s Log tab.')) return;
+  const b = document.getElementById('delLoadBtn'); b.disabled = true;
+  try {
+    const r = await officePost({ action: 'deleteLoad', find: findOf(l) });
+    if (r.status === 'cancelled') return;
+    if (r.status !== 'ok') { alert(/Unknown action/.test(r.message || '') ? 'Deleting loads needs the updated company script. Deploy the new version of company-apps-script.gs first.' : (r.message || ('Not deleted (' + r.status + ').'))); return; }
+    loads = loads.filter(x => x !== l);
+    const s = getLocalState(); delete s[loadKey(l)]; localStorage.setItem('kfDispatch', JSON.stringify(s));
+    current = null; showList();
+  } catch (e) { alert('No signal: nothing was deleted.'); }
+  finally { b.disabled = false; }
 }
 
 function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

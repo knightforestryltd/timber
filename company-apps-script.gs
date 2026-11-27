@@ -416,6 +416,11 @@ function syncPost_(p, d) {
     saveAdminTokens_(list1); log_('sync', 'admin device added', nm, '');
     return json_({ status: 'ok', v: SCRIPT_VERSION, adminToken: t1, key: companyKey_(), companyId: companyId_(), meta: meta_() });
   }
+  // an admin device that lost its company key (old website bug) gets it back with its admin token
+  if (a === 'adminKey') {
+    var ak = isAdmin_(p, d); if (!ak.ok) return adminFail_(ak);
+    return json_({ status: 'ok', v: SCRIPT_VERSION, key: companyKey_(), companyId: companyId_(), meta: meta_() });
+  }
   if (a === 'whoami') {
     var wa = isAdmin_(p, { adminToken: d.adminToken }), pe = d.token ? personFromToken_(d.token) : null;
     return json_({ status: 'ok', v: SCRIPT_VERSION, admin: !!wa.ok, noPassword: !hasPassword_(), person: pe ? { id: pe.id, name: pe.name, roles: rolesOf_(pe) } : null, meta: meta_() });
@@ -547,6 +552,18 @@ function loadsPost_(d) {
     var who = adminName_(d) || 'office';
     if (d.action === 'assignLoad') d.changes = { unitId: cap_(d.unitId, 60), driverName: cap_(d.driverName, 80) };
     return json_(editLoad_(sh, d, who));
+  }
+  // Dispatch -> Delete load (office only). Only loads not yet delivered: a delivered or paid load has already taken wood
+  // out of inventory and may be billed. The whole row is written to the Log first, so it can be put back by hand.
+  if (d.action === 'deleteLoad') {
+    var adl = isAdmin_({}, d); if (!adl.ok) return adminFail_(adl);
+    var rowD = findLoad_(sh, d.find || {}); if (rowD < 0) return json_({ status: 'notfound', message: 'That load was not found in the sheet. Refresh Dispatch.' });
+    var vD = sh.getRange(rowD, 1, 1, LOAD_ALL.length).getValues()[0], stD = String(vD[15] || '').toLowerCase();
+    if (stD === 'delivered' || stD === 'paid') return json_({ status: 'error', message: 'A ' + stD + ' load cannot be deleted (it is already out of inventory / billed). Use Edit load instead.' });
+    var keepD = {}; LOAD_ALL.forEach(function (hd, i) { var x = vD[i]; if (x !== '' && x != null && hd !== 'Booking Data') keepD[hd] = cap_(x instanceof Date ? x.toISOString() : x, 200); });
+    log_('loads', 'load deleted', vD[16] || vD[24] || vD[1], { by: adminName_(d) || 'office', row: keepD });
+    sh.deleteRow(rowD);
+    return json_({ status: 'ok', v: SCRIPT_VERSION });
   }
   if (d.action === 'sendInvoice') {
     var opts = { to: d.to || Session.getEffectiveUser().getEmail(), subject: d.subject || 'Invoice', body: d.body || 'See attached invoice.' };

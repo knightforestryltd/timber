@@ -20,6 +20,7 @@ textarea { min-height: 80px; }
 .tabs button { padding: 12px 4px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: 1rem; cursor: pointer; }
 .tabs button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row2.kmhrs > div { display: flex; flex-direction: column; justify-content: flex-end; }   /* km + hour meter boxes line up */
 .stat { border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; border: 2px solid var(--primary-light); background: var(--card); }
 .stat .big { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
 .stat .sub { color: var(--muted); font-size: .9rem; margin-top: 2px; }
@@ -618,10 +619,10 @@ function renderStart() {
   v.innerHTML = yardCardHtml() + `<div class="card"><h2 style="margin-top:0">Hi ${esc(session.name)}</h2>${!yard && serverV14() ? '<div class="btnrow" style="margin:0 0 8px"><button class="btn btn-outline" id="stYard" style="flex:1">Yard work (time clock)</button></div><div class="small" style="margin-bottom:6px">Or start a driving shift:</div>' : ''}<p class="small">Start your shift. You stay <b>Off Duty</b> until your pre-trip; saving the pre-trip logs 30 minutes On Duty. You must submit this shift before you can start another.</p>
     <label>Unit</label><select id="stUnit"><option value="">Select unit</option>${units.map(u => `<option value="${esc(u.name)}">${esc(u.name)}${u.plate ? ' · ' + esc(u.plate) : ''}</option>`).join('')}</select>
     <div class="row2"><div><label>Trailer plate A</label><input id="stTa"></div><div><label>Trailer plate B</label><input id="stTb"></div></div>
-    <label>Starting odometer (km)</label><input id="stOdo" type="number" inputmode="decimal" placeholder="loads from the last log on this unit"><div class="small" id="stOdoHint">Select the unit to load the last recorded km.</div>
-    <label style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="stOdoOk" style="width:24px;min-height:24px;margin:0"> I checked this against the odometer on the dash</label>
-    <div id="stHrsWrap" class="hidden"><label>Starting engine hours</label><input id="stHrs" type="number" inputmode="decimal" step="0.1"><div class="small" id="stHrsHint"></div>
-      <label style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="stHrsOk" style="width:24px;min-height:24px;margin:0"> I checked this against the hour meter on the dash</label></div>
+    <div class="row2 kmhrs"><div><label for="stOdo">Starting km</label><input id="stOdo" type="number" inputmode="decimal" placeholder="km"></div>
+      <div id="stHrsWrap"><label for="stHrs" id="stHrsLbl">Starting hour meter</label><input id="stHrs" type="number" inputmode="decimal" step="0.1" placeholder="hours"></div></div>
+    <div class="small" id="stOdoHint">Select the unit to load the last recorded km.</div><div class="small" id="stHrsHint"></div>
+    <label style="display:flex;gap:10px;align-items:center;margin-top:8px"><input type="checkbox" id="stOdoOk" style="width:24px;min-height:24px;margin:0"> I checked the km and hour meter against the dash</label>
     <div id="stUnitInfo"></div>
     <label>Hours of service rules</label><select id="stSet">${ruleOptions(R)}</select>
     <div class="err" id="stErr"></div><button class="btn" id="stGo" style="width:100%;margin-top:8px">Start shift</button>
@@ -636,14 +637,17 @@ function renderStart() {
     else { $('stOdo').value = ''; $('stOdoHint').textContent = 'No earlier log for this unit. Enter the km from the dash.'; }
     // v14: engine hours (units set to track hours), out-of-service block, known defects, due reminders
     const uo = unitObj($('stUnit').value), lh = LS.get('kfDrvLastHours', {});
-    const lastH = uo ? (lh[uo.name] != null && +lh[uo.name] > +(uo.currentHours || 0) ? lh[uo.name] : uo.currentHours) : '';
-    $('stHrsWrap').classList.toggle('hidden', !(uo && uo.trackHours)); $('stHrsOk').checked = false;
-    if (uo && uo.trackHours) { $('stHrs').value = lastH !== '' && lastH != null ? lastH : ''; $('stHrsHint').innerHTML = lastH !== '' && lastH != null ? `Last reading on this unit: <b>${esc(lastH)} h</b>. Check the hour meter and correct it if different.` : 'No earlier reading. Enter the hours from the dash.'; }
+    const un0 = $('stUnit').value, lastH = uo ? (lh[uo.name] != null && +lh[uo.name] > +(uo.currentHours || 0) ? lh[uo.name] : uo.currentHours) : lh[un0];
+    // the hour meter always shows next to the km; it is required on units set to track engine hours (Trucks page)
+    const needH = !!(uo && uo.trackHours), hasH = lastH !== '' && lastH != null;
+    $('stHrs').placeholder = needH ? 'required' : 'optional';
+    $('stHrs').value = hasH ? lastH : '';
+    $('stHrsHint').innerHTML = !un0 ? '' : hasH ? `Last hour meter on this unit: <b>${esc(lastH)} h</b>. Correct it if the dash is different.` : needH ? 'No earlier hour meter reading. Enter the hours from the dash.' : '';
     const why = unitBlock(uo);
     $('stUnitInfo').innerHTML = (why ? `<div class="notice bad" style="margin-top:8px"><b>You cannot start a shift on this unit.</b><br>${esc(why)}<br><span class="small">The office can let you use it from the Trucks page.</span></div>` : '') + knownDefectsHtml(uo) + (uo && uo.alerts && uo.alerts.length ? `<div class="notice" style="margin-top:8px">${unitAlertsHtml(uo)}</div>` : '');
     $('stGo').disabled = !!why;
   };
-  $('stHrs').oninput = () => { $('stHrsOk').checked = false; };
+  $('stHrs').oninput = () => { $('stOdoOk').checked = false; };
   if ($('stYard')) $('stYard').onclick = startYard;
   $('stOdo').oninput = () => { $('stOdoOk').checked = false; };
   $('stOut').onclick = logout; $('stHist').onclick = openHistory;
@@ -651,14 +655,14 @@ function renderStart() {
     const un = $('stUnit').value, odo = $('stOdo').value;
     if (!un) { $('stErr').textContent = 'Select your unit.'; return; }
     if (odo === '' || isNaN(+odo)) { $('stErr').textContent = 'Enter the starting odometer.'; return; }
-    if (!$('stOdoOk').checked) { $('stErr').textContent = 'Check the km on the dash, then tick the box.'; return; }
+    if (!$('stOdoOk').checked) { $('stErr').textContent = 'Check the km and hour meter on the dash, then tick the box.'; return; }
     const prevKm = lo[un]; if (prevKm !== undefined && prevKm !== '' && +odo < +prevKm && !confirm(`The last log on ${un} ended at ${prevKm} km, which is more than ${odo} km. Start with ${odo} km anyway?`)) return;
     const uo = unitObj(un), why = unitBlock(uo); if (why) { $('stErr').textContent = 'This unit cannot be used: ' + why; return; }
-    let hrs = '';
-    if (uo && uo.trackHours) {
-      hrs = $('stHrs').value; if (hrs === '' || isNaN(+hrs)) { $('stErr').textContent = 'Enter the starting engine hours.'; return; }
-      if (!$('stHrsOk').checked) { $('stErr').textContent = 'Check the hours on the dash, then tick the box.'; return; }
-      const lastH = uo.currentHours; if (lastH !== '' && lastH != null && +hrs < +lastH && !confirm(`The last reading on ${un} was ${lastH} h, which is more than ${hrs} h. Start with ${hrs} h anyway?`)) return;
+    let hrs = String($('stHrs').value).trim();
+    if (uo && uo.trackHours && hrs === '') { $('stErr').textContent = 'Enter the starting hour meter.'; return; }
+    if (hrs !== '' && (isNaN(+hrs) || +hrs < 0)) { $('stErr').textContent = 'The hour meter must be a number.'; return; }
+    if (hrs !== '') {
+      const lastH = uo ? uo.currentHours : LS.get('kfDrvLastHours', {})[un]; if (lastH !== '' && lastH != null && +hrs < +lastH && !confirm(`The last hour meter reading on ${un} was ${lastH} h, which is more than ${hrs} h. Start with ${hrs} h anyway?`)) return;
       hrs = +hrs;
     }
     $('stGo').disabled = true;
@@ -988,8 +992,9 @@ function openClose() {
   stamp(shift, Date.now());
   openSheet(`<h3>Close shift &amp; submit</h3><div class="small">Driving ${fmtH(shift.drivingHrs)} · On duty ${fmtH(shift.onDutyHrs)} · Starting odometer ${esc(shift.startOdo)} km</div>
     <div class="notice" style="margin-top:8px">Check your duty status times first. <button class="btn btn-sm btn-outline" id="clEdit">Edit duty status</button></div>
-    <label>Ending odometer (km) — required</label><input id="clOdo" type="number" inputmode="decimal"><div class="small" id="clKm"></div>
-    ${shift.startHours !== '' && shift.startHours != null ? `<label>Ending engine hours — required</label><input id="clHrs" type="number" inputmode="decimal" step="0.1"><div class="small">Started at ${esc(shift.startHours)} h.</div>` : ''}
+    <div class="row2 kmhrs"><div><label for="clOdo">Ending km</label><input id="clOdo" type="number" inputmode="decimal" placeholder="required"></div>
+      <div><label for="clHrs">Ending hour meter</label><input id="clHrs" type="number" inputmode="decimal" step="0.1" placeholder="${shift.startHours !== '' && shift.startHours != null ? 'required' : 'optional'}"></div></div>
+    <div class="small" id="clKm"></div>${shift.startHours !== '' && shift.startHours != null ? `<div class="small">Hour meter started at ${esc(shift.startHours)} h.</div>` : ''}
     <label>Closing remarks — required</label><textarea id="clRem" placeholder="Anything the office should know (delays, issues, vehicle notes). Write 'none' if nothing."></textarea>
     <label>Driver signature — required</label><canvas class="sig" id="clSig"></canvas><div class="btnrow" style="justify-content:flex-start;margin-top:4px"><button class="btn btn-sm btn-outline" id="clClr">Clear signature</button></div>
     <div class="small" style="margin-top:8px">I certify these entries are true and correct. Submitting sets you Off Duty, sends the log sheet (graph + pre-trip) to the office and logs you out.</div>
@@ -1003,7 +1008,11 @@ function openClose() {
       if (+odo < +shift.startOdo) { $('clErr').textContent = 'Ending odometer is lower than the starting odometer (' + shift.startOdo + ').'; return; }
       if (+odo - +shift.startOdo > 2500 && !confirm('That is ' + Math.round(+odo - shift.startOdo) + ' km this shift. Is the ending odometer right?')) return;
       let endH = '';
-      if ($('clHrs')) { endH = $('clHrs').value; if (endH === '' || isNaN(+endH)) { $('clErr').textContent = 'Enter the ending engine hours.'; return; } if (+endH < +shift.startHours) { $('clErr').textContent = 'Ending hours are lower than the starting hours (' + shift.startHours + ').'; return; } if (+endH - +shift.startHours > 24 && !confirm((+endH - +shift.startHours) + ' engine hours this shift. Is that right?')) return; endH = +endH; }
+      const hadH = shift.startHours !== '' && shift.startHours != null;
+      endH = String($('clHrs').value).trim();
+      if (endH !== '' && isNaN(+endH)) { $('clErr').textContent = 'The hour meter must be a number.'; return; }
+      if (!hadH && endH !== '') endH = +endH;
+      if (hadH) { if (endH === '') { $('clErr').textContent = 'Enter the ending hour meter.'; return; } if (+endH < +shift.startHours) { $('clErr').textContent = 'Ending hours are lower than the starting hours (' + shift.startHours + ').'; return; } if (+endH - +shift.startHours > 24 && !confirm((+endH - +shift.startHours) + ' engine hours this shift. Is that right?')) return; endH = +endH; }
       if (!rem) { $('clErr').textContent = 'Enter closing remarks (write "none" if nothing).'; return; }
       if (sig.blank()) { $('clErr').textContent = 'Sign the log.'; return; }
       $('clGo').disabled = true; $('clErr').textContent = 'Submitting…';

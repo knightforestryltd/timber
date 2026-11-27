@@ -160,6 +160,17 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 .split-tag { display: inline-block; background: #7c3aed; color: #fff; font-size: .7rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; margin-left: 4px; }
 .low-note { display: block; font-size: .72rem; color: #b45309; font-weight: 700; }
 .needs-price { color: var(--bad); font-weight: 700; }
+/* View Quote: Money / Dispatch view tabs. The dispatch card copies Dispatch -> Pending. */
+.vq-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 12px; }
+.vq-tabs button { padding: 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: .95rem; cursor: pointer; }
+.vq-tabs button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
+.dp-card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); border-left: 6px solid var(--border); }
+.dp-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.dp-card .where { font-weight: 700; margin-top: 4px; }
+.dp-card .small { font-size: .8rem; color: var(--muted); }
+.dp-pill { display: inline-block; font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--text); }
+.dp-detail { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 6px; font-size: .9rem; }
+.dp-detail p { margin: 6px 0; }
 @media (max-width: 700px) {
   .actions .btn { padding: 10px 4px; font-size: .82rem; }
   .btn-pair { grid-template-columns: 1fr; }
@@ -461,7 +472,8 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
         <div><div class="form-group"><label for="setCategories">Expense categories (one per line)</label><textarea id="setCategories" rows="9"></textarea></div></div>
       </div>
       <button class="btn" id="btnSaveSettings" style="margin-top:16px;">Save Settings</button>
-      <div class="hint" style="margin-top:8px;">Saves on this device. To share with other devices, use <b>Save to Company</b> at the top.</div>
+      <div id="saveSettingsMsg" class="sync-status" style="margin-top:8px;"></div>
+      <div class="hint" style="margin-top:8px;">Saves for every device in the company (a device that is not an admin is asked for the company password).</div>
     </div>
 
     </div>
@@ -504,8 +516,10 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 
 <div class="modal-overlay" id="costModal">
   <div class="modal wide">
-    <h3>Quote Breakdown: our cost vs billed</h3>
+    <h3 id="vqTitle">View Quote</h3>
+    <div class="vq-tabs"><button type="button" id="vqTabMoney" class="on">Money</button><button type="button" id="vqTabDispatch">Dispatch view</button></div>
     <div id="costBody"></div>
+    <div id="dispatchBody" class="hidden"></div>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
       <button class="btn btn-outline" id="btnCloseCost">Close</button>
     </div>
@@ -561,7 +575,35 @@ function spCostCord(sp) { return numOr(sp.costPerCord, +sp.pricePerCord || 0); }
 /* ---------- unsaved-change tracking (so an automatic sync never wipes local edits) ---------- */
 const DIRTY_KEY = 'kfDirty', REV_KEY = 'kfCompanyRev';
 function isDirty() { return localStorage.getItem(DIRTY_KEY) === '1'; }
-function markDirty() { try { localStorage.setItem(DIRTY_KEY, '1'); } catch (e) {} updateSyncUi(); }
+// On an admin device every change (units, locations, settings) goes to the company by itself a moment later,
+// so other devices get it and the next sync never brings the old value back. noAuto: the caller saves right away itself.
+let shareTimer = null;
+function markDirty(noAuto) {
+  try { localStorage.setItem(DIRTY_KEY, '1'); } catch (e) {}
+  updateSyncUi();
+  if (!noAuto && kfCo.unified() && window.kfAdminToken && kfAdminToken()) { clearTimeout(shareTimer); shareTimer = setTimeout(() => shareSettings($('saveSettingsMsg')), 800); }
+}
+// Save this device's settings to the company. Admin devices need nothing; other devices are asked for the company password.
+async function shareSettings(msgEl) {
+  const say = (t, kind) => { if (msgEl) { msgEl.textContent = t; msgEl.className = 'sync-status' + (kind ? ' ' + kind : ''); } };
+  clearTimeout(shareTimer);
+  if (!(settings.syncUrl || '').trim()) { say('Saved on this device.', 'ok'); return; }
+  for (let i = 0; syncBusy && i < 60; i++) await new Promise(r => setTimeout(r, 250));     // a sync in progress finishes first
+  let asked = false;
+  if (!(window.kfAdminToken && kfAdminToken())) {
+    if (!companyMeta) await refreshMeta();
+    if (companyMeta && companyMeta.hasPassword && !$('pwCurrent').value) {
+      const pw = prompt('Company password (saves these settings for every device):');
+      if (!pw) { say('Saved on this device only. Tap Save again and enter the company password to share it with every device.', 'warn'); return; }
+      $('pwCurrent').value = pw; asked = true;
+    }
+  }
+  say('Saving for every device…', '');
+  await saveToCompany();
+  if (asked) $('pwCurrent').value = '';
+  const st = $('syncStatus');
+  say(st.textContent, st.classList.contains('ok') ? 'ok' : st.classList.contains('bad') ? 'bad' : 'warn');
+}
 function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch (e) {} }
 
 /* ---------- truck units ---------- */
@@ -894,14 +936,15 @@ function renderSettings() {
   renderAdminCard();
 }
 
-$('btnSaveKey').onclick = () => {
+$('btnSaveKey').onclick = async () => {
   settings.apiKey = $('apiKeyInput').value.trim();
   const cnInput = $('setCompanyName');
   if (cnInput) settings.companyName = cnInput.value.trim();
-  saveSettings(); markDirty();
+  saveSettings(); markDirty(true);
   const banner = $('companyNameBanner');
   if (banner && window.kfBrand) kfBrand();
-  alert('API key saved. Reload the page to apply Maps.');
+  await shareSettings($('saveSettingsMsg'));
+  alert('API key saved. The page reloads to apply Maps.');
   location.reload();
 };
 
@@ -911,12 +954,16 @@ function setUrlWithStamp(lsKey, value) {
   if (value) localStorage.setItem(lsKey, value); else localStorage.removeItem(lsKey);
   localStorage.setItem(lsKey + 'At', String(Date.now()));
 }
-$('btnSaveSettings').onclick = () => {
-  settings.syncUrl = $('setSyncUrl').value.trim();
-  const newSheetsUrl = $('setSheetsUrl').value.trim();
-  if (newSheetsUrl !== (settings.sheetsUrl || '') || (newSheetsUrl && !settings.sheetsUrlAt)) settings.sheetsUrlAt = Date.now();
-  settings.sheetsUrl = newSheetsUrl;
-  setUrlWithStamp('trucksUrl', $('setTrucksUrl').value.trim());
+$('btnSaveSettings').onclick = async () => {
+  // Link fields only exist on old devices with separate scripts. On a company link they are hidden and hold the bare link
+  // (no company key): copying them in disconnected the device and made it sign in again.
+  if (!hasConfig() && !kfCo.unified()) {
+    settings.syncUrl = $('setSyncUrl').value.trim();
+    const newSheetsUrl = $('setSheetsUrl').value.trim();
+    if (newSheetsUrl !== (settings.sheetsUrl || '') || (newSheetsUrl && !settings.sheetsUrlAt)) settings.sheetsUrlAt = Date.now();
+    settings.sheetsUrl = newSheetsUrl;
+    setUrlWithStamp('trucksUrl', $('setTrucksUrl').value.trim());
+  }
   const cn = $('setCompanyName');
   if (cn) settings.companyName = cn.value.trim();
   settings.speed = +$('setSpeed').value || 90;
@@ -933,10 +980,11 @@ $('btnSaveSettings').onclick = () => {
     cords: $('qCords').checked, tonnes: $('qTonnes').checked,
     perCord: $('qPerCord').checked, perTonne: $('qPerTonne').checked, total: $('qTotal').checked
   };
-  saveSettings(); markDirty();
+  saveSettings(); markDirty(true);
   const banner = $('companyNameBanner');
   if (banner && window.kfBrand) kfBrand();
-  alert('Settings saved on this device. Tap Save to Company (top of this page) to share them with other devices.');
+  const b = $('btnSaveSettings'); b.disabled = true;
+  try { await shareSettings($('saveSettingsMsg')); } finally { b.disabled = false; }
 };
 
 /* ---------- species rows: cost, margin %, total ---------- */
@@ -1717,10 +1765,49 @@ function costBlockHtml(r) {
       <tr class="net"><td>TOTAL NET</td><td></td><td>${margin.toFixed(1)}% margin</td><td class="${cls(net)}">${money(net)}</td></tr>
     </table></div>`;
 }
+// Dispatch view: each selected option as it will look in Dispatch -> Pending once booked (the card, then the details screen).
+function fmtHrs(h) { h = +h || 0; if (!h) return ''; const hrs = Math.floor(h), mins = Math.round((h - hrs) * 60); return hrs ? hrs + 'h ' + mins + 'm' : mins + 'm'; }
+function quoteCustomer() {
+  const name = (($('customerName') || {}).value || '').trim(), phone = (($('customerPhone') || {}).value || '').trim();
+  let address = (($('addressInput') || {}).value || '').trim();
+  if (!address && window._selectedPlace) address = window._selectedPlace.address || '';
+  const widget = document.querySelector('gmp-place-autocomplete'); if (!address && widget && widget.value) address = widget.value;
+  return { name, phone, address };
+}
+function dispatchPreviewHtml(r) {
+  const c = quoteCustomer();
+  const cycle = +r.totalHours ? (Math.round(r.totalHours * 10) / 10) + ' hrs cycle' : (r.duration || '');
+  return `<div class="dp-card">
+    <div class="top"><strong>${esc(c.name || 'No name')}</strong><span class="dp-pill">Waiting</span></div>
+    <div class="where">${esc(c.address || 'No address')}</div>
+    <div>${esc(r.species || '')}${r.tonnes ? ' · ' + esc(r.tonnes) + ' t' : ''} · from ${esc(r.location || '—')}${r.truck ? ' · ' + esc(r.truck) : ''}</div>
+    <div class="small">${esc(cycle)}${r.km ? ' · ' + esc(r.km) + ' km one way' : ''} · 0 days since quoted</div>
+    <div class="dp-detail">
+      <p><strong>Phone:</strong> ${esc(c.phone || '—')}</p>
+      <p><strong>Address:</strong> ${esc(c.address || '—')}</p>
+      <p><strong>Source:</strong> ${esc(r.location || '—')}</p>
+      <p><strong>Species:</strong> ${esc(r.species || '—')}${r.product === 'Split' ? ' (split)' : ''}</p>
+      <p><strong>Truck:</strong> ${esc(r.truck || '—')}</p>
+      <p><strong>Tonnes:</strong> ${esc(r.tonnes || '—')} · <strong>Cords:</strong> ~${esc(r.cords || '—')}</p>
+      <p><strong>Trip:</strong> ${+r.totalHours ? fmtHrs(r.totalHours) + ' cycle' : esc(r.duration || '—')} · ${esc(r.km || '—')} km</p>
+      <p><strong>Total:</strong> $${(+r.total || 0).toFixed(2)}</p>
+      <p><strong>Status:</strong> Pending</p>
+    </div>
+  </div>`;
+}
+function vqTab(t) {
+  $('vqTabMoney').classList.toggle('on', t === 'money'); $('vqTabDispatch').classList.toggle('on', t === 'dispatch');
+  $('costBody').classList.toggle('hidden', t !== 'money'); $('dispatchBody').classList.toggle('hidden', t !== 'dispatch');
+  $('vqTitle').textContent = t === 'money' ? 'Quote breakdown: our cost vs billed' : 'As it will show in Dispatch → Pending';
+}
+$('vqTabMoney').onclick = () => vqTab('money');
+$('vqTabDispatch').onclick = () => vqTab('dispatch');
 $('btnViewQuote').onclick = () => {
   if (!selectedOptions.size) return alert('Select at least one option.');
   const selected = lastCalcResults.filter(r => selectedOptions.has(r.id));
   $('costBody').innerHTML = selected.map(costBlockHtml).join('') || '<p>No cost detail for the selected options.</p>';
+  $('dispatchBody').innerHTML = '<div class="hint" style="margin-bottom:10px;">Not booked yet. Tap <b>Book Load</b> to send it to Dispatch.</div>' + selected.map(dispatchPreviewHtml).join('');
+  vqTab('money');
   $('costModal').classList.add('show');
 };
 $('btnCloseCost').onclick = () => $('costModal').classList.remove('show');
@@ -1883,7 +1970,7 @@ function updateSyncUi() {
   const hasUrl = !!(settings.syncUrl || '').trim();
   const known = !!companyMeta;
   $('pwCreateBox').classList.toggle('hidden', !(known && !companyMeta.hasPassword));
-  $('pwEnterBox').classList.toggle('hidden', known && !companyMeta.hasPassword);
+  $('pwEnterBox').classList.toggle('hidden', (known && !companyMeta.hasPassword) || !!(window.kfAdminToken && kfAdminToken()));   // admin devices never type the password
   $('pwChangeBox').classList.toggle('hidden', !(known && companyMeta.hasPassword));
   $('dirtyBanner').classList.toggle('hidden', !isDirty());
   if (hasUrl && !known && !syncBusy && !$('syncStatus').textContent) setStatus('Not checked yet. Tap Sync to Company.', '');
@@ -2008,7 +2095,8 @@ const SAVE_MSG = {
   badpassword: 'Wrong company password. Nothing was saved.',
   locked: 'Too many wrong passwords. Password checks are paused for about 10 minutes.',
 };
-async function saveToCompany() {
+async function saveToCompany(retried) {
+  let retry = false;
   const url = readSyncUrlField();
   if (!url) return setStatus('Enter the Company Sync URL first.', 'bad');
   if (!isScriptUrl(url)) return setStatus('That does not look like a Google Apps Script link (it should start with https://script.google.com/).', 'bad');
@@ -2021,6 +2109,7 @@ async function saveToCompany() {
     companyMeta = remote._meta || null;
     if (companyMeta && companyMeta.unified && !kfCo.unified()) { askConnect(url); return setStatus('That is a company link: connect to it first.', 'warn'); }
     if (kfCo.unified()) {
+      if (remote.status === 'nokey' && !retried && localStorage.getItem('kfAdminToken') && window.kfRecoverKey && await kfRecoverKey()) { settings = loadSettings(); retry = true; return; }
       if (remote.status === 'nokey') { lostKey(); return setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); }
       if (companyMeta && localStorage.getItem('kfCompanyId') && companyMeta.companyId !== localStorage.getItem('kfCompanyId')) return setStatus('This device belongs to a different company than this link. Nothing was saved.', 'bad');
     }
@@ -2074,8 +2163,9 @@ async function saveToCompany() {
   } catch (e) {
     setStatus('Could not save: ' + e.message + '. Nothing was confirmed saved.', 'bad');
   } finally { syncBusy = false; $('btnSaveCompany').disabled = false; updateSyncUi(); }
+  if (retry) return saveToCompany(true);              // reconnected with the admin token: save again
 }
-$('btnSaveCompany').onclick = saveToCompany;
+$('btnSaveCompany').onclick = () => saveToCompany();
 
 $('btnChangePw').onclick = async () => {
   const url = readSyncUrlField();
@@ -2133,7 +2223,18 @@ $('btnConnect').onclick = async () => {
 let trustedMove = false;      // connecting because this company moved: same company, keep the data
 // a company link typed into the old Company Sync field: connect properly (with the company-mixing guard)
 function askConnect(url) { $('coUrl').value = kfCo.clean(url); $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'This is a company link. Enter its company password and tap Connect.'; showConnect(); }
-function lostKey() { localStorage.removeItem('kfKey'); $('coUrl').value = localStorage.getItem('kfCompanyUrl') || ''; $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'The company password was changed. Enter the new password to connect again.'; showConnect(); }
+// The company no longer accepts this device's key. An admin device first tries to get it back with its admin token
+// (it lost the key to the old Save Settings bug); only when that fails is the company password asked again.
+let recovering = false;
+async function lostKey() {
+  if (recovering) return;
+  if (window.kfRecoverKey && localStorage.getItem('kfAdminToken')) {
+    recovering = true; const ok = await kfRecoverKey(); recovering = false;
+    if (ok) { settings = loadSettings(); setStatus('Reconnected. Tap Save again.', 'warn'); return; }
+  }
+  lostKeyAsk();
+}
+function lostKeyAsk() { localStorage.removeItem('kfKey'); $('coUrl').value = localStorage.getItem('kfCompanyUrl') || ''; $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'The company password was changed. Enter the new password to connect again.'; showConnect(); }
 async function connectUnified(base, meta, say) {
   if (!trustedMove && kfCo.hasData() && !kfCo.sameCompany(meta)) {
     const was = settings.companyName || (JSON.parse(localStorage.getItem('kfCompany') || '{}').name) || 'another company';

@@ -176,3 +176,29 @@ signs in with the company name + company password; drivers and the mechanic type
 name and passcode. A brand-new company starts from the sign-in screen: "Setting up a new company? Use its sheet link".
 No password goes into the list; the list checks the link itself (it must be a company script with that name and a
 password). A name already used by another company is refused.
+
+--- v14.1 launch fixes (after go-live) ---
+1. Company settings kept asking to sign in again and changes did not stick (e.g. fuel price).
+   Cause: Quote -> Settings -> Save Settings copied the hidden "Company Sync URL" box (the bare company link, without
+   this device's company key) over the device's real link. The next sync was refused as "not connected", the page
+   deleted the device's key and showed the connect screen, and the change never reached the company.
+   Fixed: Save Settings no longer touches the links. Every page repairs a damaged link when it opens, and an admin
+   device that already lost its key gets it back by itself (new script action adminKey; no password needed).
+   Save Settings now saves for every device in one tap. On an admin device, truck units and pickup locations also
+   go to the company by themselves. A device that is not an admin is asked for the company password once.
+2. Drivers: the hour meter is now always shown beside the km, at shift start and at close, on every truck.
+   It is required on trucks set to track engine hours (Trucks page), optional on the others.
+   If the hour meter was entered at the start, the ending hour meter is required at close.
+3. Quote -> View Quote has two tabs: Money (cost vs billed) and Dispatch view (the load as it will show in
+   Dispatch -> Pending once booked).
+4. Dispatch: Delete load (office only) on loads that are not delivered yet. The row is removed from the Load Log
+   sheet and a copy goes to the Log tab first. Delivered and paid loads cannot be deleted (use Edit load).
+
+DEPLOY v14.1
+- Upload the website files (index.html, dispatch.html, drivers.html, nav.js, sw.js changed).
+- Paste the new company-apps-script.gs into the LIVE script -> Save -> Deploy -> Manage deployments -> pencil ->
+  Version: New version -> Deploy. (Needed for Delete load and the automatic reconnect. NEVER "New deployment".)
+- Phones that were already sent to the "Connect this device" screen by the old bug: once the new script is
+  deployed they reconnect by themselves when opened. A phone that shows the connect screen anyway: enter the
+  company password once.
+- Tests: node tests/e2e-launch-fixes.test.js (30 checks).

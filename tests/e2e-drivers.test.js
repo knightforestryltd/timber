@@ -35,7 +35,7 @@ const { start, BASE } = require('./e2e');
   t(al.some(a => /MAJOR defect/.test(a)), 'Driving is a hard stop after a major defect');
   // close the shift with end km (no start hours on the old shift -> no hours asked)
   await pg.evaluate(() => { window.__confirmAnswer = true; }); await pg.click('#aClose'); await pg.waitForTimeout(400);
-  t(!(await pg.isVisible('#clHrs')), 'no engine-hours question for a shift started without hours');
+  t(await pg.isVisible('#clHrs') && /optional/.test(await pg.getAttribute('#clHrs', 'placeholder')), 'hour meter beside the km at close: optional for a shift started without hours');
   await pg.fill('#clOdo', '10150'); await pg.fill('#clRem', 'none');
   await pg.locator('#clSig').scrollIntoViewIfNeeded(); b = await pg.locator('#clSig').boundingBox(); await pg.mouse.move(b.x + 10, b.y + 10); await pg.mouse.down(); await pg.mouse.move(b.x + 90, b.y + 50); await pg.mouse.up();
   await pg.click('#clGo'); await pg.waitForTimeout(3500);
@@ -51,7 +51,7 @@ const { start, BASE } = require('./e2e');
   t(await pg.isDisabled('#stGo') && (await pg.textContent('#stUnitInfo')).includes('Cracked frame'), 'out-of-service Truck 2 cannot be started (reason shown)');
   await pg.selectOption('#stUnit', 'Truck 1'); await pg.waitForTimeout(200);
   t(await pg.isVisible('#stHrs') && (await pg.inputValue('#stHrs')) === '1200', 'engine hours asked and pre-filled from the last reading');
-  await pg.check('#stOdoOk'); await pg.fill('#stHrs', '1210'); await pg.check('#stHrsOk'); await pg.click('#stGo'); await pg.waitForTimeout(1500);
+  await pg.check('#stOdoOk'); await pg.fill('#stHrs', '1210'); await pg.check('#stOdoOk'); await pg.click('#stGo'); await pg.waitForTimeout(1500);
   const ns = await pg.evaluate(() => JSON.parse(localStorage.getItem('kfDrvShift')));
   t(ns && ns.startHours === 1210 && ns.unitId, 'new shift stores startHours and unitId');
   // fuel with GST + payment

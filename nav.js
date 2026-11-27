@@ -143,6 +143,18 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
     }
   };
   window.kfCo = kfCo;
+  // A connected device's links must carry the company key. Quote → Settings → Save Settings used to copy the bare link
+  // (no key) over them, so the next sync answered "not connected" and the device was asked to sign in again.
+  // Every page load puts the right links back.
+  kfCo.repair = function () {
+    if (!kfCo.unified()) return false;
+    var s = readSettings(), fixed = false, want = { syncUrl: kfCo.url('sync'), sheetsUrl: kfCo.url('loads') };
+    Object.keys(want).forEach(function (k) { if (s[k] !== want[k]) { s[k] = want[k]; fixed = true; } });
+    if (fixed) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {} }
+    [['scriptUrl', 'tickets'], ['yardUrl', 'yards'], ['driversUrl', 'drivers']].forEach(function (x) { var u = kfCo.url(x[1]); if (LS.get(x[0]) !== u) { LS.set(x[0], u); fixed = true; } });
+    return fixed;
+  };
+  try { kfCo.repair(); } catch (e) {}
 
   /* ---------------- live refresh ----------------
      kfLive(fn, { ms, when }) runs fn every `ms` while the page is on screen and online, and right away when the
@@ -341,6 +353,17 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
       return { ok: false, msg: r && r.status === 'locked' ? 'Too many wrong passwords. Wait 10 minutes.' : 'Wrong company password.' };
     });
   };
+  // An admin device that lost its company key (the old Save Settings bug) gets it back with its admin token,
+  // without typing the password. Resolves true when the device is connected again.
+  window.kfRecoverKey = function () {
+    var tok = LS.get('kfAdminToken'), base = kfCo.base() || window.kfConfigUrl();
+    if (!tok || !base || navigator.onLine === false) return Promise.resolve(false);
+    return syncPost({ action: 'adminKey', adminToken: tok }, base).then(function (r) {
+      if (r && r.status === 'ok' && r.key) { kfCo.apply(base, r.key, r.meta || { companyId: r.companyId }); return true; }
+      if (r && r.status === 'noadmin') LS.del('kfAdminToken');
+      return false;
+    }).catch(function () { return false; });
+  };
   window.kfStopAdmin = function () {
     if (!confirm('Stop being an admin on this device? Office pages will ask for the company password again.')) return;
     var t = LS.get('kfAdminToken');
@@ -509,6 +532,7 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
 
   document.addEventListener('DOMContentLoaded', function () {
     try { fixMenu(); headerBadges(); } catch (e) {}
+    if (LS.get('kfAdminToken') && !LS.get('kfKey') && LS.get('kfCompanyUrl')) window.kfRecoverKey().then(function (ok) { if (ok) location.reload(); });
     if (needsSignIn() && FILE !== 'drivers.html' && FILE !== 'app.html') window.kfShowSignIn('Sign in once on this phone.');
     try { adminAsk(); } catch (e) {}
     setTimeout(function () { window.kfAlertsRefresh(false); }, 400);
