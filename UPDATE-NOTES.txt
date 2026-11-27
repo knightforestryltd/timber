@@ -127,3 +127,43 @@ The script asks to authorize Maps again only if Google requires it.
   When a ticket starts a load, the phone's messaging app opens with the text ready to the customer, from the
   driver's own number (driver name/phone from the Drivers log-in, or set once per phone). "Text the customer"
   button on a started load to send it again.
+
+=== v14: Trucks & Money (one release) ===
+Upload ALL site files (new: trucks.html, statistics.html, kf-config.js, kf-stock.js, kf-stats.js; put the LIVE company
+link in kf-config.js first) AND update the company script: paste company-apps-script.gs -> Save -> Deploy -> Manage
+deployments -> pencil -> New version -> Deploy (same link; never New deployment). Then Run -> testAll_ (must say
+"All checks passed"). No new Google permissions. Full steps: DEPLOY.md. Test first on a copy: TEST-PLAN.md.
+Rollback: previous script version + previous site files. New columns are on the right and ignored by the old version.
+
+What changes for each person
+- OFFICE: the site knows its company (no link boxes anywhere). Each office device enters the company password ONCE
+  and becomes an "Admin" device (yellow badge); password boxes disappear on it. Quote -> Company settings -> Admin
+  devices lists them (Remove, Remove from all). Changing the company password removes all admin devices.
+  Quote: price adjustment + reason when booking (folded into billed trucking hours, never its own invoice line),
+  units can be edited (old names kept so old loads still invoice), Split under each species, estimated profit per
+  option, "Use real costs", home base empty legs (information only). Settings: units and locations first,
+  everything else under "Company settings" (wages, overtime, employer cost %, categories, home base, off-road diesel).
+  Dispatch: Edit load (every field, logged before/after), Assign driver + truck, requested date.
+  Billing: Record payment, Owing screen by customer and age; invoices made before v14 count as paid.
+  Inventory: Drop at yard (wood price + haul cost), driver drops to confirm, Process logs to split, Logs and Split
+  shown separately at weighted average cost, undo = Void. Tickets and Inventory: the built-in 'knight' passwords are
+  gone (admin device = unlocked, otherwise the company password).
+  Trucks (new): units, work orders, service plans, PM-A / PM-B sheets, due soon, costs per km / hour.
+  Statistics (new, admin devices only): sales / costs / profit graph, where the money went, breakdowns, booked vs
+  actual comparisons, quote accuracy, overhead, CSV / PDF.
+  Red number / amber dot badges on the menu when something needs action; "Needs action" list at the top of the page.
+- MECHANIC: logs in on Drivers with name + passcode (role Mechanic, set by the office), then Trucks shows the Shop
+  view: open work orders, hours, parts with receipt photos, close jobs. No labour $ or pay rates shown.
+- DRIVERS: an open shift carries straight over. The phone keeps a sign-in token instead of the passcode.
+  New: engine hours at start / end on units that track them; a unit that is out of service or has an open MAJOR
+  defect cannot be started; known defects listed (mark "still there" in the pre-trip); each defect minor or MAJOR
+  (MAJOR = no Driving); fuel with GST, payment method and receipt photo; trip stages (stamped by GPS near base,
+  pickup and customer, or by tapping); Drop at yard; PM sheets on the Trucks page; Yard work time clock (separate
+  from the driving log: never in hours of service or the daily log). Pay rates are never shown on a driver phone.
+
+Sheet: new columns on the right of Loads (Quoted Total .. Empty Fuel L), Yards (Product .. By), Drivers (roles,
+tokenVer), Shifts (shiftType, startHours, endHours, unitId); new tabs Units, WorkOrders, WOParts, ServicePlans,
+UnitReadings, Inspections, InspectionTemplates, Expenses, Recurring, Payments, People, Invoices (made on first use).
+Nightly: backup, then clean-up (now KEEPS shift rows: only log detail older than 12 months is slimmed; pre-trips that
+made a work order are kept), then recurring bills. Photos go to the Drive folder "Company Data photos" (shared by link
+so office phones can open them).
