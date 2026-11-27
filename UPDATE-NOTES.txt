@@ -167,3 +167,12 @@ UnitReadings, Inspections, InspectionTemplates, Expenses, Recurring, Payments, P
 Nightly: backup, then clean-up (now KEEPS shift rows: only log detail older than 12 months is slimmed; pre-trips that
 made a work order are kept), then recurring bills. Photos go to the Drive folder "Company Data photos" (shared by link
 so office phones can open them).
+
+--- v14: sign in with the company NAME ---
+Quote -> Settings -> Company settings has the "Company sheet link" field again (editable on an admin device).
+The first admin device of a company pastes the link, creates (or enters) the company password and taps Save link:
+the company NAME is then saved in the sign-in list (kept in the script named in kf-config.js). Every new device
+signs in with the company name + company password; drivers and the mechanic type the company name, then their own
+name and passcode. A brand-new company starts from the sign-in screen: "Setting up a new company? Use its sheet link".
+No password goes into the list; the list checks the link itself (it must be a company script with that name and a
+password). A name already used by another company is refused.

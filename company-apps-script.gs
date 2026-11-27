@@ -261,7 +261,7 @@ function doGet(e) {
     if (svc === 'drivers') return drvGet_(p);
     if (svc === 'sync' || !svc) {
       var m = meta_();
-      if (!svc) return json_({ status: 'ok', app: APP, v: SCRIPT_VERSION, unified: true, hasPassword: m.hasPassword, companyName: m.companyName });
+      if (!svc) return json_({ status: 'ok', app: APP, v: SCRIPT_VERSION, unified: true, hasPassword: m.hasPassword, companyName: m.companyName, companyId: m.companyId });
       if (!keyOk_(p.k)) return json_({ _meta: m, status: 'nokey' });              // Connect screen: who is this company, is there a password
       var s = readSettings_(); LINK_KEYS.forEach(function (k) { delete s[k]; });
       if (p.profile === '1') return json_({ status: 'ok', profile: s.profile || {}, companyName: m.companyName, _meta: m });
@@ -296,8 +296,42 @@ function doPost(e) {
 }
 
 /* =============================== sync: password, settings, profile, invoice numbers, import =============================== */
+/* =============================== v14: company directory (company name -> company link) ===============================
+   The script named in the website's kf-config.js also keeps a short list of companies, so a new device can sign in with
+   just the company NAME + company password. A company registers its own link: this script opens that link and only
+   accepts it when it really is a company script with that name and a password set (no password is ever sent here).
+   A name already used by a different company (other company id) is refused. */
+function companyDir_() { return parse_(props_().getProperty('companyDir') || '{}') || {}; }
+var DIR_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/;
+function dirNorm_(n) { return String(n || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.,]/g, ''); }
+function registerCompany_(d) {
+  var url = String(d.url || '').trim().split('?')[0];
+  if (!DIR_URL_RE.test(url)) return { status: 'error', message: 'That is not a company script link (it ends in /exec).' };
+  var cache = CacheService.getScriptCache(), n = Number(cache.get('dirReg') || 0); if (n > 30) return { status: 'error', message: 'Too many tries. Wait a few minutes.' };
+  cache.put('dirReg', String(n + 1), 600);
+  var m = null; try { m = parse_(UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true }).getContentText()); } catch (e) { m = null; }
+  if (!m || m.app !== 'company' || !m.unified) return { status: 'error', message: 'That link did not answer as a company script. Check it is deployed as a web app for Anyone.' };
+  if (!m.hasPassword) return { status: 'error', message: 'Create the company password first.' };
+  var name = String(m.companyName || '').trim(); if (!name) return { status: 'error', message: 'Give the company a name first (Company settings → Company Name, then Save to Company).' };
+  var dir = companyDir_(), key = dirNorm_(name), cur = dir[key];
+  if (cur && cur.companyId && m.companyId && cur.companyId !== m.companyId) return { status: 'taken', message: '"' + name + '" is already used by another company. Change the company name a little (e.g. add the town).' };
+  Object.keys(dir).forEach(function (k) { if (k !== key && dir[k].companyId && dir[k].companyId === m.companyId) delete dir[k]; });   // renamed company: old name goes
+  dir[key] = { name: name, url: url, companyId: m.companyId || '', at: nowIso_() };
+  var js = JSON.stringify(dir); if (js.length > 9000) return { status: 'error', message: 'The company list is full.' };
+  props_().setProperty('companyDir', js); log_('sync', cur ? 'company link updated in directory' : 'company registered in directory', name, '');
+  return { status: 'ok', name: name };
+}
+function findCompany_(d) {
+  var cache = CacheService.getScriptCache(), n = Number(cache.get('dirFind') || 0); if (n > 120) return { status: 'error', message: 'Too many tries. Wait a minute.' };
+  cache.put('dirFind', String(n + 1), 60);
+  var hit = companyDir_()[dirNorm_(d.name)];
+  if (!hit) { var self = meta_(); if (self.companyName && dirNorm_(self.companyName) === dirNorm_(d.name)) return { status: 'ok', self: true, name: self.companyName }; return { status: 'notfound' }; }
+  return { status: 'ok', name: hit.name, url: hit.url };
+}
 function syncPost_(p, d) {
   var a = d.action;
+  if (a === 'registerCompany') return json_(registerCompany_(d));
+  if (a === 'findCompany') return json_(findCompany_(d));
   if (a === 'checkPassword') {
     if (!hasPassword_()) return json_({ status: 'ok', hasPassword: false, v: SCRIPT_VERSION, unified: true, companyId: companyId_() });
     var c = checkPw_(d.password); if (!c.ok) return pwFail_(c);

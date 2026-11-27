@@ -17,9 +17,10 @@ async function start(opts) {
   await ctx.route('https://script.google.com/**', async route => {
     const req = route.request(), u = new URL(req.url()), params = Object.fromEntries(u.searchParams.entries());
     let out;
+    const id = (u.pathname.match(/\/s\/([^/]+)\/exec/) || [])[1], E = (opts.envs && opts.envs[id]) || env;
     try {
-      if (req.method() === 'POST') { const e = { parameter: params, postData: { contents: req.postData() || '{}' } }; out = env.ctx.doPost(e).s; }
-      else out = env.ctx.doGet({ parameter: params }).s;
+      if (req.method() === 'POST') { const e = { parameter: params, postData: { contents: req.postData() || '{}' } }; out = E.ctx.doPost(e).s; }
+      else out = E.ctx.doGet({ parameter: params }).s;
     } catch (err) { out = JSON.stringify({ status: 'error', message: 'MOCK: ' + err.message }); }
     if (opts.log) console.log('   >', req.method(), params.svc || '', (req.postData() || '').slice(0, 90), '=>', out.slice(0, 120));
     await route.fulfill({ status: 200, contentType: 'application/json', body: out, headers: { 'access-control-allow-origin': '*' } });

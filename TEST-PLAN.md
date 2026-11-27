@@ -34,6 +34,7 @@ Last run: every test passed.
 | `e2e-drivers` | 22 | An old open shift carries over, passcode swapped for a token, major defect hard stop, engine hours, fuel GST, trip stages, yard clock |
 | `e2e-billing` | 10 | An existing load invoices to the same total in v13 and v14, a renamed unit, billed hours, payments, Owing |
 | `e2e-inventory` | 24 | Drop, haul cost, weighted average, process to split, pending drop, Void, Quote split chips, low stock, split invoice |
+| `e2e-companies` | 14 | A second company sets up with its own sheet link and registers its name; new phones sign in with company name + password; drivers find it by name; a taken name is refused |
 | `e2e-story` | 20 | The full story below, dollar by dollar, every Statistics screen, "Use real costs" |
 
 ## C. By hand on the TEST site: the full story (one office phone, one driver phone, the mechanic on a third)
@@ -42,8 +43,8 @@ Write down what you see; anything different from "Expect" is a fail.
 
 | # | Do | Expect |
 |---|---|---|
-| 1 | Office phone: open the test site | Red TEST banner. The sign-in screen asks "I drive…" or the company password + a device name. |
-| 2 | Enter the company password, name "Office test" | Yellow **Admin** badge in the header. Quote → Settings → Company settings → Admin devices lists "Office test". |
+| 1 | Office phone: open the test site | Red TEST banner. The sign-in screen asks the **company name**, then "I drive…" or the company password + a device name. |
+| 2 | Type the company name (as in Billing → Settings, e.g. Knight Forestry), the company password, device name "Office test" | Yellow **Admin** badge in the header. Quote → Settings → Company settings → Admin devices lists "Office test". |
 | 3 | Quote → Settings | Truck Units and Pickup Locations first. "Company settings" folded. No link boxes anywhere. |
 | 4 | Edit a unit, rename it | A warning shows how many loads use the old name; the old name is remembered ("was: …"). |
 | 5 | Drivers → Settings → add a person "Test Mechanic" with role Mechanic, $40/h; your driver with role Driver, $30/h | Saved. No rates show anywhere on a driver phone. |
@@ -72,6 +73,7 @@ Write down what you see; anything different from "Expect" is a fail.
 | Existing loads invoice with the same totals as before | Open 3 delivered loads in Billing on v13 (live) and on v14 (test); compare the totals. | Identical (also tested automatically). |
 | Existing inventory totals unchanged | Inventory on live vs test: each yard + species. | Same tonnes on hand (v14 shows Logs and Split separately; with no split yet, Logs = the old figure). |
 | `nightly()` runs | TEST script → Run → `nightly`. | No error. A backup copy in Drive ("Company Data TEST backups"). Recurring bills posted once (run it twice: still once). |
+| Second company (only if the brothers will use this site) | Make a second TEST script (own sheet, its own New deployment). On a fresh Chrome profile: sign-in screen → "Setting up a new company? Use its sheet link" → paste its link → name + new password → Save link. On another fresh profile: sign in with that company name + password. | Each phone lands in its own company; the first company's data never shows. |
 | Structure | Run `testAll_` again after all of the above. | **All checks passed** (new columns only on the right). |
 | `testTrucksMoney_` | Run it on the TEST script only. | Every line starts OK; it removes its own TEST- rows. |
 

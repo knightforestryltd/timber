@@ -292,21 +292,47 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
 
   function el(html) { var d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
   function escH(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
-  function syncPost(body) {
-    var base = kfCo.base() || window.kfConfigUrl();
-    return fetch(base + '?svc=sync' + (LS.get('kfKey') ? '&k=' + encodeURIComponent(LS.get('kfKey')) : ''), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' }).then(function (r) { return r.json(); });
+  function syncPost(body, baseIn) {
+    var base = baseIn || kfCo.base() || window.kfConfigUrl();
+    return fetch(base + '?svc=sync' + (!baseIn && LS.get('kfKey') ? '&k=' + encodeURIComponent(LS.get('kfKey')) : ''), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' }).then(function (r) { return r.json(); });
   }
+  // The company directory lives in the script named in kf-config.js (the first one when there is a list).
+  window.kfDirectoryUrl = function () { var l = cfgList(); return l.length ? kfCo.clean(l[0].url) : ''; };
+  // company NAME -> its link ('' name = the site's own company). Resolves { url, name } or { error }.
+  window.kfFindCompany = function (name) {
+    var dir = window.kfDirectoryUrl(); name = String(name || '').trim();
+    if (!dir) return Promise.resolve({ error: 'This website has no company list yet.' });
+    if (!name) return Promise.resolve({ url: window.kfConfigUrl() || dir, name: '' });
+    return syncPost({ action: 'findCompany', name: name }, dir).then(function (r) {
+      if (r && r.status === 'ok') return { url: r.self ? dir : kfCo.clean(r.url), name: r.name };
+      if (r && r.status === 'notfound') return { error: 'No company called "' + name + '". Check the spelling, or ask the office for the exact company name.' };
+      if (r && r.status === 'error' && /Unknown action/.test(r.message || '')) return { url: dir, name: name };   // old script: only its own company
+      return { error: (r && r.message) || 'Could not look up the company.' };
+    });
+  };
+  // Register a company's own link in the directory (done by its first admin device, from Company settings).
+  window.kfRegisterCompany = function (url) {
+    var dir = window.kfDirectoryUrl() || url;
+    return syncPost({ action: 'registerCompany', url: kfCo.clean(url) }, dir);
+  };
+  // Point this (not yet signed-in) device at a company found by name.
+  window.kfUseCompany = function (url, name) {
+    if (!url || LS.get('kfKey')) return;
+    if (LS.get('kfCompanyUrl') !== url) { LS.set('kfCompanyUrl', url); LS.set('driversUrl', url + '?svc=drivers'); }
+    if (name) LS.set('kfCompanyName', name);
+  };
   // Make this device an admin: the company password is checked once and a random admin token is kept instead.
-  window.kfMakeAdmin = function (password, deviceName) {
-    var base = kfCo.base() || window.kfConfigUrl();
-    return syncPost({ action: 'makeAdmin', password: password, deviceName: deviceName }).then(function (r) {
+  window.kfMakeAdmin = function (password, deviceName, baseIn) {
+    var base = baseIn || kfCo.base() || window.kfConfigUrl();
+    var post = function (b) { return syncPost(b, baseIn); };
+    return post({ action: 'makeAdmin', password: password, deviceName: deviceName }).then(function (r) {
       if (r && r.status === 'ok' && r.adminToken) {
         if (!LS.get('kfKey') || LS.get('kfKey') !== r.key) kfCo.apply(base, r.key, r.meta || { companyId: r.companyId });
         LS.set('kfAdminToken', r.adminToken); LS.set('kfDeviceName', deviceName || ''); LS.set('kfServerV', String((r.meta && r.meta.v) || r.v || 14));
         return { ok: true };
       }
       if (r && r.status === 'error' && /Unknown action/.test(r.message || '')) {         // the script is not updated yet: connect the old way
-        return syncPost({ action: 'checkPassword', password: password }).then(function (c) {
+        return post({ action: 'checkPassword', password: password }).then(function (c) {
           if (c && c.status === 'ok' && c.key) { kfCo.apply(base, c.key, c.meta || { companyId: c.companyId }); return { ok: true, old: true }; }
           return { ok: false, msg: c && c.status === 'locked' ? 'Too many wrong passwords. Wait 10 minutes.' : 'Wrong company password.' };
         });
@@ -329,34 +355,51 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
     var ov = el('<div id="kfSignIn" style="position:fixed;inset:0;z-index:7000;background:var(--bg,#f1f5f9);color:var(--text,#0f172a);overflow:auto;font-family:Arial,sans-serif">' +
       '<div style="max-width:440px;margin:0 auto;padding:22px 16px 40px">' +
       '<h2 style="margin:6px 0 4px">Sign in</h2><div style="color:var(--muted,#475569);font-size:.95rem;margin-bottom:14px">' + escH(why || 'Sign in once on this phone.') + '</div>' +
-      (many ? '<label style="display:block;font-weight:700;margin:8px 0 4px">Which company?</label><select id="kfsCo" style="width:100%;padding:12px;font-size:1rem">' + list.map(function (x) { return '<option>' + escH(x.name) + '</option>'; }).join('') + '</select>' : '') +
+      (many ? '<label style="display:block;font-weight:700;margin:8px 0 4px">Which company?</label><select id="kfsCo" style="width:100%;padding:12px;font-size:1rem">' + list.map(function (x) { return '<option>' + escH(x.name) + '</option>'; }).join('') + '</select>'
+        : '<label style="display:block;font-weight:700;margin:8px 0 4px" for="kfsCoName">Company name</label><input id="kfsCoName" autocomplete="organization" placeholder="as the office spells it" value="' + escH(LS.get('kfCompanyName')) + '" style="width:100%;box-sizing:border-box;padding:12px;font-size:1rem">') +
       '<button id="kfsPerson" style="display:block;width:100%;padding:16px;margin:12px 0;border:0;border-radius:12px;background:var(--btn-bg,#1e3a5f);color:#fff;font-size:1.05rem;font-weight:800">I drive, fix trucks or work in the yard</button>' +
       '<div style="border-top:1px solid var(--border,#cbd5e1);margin:18px 0 10px"></div><b>Office / owner</b>' +
       '<label style="display:block;margin:10px 0 4px" for="kfsPw">Company password</label><input id="kfsPw" type="password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px;font-size:1rem">' +
       '<label style="display:block;margin:10px 0 4px" for="kfsName">Name for this device</label><input id="kfsName" placeholder="e.g. Owner\'s phone" style="width:100%;box-sizing:border-box;padding:12px;font-size:1rem">' +
       '<button id="kfsAdmin" style="display:block;width:100%;padding:14px;margin-top:12px;border:2px solid var(--btn-bg,#1e3a5f);border-radius:12px;background:transparent;color:var(--text,#0f172a);font-size:1rem;font-weight:800">Make this device an admin</button>' +
-      '<div id="kfsMsg" style="margin-top:10px;font-weight:700"></div></div></div>');
+      '<div id="kfsMsg" style="margin-top:10px;font-weight:700"></div>' +
+      '<div style="border-top:1px solid var(--border,#cbd5e1);margin:22px 0 10px"></div><button id="kfsNew" type="button" style="background:none;border:0;color:var(--link,#1d4ed8);font-size:.95rem;text-decoration:underline;padding:6px 0;cursor:pointer">Setting up a new company? Use its sheet link</button></div></div>');
     document.body.appendChild(ov);
     var pickCo = function () { if (many) { LS.set('kfCompanyPick', document.getElementById('kfsCo').value); LS.del('kfCompanyUrl'); LS.del('driversUrl'); var b = window.kfConfigUrl(); LS.set('kfCompanyUrl', b); LS.set('driversUrl', b + '?svc=drivers'); } };
     if (many && LS.get('kfCompanyPick')) document.getElementById('kfsCo').value = LS.get('kfCompanyPick');
-    document.getElementById('kfsPerson').onclick = function () { pickCo(); location.replace('drivers.html'); };
+    document.getElementById('kfsNew').onclick = function () { try { sessionStorage.setItem('kfNewCompany', '1'); } catch (e) {} location.replace('index.html?new=' + Date.now() + '#company'); };
+    var msgEl = document.getElementById('kfsMsg'), bad = function (t) { msgEl.style.color = 'var(--bad,#dc2626)'; msgEl.textContent = t; };
+    // the company: picked from the list, or looked up by its name in the company directory
+    var findCo = function () {
+      if (many) { pickCo(); return Promise.resolve({ url: window.kfConfigUrl() }); }
+      var nmEl = document.getElementById('kfsCoName'); if (!nmEl.value.trim()) return Promise.resolve({ error: 'Enter the company name.' });
+      msgEl.style.color = ''; msgEl.textContent = 'Finding the company…';
+      return window.kfFindCompany(nmEl.value).then(function (c) { if (c.url) window.kfUseCompany(c.url, c.name); return c; });
+    };
+    document.getElementById('kfsPerson').onclick = function () {
+      findCo().then(function (c) { if (c.error) return bad(c.error); location.replace('drivers.html'); }).catch(function () { bad('No signal. Try again when you have signal.'); });
+    };
     document.getElementById('kfsAdmin').onclick = function () {
-      var msg = document.getElementById('kfsMsg'), pw = document.getElementById('kfsPw').value, nm = document.getElementById('kfsName').value.trim();
-      if (!pw) { msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = 'Enter the company password.'; return; }
-      if (!nm) { msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = 'Give this device a name (so you can remove it later).'; return; }
-      pickCo(); msg.style.color = ''; msg.textContent = 'Checking…';
-      window.kfMakeAdmin(pw, nm).then(function (r) {
-        if (r.ok) { msg.textContent = 'Done.'; setTimeout(function () { location.replace(FILE === 'drivers.html' ? 'drivers.html' : (FILE || 'index.html')); }, 300); return; }
-        if (r.setup) { location.replace('index.html#setup'); return; }
-        msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = r.msg;
-      }).catch(function () { msg.style.color = 'var(--bad,#dc2626)'; msg.textContent = 'No signal. Try again when you have signal.'; });
+      var pw = document.getElementById('kfsPw').value, nm = document.getElementById('kfsName').value.trim();
+      if (!pw) return bad('Enter the company password.');
+      if (!nm) return bad('Give this device a name (so you can remove it later).');
+      findCo().then(function (c) {
+        if (c.error) return bad(c.error);
+        msgEl.style.color = ''; msgEl.textContent = 'Checking…';
+        return window.kfMakeAdmin(pw, nm, c.url).then(function (r) {
+          if (r.ok) { msgEl.textContent = 'Done.'; setTimeout(function () { location.replace(FILE === 'drivers.html' ? 'drivers.html' : (FILE || 'index.html')); }, 300); return; }
+          if (r.setup) { LS.set('kfSetupUrl', c.url); location.replace('index.html#setup'); return; }
+          bad(r.msg);
+        });
+      }).catch(function () { bad('No signal. Try again when you have signal.'); });
     };
   };
   window.kfCloseSignIn = function () { var o = document.getElementById('kfSignIn'); if (o) o.remove(); };
   function needsSignIn() {
     if (!window.kfConfigUrl() && cfgList().length < 2) return false;
     if (cfgList().length > 1 && !LS.get('kfCompanyPick')) return true;
-    return !LS.get('kfKey') && !LS.get('kfAdminToken') && !window.kfPerson() && !LS.get('kfSkipConnect');
+    var newCo = false; try { newCo = sessionStorage.getItem('kfNewCompany') === '1'; } catch (e) {}
+    return !newCo && !LS.get('kfKey') && !LS.get('kfAdminToken') && !window.kfPerson() && !LS.get('kfSkipConnect');
   }
 
   // ---- menu: same order on every page, Trucks linked, Statistics for admins, alert badges ----

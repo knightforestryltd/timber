@@ -337,6 +337,19 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
     <div class="card" id="syncCard">
       <h2>Company Sync</h2>
       <div id="coLinkInfo" class="hint hidden" style="margin-bottom:12px;"></div>
+      <div id="coLinkBox" class="hidden" style="margin-bottom:14px;">
+        <div class="form-group"><label for="coLinkUrl">Company sheet link</label>
+          <input type="url" id="coLinkUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div class="hint" id="coLinkHint">The company's own script link (ends in /exec). Saved once on the first admin device; after that new devices sign in with just the <b>company name</b> and the <b>company password</b>.</div></div>
+        <div id="coLinkSetup" class="hidden">
+          <div class="form-group"><label for="coLinkCo">Company name (people type this to sign in)</label><input id="coLinkCo" autocomplete="organization"></div>
+          <div class="form-row"><div class="form-group"><label for="coLinkPw1">Create company password</label><input type="password" id="coLinkPw1" autocomplete="new-password"></div>
+            <div class="form-group"><label for="coLinkPw2">Confirm password</label><input type="password" id="coLinkPw2" autocomplete="new-password"></div></div>
+        </div>
+        <div id="coLinkLogin" class="hidden"><div class="form-group"><label for="coLinkPw">Company password</label><input type="password" id="coLinkPw" autocomplete="current-password"></div></div>
+        <button class="btn btn-sm" id="btnSaveLink" type="button">Save link</button>
+        <div id="coLinkMsg" class="hint" style="font-weight:700;margin-top:6px;white-space:pre-line;"></div>
+      </div>
       <div class="form-group" id="syncUrlGroup" style="margin-bottom:12px;">
         <label for="setSyncUrl">Company Sync URL</label>
         <input type="url" id="setSyncUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -722,7 +735,60 @@ function applyLinkVisibility() {
     info.classList.remove('hidden');
   } else info.classList.add('hidden');
   if (cfg) $('btnSwitchCo').classList.add('hidden');
+  // v14: the company sheet link field (new world: the site knows a company list, or this device is on a company link)
+  const box = $('coLinkBox'), show = cfg || kfCo.unified(); box.classList.toggle('hidden', !show);
+  if (show) {
+    const canEdit = !!(window.kfAdminToken && kfAdminToken()) || !kfCo.unified() || (companyMeta && companyMeta.hasPassword === false);
+    if (document.activeElement !== $('coLinkUrl')) $('coLinkUrl').value = kfCo.base() || '';
+    $('coLinkUrl').readOnly = !canEdit; $('btnSaveLink').classList.toggle('hidden', !canEdit);
+    if (!canEdit) $('coLinkMsg').textContent = 'Only an admin device can change the company link.';
+  }
 }
+// Save the company sheet link: connect this device, create (or check) the company password, then register the company
+// NAME in the company list, so every new device signs in with just the company name + password.
+$('btnSaveLink').onclick = async () => {
+  const say = (t, bad) => { $('coLinkMsg').textContent = t; $('coLinkMsg').style.color = bad ? 'var(--bad)' : ''; };
+  const url = kfCo.clean($('coLinkUrl').value);
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) return say('Paste the company script link (it starts with https://script.google.com/macros/s/ and ends in /exec).', true);
+  const b = $('btnSaveLink'); b.disabled = true; say('Checking the link…');
+  try {
+    let meta = null; try { meta = (await companyGet(url))._meta || null; } catch (e) {}
+    if (!meta || !meta.unified) return say('That link did not answer as a company script (company-apps-script.gs deployed as a web app for Anyone).', true);
+    const same = kfCo.base() === url;
+    if (!same && kfCo.unified() && kfCo.hasData() && !kfCo.sameCompany(meta)) {
+      if (!confirm(`This device holds ${settings.companyName || 'another company'}'s data. Switching to ${meta.companyName || 'this company'} removes it from this device (it stays safe in its own sheet). Continue?`)) return say('Cancelled. Nothing was changed.');
+      kfCo.wipe(); settings = structuredClone(defaultSettings);
+    }
+    const dev = localStorage.getItem('kfDeviceName') || 'First admin device';
+    if (!meta.hasPassword) {
+      // first device of a new company: name + company password
+      $('coLinkSetup').classList.remove('hidden'); $('coLinkLogin').classList.add('hidden');
+      const name = $('coLinkCo').value.trim(), p1 = $('coLinkPw1').value, p2 = $('coLinkPw2').value;
+      if (!name || p1.length < 4 || p1 !== p2) return say('New company: enter the company name and create the company password (at least 4 characters, typed twice), then tap Save link again.', true);
+      const r = await companyPost(url + '?svc=sync', { action: 'setPassword', newPassword: p1, deviceName: dev });
+      if (r.status !== 'ok' || !r.key) return say(r.message || 'Could not create the company password.', true);
+      kfCo.apply(url, r.key, r.meta); if (r.adminToken) localStorage.setItem('kfAdminToken', r.adminToken); localStorage.removeItem('kfNoPassword');
+      settings = loadSettings(); settings.companyName = name; saveSettings(); localStorage.setItem('kfCompanyName', name);
+      await companyPost(settings.syncUrl, { action: 'saveProfile', password: p1, profile: Object.assign(JSON.parse(localStorage.getItem('kfCompany') || '{}'), { name }) });
+      const sv = await companyPost(settings.syncUrl, { action: 'saveSettings', password: p1, settings: companyPayload(), force: true }); if (sv.rev != null) localStorage.setItem(REV_KEY, String(sv.rev));
+      clearDirty(); $('coLinkPw1').value = $('coLinkPw2').value = '';
+    } else if (!(same && window.kfAdminToken && kfAdminToken())) {
+      // a company that already has a password: this device proves it once and becomes an admin device
+      $('coLinkLogin').classList.remove('hidden'); $('coLinkSetup').classList.add('hidden');
+      const pw = $('coLinkPw').value; if (!pw) return say('Enter the company password, then tap Save link again.', true);
+      const r = await kfMakeAdmin(pw, dev, url); if (!r.ok) return say(r.msg || 'Wrong company password.', true);
+      $('coLinkPw').value = ''; settings = loadSettings();
+    }
+    say('Saving the company in the sign-in list…');
+    const reg = await kfRegisterCompany(url);
+    if (reg.status === 'ok') say(`Saved. New devices sign in with "${reg.name}" and the company password. Drivers type "${reg.name}", then their own name and passcode.`);
+    else if (reg.status === 'error' && /Unknown action/.test(reg.message || '')) say('Saved on this device. The sign-in list needs the updated script on the main company link, so new devices cannot find this company by name yet.', true);
+    else say('Connected, but not added to the sign-in list: ' + (reg.message || reg.status), true);
+    setTimeout(() => { refreshMeta(); if (!same) location.hash = '#settings'; }, 300);
+    if (!same) setTimeout(() => location.reload(), 2500);
+  } catch (e) { say('Could not save: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
 async function renderAdminCard() {
   if (!$('adminCard')) return;
   const isTok = !!(window.kfAdminToken && kfAdminToken()), v14 = (window.kfServerV ? kfServerV() : 0) >= 14 || (companyMeta && companyMeta.v >= 14);
@@ -2159,7 +2225,7 @@ $('btnMove').onclick = async () => {
 };
 
 if (location.hash === '#setup' && hasConfig()) {            // nav.js sign-in found a company with no password yet: set it up here
-  $('coUrl').value = kfConfigUrl(); showConnect(); setTimeout(() => $('btnConnect').click(), 50);
+  $('coUrl').value = localStorage.getItem('kfSetupUrl') || kfConfigUrl(); showConnect(); setTimeout(() => $('btnConnect').click(), 50);
 } else if (!hasConfig() && !settings.syncUrl && localStorage.getItem('coLoggedIn') !== '1' && !localStorage.getItem('kfSkipConnect')) {
   showConnect();
 } else if (settings.syncUrl) {
@@ -2183,6 +2249,7 @@ renderSettings();
 // this page applies company settings itself (with its Save to Company / unsaved-change handling)
 window.kfOwnSync = true;
 if (window.kfLive) kfLive(() => pullCompany(false), { ms: 60000, when: () => !!(settings.syncUrl || '').trim() });
+if (location.hash === '#company') { showView('settings'); setCoOpen(true); setTimeout(() => { $('coLinkBox').classList.remove('hidden'); $('coLinkUrl').readOnly = false; $('btnSaveLink').classList.remove('hidden'); $('coLinkMsg').textContent = 'Paste your company script link and tap Save link.'; $('coLinkUrl').scrollIntoView({ block: 'center' }); }, 200); try { history.replaceState(history.state, '', location.pathname); } catch (e) {} }
 if (location.hash === '#settings') { showView('settings'); try { history.replaceState(history.state, '', location.pathname); } catch (e) {} }
 
 </script>

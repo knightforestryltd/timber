@@ -36,14 +36,14 @@ The pages keep working with the old script until step 4. New features stay hidde
 
 **Office phone** (open the app):
 
-1. Tap through the sign-in: enter the company password + "Office phone". The yellow **Admin** badge shows.
+1. Tap through the sign-in: the **company name** exactly as in Billing → Settings (e.g. Knight Forestry), the company password and "Office phone". The yellow **Admin** badge shows.
 2. Quote: book a test load (customer "TEST").
 3. Dispatch: open it → Edit load → change the notes → Save → Assign a driver and truck.
 4. Billing: Owing opens. Trucks: units show (copied from Drivers → Settings). Statistics: the graph shows.
 
 **Driver phone:**
 
-1. Open Drivers. The phone logs in by itself (the passcode is swapped for a token).
+1. Open Drivers. An already-connected phone logs in by itself (the passcode is swapped for a token). A brand-new phone types the company name, then the driver's name and passcode.
 2. Start a short shift: pick a unit, enter km, do the pre-trip (all OK).
 3. Close and submit. The office gets the daily log email as before.
 
@@ -67,3 +67,12 @@ The new columns are all on the right, and the old version ignores them, so nothi
   - check each unit: type, engine hours yes/no, loader crane, expiry dates, and Pricing unit (to link it to the Quote unit for "Use real costs");
   - PM intervals: **PM intervals & sheets**.
 - **Every other office device:** asked once for the company password ("Make this device an admin"). "Later" works; nothing is lost.
+
+## Another company on this same website (e.g. a brother)
+
+Do these steps whenever another company wants to use this website.
+
+1. In THEIR Google account: script.google.com → New project → paste `company-apps-script.gs` → Deploy → **New deployment** → Web app, Execute as Me, Anyone → copy their link.
+2. On one of their phones, open this site → sign-in screen → **"Setting up a new company? Use its sheet link"** → paste the link → enter their company name and create their company password → **Save link**. That phone is their first admin device.
+3. Their name is now in the sign-in list (kept in Knight's script). Every other phone of theirs signs in with that **company name + their company password**; their drivers type the company name, then their own name and passcode.
+4. Each company's data stays in its own sheet. A name already used by another company is refused (add the town to make it different).

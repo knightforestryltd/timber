@@ -4,11 +4,12 @@ const { start, BASE } = require('./e2e');
   const env = h.env; let n = 0, bad = 0; const t = (c, m) => { n++; if (!c) bad++; console.log((c ? 'ok   ' : 'FAIL ') + m); };
   env.props.drvConfig = JSON.stringify({ units: [{ id: 'u1', name: 'Truck 1', plate: 'ABC' }] });
   let r = env.post('sync', { action: 'setPassword', newPassword: 'secret1', deviceName: 'Owner' }); const KEY = r.key, TOK = r.adminToken;
+  env.post('sync', { action: 'saveProfile', adminToken: TOK, profile: { name: 'Knight Forestry' } });
   // ---- fresh device: sign-in screen, make admin ----
   let pg = await h.open('index.html');
   t(await pg.isVisible('#kfSignIn'), 'fresh device shows the sign-in screen');
   t(!(await pg.isVisible('#loginOverlay')), 'old Connect screen not shown (company known)');
-  await pg.fill('#kfsPw', 'secret1'); await pg.fill('#kfsName', 'Test phone'); await pg.click('#kfsAdmin'); await pg.waitForTimeout(1500);
+  await pg.fill('#kfsCoName', 'Knight Forestry'); await pg.fill('#kfsPw', 'secret1'); await pg.fill('#kfsName', 'Test phone'); await pg.click('#kfsAdmin'); await pg.waitForTimeout(1500);
   const ls = await pg.evaluate(() => ({ tok: localStorage.getItem('kfAdminToken'), key: localStorage.getItem('kfKey'), url: localStorage.getItem('kfCompanyUrl') }));
   t(ls.tok && ls.key === KEY && ls.url === BASE, 'device became admin (token + key stored, no password stored)');
   t(!(await pg.evaluate(() => JSON.stringify(localStorage))).includes('secret1'), 'password not stored anywhere on the device');
