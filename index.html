@@ -155,7 +155,7 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 .cost-table .rowlabel small { display: block; color: var(--muted); font-weight: 400; }
 
 .actions { grid-template-columns: repeat(3, 1fr); }
-.split-sub { margin-left: 22px; font-size: .85rem; color: var(--muted); }
+.sp-filter label.split-one { grid-column: 1 / -1; white-space: normal; font-weight: 700; border-style: dashed; }
 .species-row.split-row { background: rgba(124, 58, 237, .08); border-left: 4px solid #7c3aed; }
 .split-tag { display: inline-block; background: #7c3aed; color: #fff; font-size: .7rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; margin-left: 4px; }
 .low-note { display: block; font-size: .72rem; color: #b45309; font-weight: 700; }
@@ -1452,17 +1452,19 @@ function setYardStock(rows) {
 }
 const yardQty = (yard, sp, product) => yardInfo[yard] && yardInfo[yard][sp] && yardInfo[yard][sp][product] || null;
 // split choice under each species (remembered on this device)
-function splitChosen() { try { return JSON.parse(localStorage.getItem('kfQuoteSplit') || '[]'); } catch (e) { return []; } }
-(function addSplitBoxes() {
-  const chosen = splitChosen();
-  document.querySelectorAll('.species-cb').forEach(cb => {
-    const l = document.createElement('label'); l.className = 'split-sub';
-    l.innerHTML = `<input type="checkbox" class="split-cb" value="${esc(cb.value)}" ${chosen.includes(cb.value) ? 'checked' : ''}> Split`;
-    cb.closest('label').after(l);
-  });
-  document.getElementById('speciesFilter').addEventListener('change', e => { if (e.target.classList.contains('split-cb')) { try { localStorage.setItem('kfQuoteSplit', JSON.stringify([...document.querySelectorAll('.split-cb:checked')].map(x => x.value))); } catch (er) {} } });
+// One "Split" box after the species list (remembered on this device): ticked species show their SPLIT options too.
+// (Older phones stored a list of species here; any ticked species then means Split was on.)
+function splitChosen() { try { const v = JSON.parse(localStorage.getItem('kfQuoteSplit') || 'false'); return Array.isArray(v) ? v.length > 0 : !!v; } catch (e) { return false; } }
+(function addSplitBox() {
+  const l = document.createElement('label'); l.className = 'split-one';
+  l.innerHTML = `<input type="checkbox" id="splitCb" ${splitChosen() ? 'checked' : ''}> Split <span class="small" style="font-weight:400">(split options for the species ticked)</span>`;
+  document.getElementById('speciesFilter').appendChild(l);
+  document.getElementById('splitCb').addEventListener('change', e => { try { localStorage.setItem('kfQuoteSplit', JSON.stringify(e.target.checked)); } catch (er) {} });
 })();
-function splitWanted(sp) { const sel = [...document.querySelectorAll('.split-cb:checked')].map(x => x.value.toLowerCase()); return sel.length > 0 && speciesMatches(sp, sel); }
+function splitWanted(sp) {
+  if (!document.getElementById('splitCb') || !document.getElementById('splitCb').checked) return false;
+  return speciesMatches(sp, Array.from(document.querySelectorAll('.species-cb:checked')).map(cb => cb.value.toLowerCase()));
+}
 // Row "Birch - SPLIT": $/cord, cords on hand; chips only for units that haul split (cords x $/cord + same trucking maths as logs)
 function splitRowHtml(o, sp, km) {
   const price = +sp.splitPricePerCord || 0; if (!(price > 0) || !splitWanted(sp)) return '';
