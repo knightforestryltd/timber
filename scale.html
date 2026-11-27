@@ -67,7 +67,7 @@ pre.receipt { background: #fff; color: #000; font: 13px/1.35 "Courier New", mono
 <div class="container">
 <div id="login" class="card hidden">
   <h2>Tickets</h2>
-  <p class="small">Enter the tickets password.</p>
+  <p class="small">Enter the company password (asked once on this device).</p>
   <input id="passInput" type="password" placeholder="Password">
   <button class="btn full" onclick="doLogin()">Log in</button>
 </div>
@@ -205,7 +205,6 @@ pre.receipt { background: #fff; color: #000; font: 13px/1.35 "Courier New", mono
 /* ============================== tickets ==============================
    A ticket is one row: [Ticket, Product, Customer, Source, Tare, Gross, Net, Purchase, Sale, Time, Notes]
    (the same columns Dispatch and Billing read). */
-const PASSWORD = 'knight';                     // only for a device on the old separate scripts
 let SCRIPT_URL = localStorage.getItem('scriptUrl') || '';
 let tickets = [];
 let liveWeight = 0;
@@ -217,9 +216,15 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const num = v => (+v || 0).toLocaleString();
 const money = v => '$' + (+v || 0).toFixed(2);
 
-function doLogin() {
-  if (el('passInput').value === PASSWORD) { localStorage.setItem('loggedIn', 'true'); el('login').classList.add('hidden'); showScreen('home'); loadTickets(); }
-  else alert('Wrong password');
+// v14: no saved or built-in Tickets password. Admin devices are unlocked; any other device asks the company password once.
+async function doLogin() {
+  const unlock = () => { localStorage.setItem('loggedIn', 'true'); el('login').classList.add('hidden'); showScreen('home'); loadTickets(); };
+  const base = window.kfCo && (kfCo.base() || (window.kfConfigUrl && kfConfigUrl()));
+  if (!base) return unlock();                                     // no company to check against (stand-alone device)
+  try {
+    const r = await fetch(base + '?svc=sync', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'checkPassword', password: el('passInput').value }), redirect: 'follow' }).then(x => x.json());
+    if (r.status === 'ok') unlock(); else alert(r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : 'Wrong company password.');
+  } catch (e) { alert('No signal: the password cannot be checked.'); }
 }
 // phone back button (nav.js): one level at a time
 window.kfBack = function () {
@@ -828,7 +833,7 @@ function monFallbackCopy(text, done) {
 // Boot
 initScale();
 const unifiedDevice = window.kfCo && kfCo.unified();
-if (unifiedDevice || localStorage.getItem('loggedIn') === 'true') { el('login').classList.add('hidden'); showScreen('home'); loadTickets(); }
+if (unifiedDevice || localStorage.getItem('loggedIn') === 'true' || (window.kfIsAdmin && kfIsAdmin())) { el('login').classList.add('hidden'); showScreen('home'); loadTickets(); }
 else el('login').classList.remove('hidden');
 // keep the list current: other devices' tickets appear by themselves
 if (window.kfLive) kfLive(() => loadTickets(), { ms: 20000, when: () => screen === 'history' || screen === 'home' });

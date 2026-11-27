@@ -88,6 +88,11 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
     <div class="card" style="cursor:default; margin-top:12px;">
       <h2 id="dName"></h2>
       <div id="dInfo"></div>
+      <div id="dOffice" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;">
+        <button class="btn btn-outline" type="button" onclick="openEdit()">Edit load</button>
+        <button class="btn btn-outline" type="button" onclick="openAssign()">Assign driver &amp; truck</button>
+      </div>
+      <div id="dEdit" class="hidden"></div>
       <div id="dNotes" style="display:none;padding:10px 12px;margin:8px 0;border-radius:10px;border:1px solid var(--amber);"></div>
       <div class="small" id="dDays"></div>
       <hr style="border-color:var(--border);">
@@ -112,7 +117,7 @@ function getRates(l) {
     const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
     const loc = (s.locations || []).find(x => x.name === l.location);
     const sp = loc && (loc.species || []).find(x => x.name === l.species);
-    const unit = (s.units || []).find(x => x.name === l.truck);
+    const unit = (s.units || []).find(x => x.name === l.truck) || (s.units || []).find(x => (x.aliases || []).includes(l.truck));
     return {
       ppt: sp ? sp.pricePerTonne : (l.pricePerTonne || 0),
       hourly: unit ? unit.hourly : (l.hourly || 0),
@@ -126,7 +131,7 @@ function lineItemsHtml(l) {
   const rates = getRates(l);
   const ppt = rates.ppt || l.pricePerTonne || 0;
   const product = tonnes * ppt;
-  const hours = l.totalHours || 0;
+  const hours = l.billedHours !== '' && l.billedHours != null && !isNaN(+l.billedHours) ? +l.billedHours : (l.totalHours || 0);
   const hourly = rates.hourly || l.hourly || 0;
   const trip = hours * hourly;
   const roundKm = (l.km || 0) * 2;
@@ -205,6 +210,7 @@ function cardHtml(l, i, list) {
     <div class="top"><strong>${escHtml(l.customerName || 'No name')}</strong><span class="pill ${st}">${STATUS_LABEL[st]}${l.loadId && st !== 'waiting' ? ' · ' + escHtml(l.loadId) : ''}</span></div>
     <div class="where">${escHtml(l.place || l.address || 'No address')}</div>
     <div>${escHtml(l.species || '')}${t ? ' · ' + escHtml(t) + ' t' : ''} · from ${escHtml(l.location || '—')}${l.truck ? ' · ' + escHtml(l.truck) : ''}</div>
+    ${l.driverName || l.unitId || l.requestedDate ? `<div class="small">${l.requestedDate ? 'For ' + escHtml(l.requestedDate) + ' · ' : ''}${l.driverName || l.unitId ? escHtml(l.driverName || 'no driver') + ' · ' + escHtml(unitLabel(l.unitId) || 'no truck') : '<b>not assigned</b>'}</div>` : ''}
     <div class="small">${escHtml(cycleText(l))}${l.km ? ' · ' + escHtml(l.km) + ' km one way' : ''} · ${escHtml(daysSince(l.timestamp))}${l._pending ? ' · <b>not sent yet</b>' : ''}</div>
   </div>`;
 }
@@ -243,12 +249,16 @@ function openLoad(i, list) {
     <p><strong>Truck:</strong> ${current.truck || '—'}</p>
     <p><strong>Tonnes:</strong> ${toTonnes(current.netTonnes) || current.tonnes || '—'} · <strong>Cords:</strong> ~${actualCords(current)}</p>
     <p><strong>Trip:</strong> ${current.totalHours ? fmtHours(current.totalHours) + ' cycle' : (current.duration || '—')} · ${current.km || '—'} km</p>
-    <p><strong>Total:</strong> $${fmtMoney(current.total)}</p>
+    <p><strong>Total:</strong> $${fmtMoney(current.total)}${+current.priceAdj ? ` <span class="small">(quoted $${fmtMoney(current.quotedTotal)}, adjustment ${+current.priceAdj > 0 ? '+' : ''}$${fmtMoney(current.priceAdj)}${current.adjReason ? ': ' + escHtml(current.adjReason) : ''}${current.billedHours !== '' && current.billedHours != null ? ' · ' + escHtml(current.billedHours) + ' h billed' : ''})</span>` : ''}</p>
+    ${current.requestedDate ? `<p><strong>Requested:</strong> ${escHtml(current.requestedDate)}</p>` : ''}
+    ${current.driverName || current.unitId ? `<p><strong>Assigned:</strong> ${escHtml(current.driverName || '—')} · ${escHtml(unitLabel(current.unitId) || '—')}</p>` : ''}
     ${current.netTonnes ? lineItemsHtml(current) : ''}
     <p><strong>Status:</strong> ${current.status || 'Pending'}</p>
     ${current.netTonnes ? '<p><strong>Net tonnes (ticket):</strong> ' + toTonnes(current.netTonnes) + '</p>' : ''}
   `;
   document.getElementById('dDays').textContent = daysSince(current.timestamp);
+  document.getElementById('dEdit').classList.add('hidden'); document.getElementById('dEdit').innerHTML = '';
+  document.getElementById('dOffice').classList.toggle('hidden', !(window.kfServerV && kfServerV() >= 14));
   showLoadNotes(current);
   document.getElementById('ticketInput').value = current.loadId || ticketPrefix();
   document.getElementById('ticketResult').textContent = '';
@@ -289,7 +299,7 @@ function driverInfo() {
 function renderTextSettings() {
   const t = textSettings(), me = driverInfo(), uni = !!(window.kfCo && kfCo.unified());
   document.getElementById('txOn').checked = t.texts; document.getElementById('txTpl').value = t.template;
-  document.getElementById('txPwWrap').classList.toggle('hidden', !uni);
+  document.getElementById('txPwWrap').classList.toggle('hidden', !uni || (window.kfIsAdmin && kfIsAdmin()));
   document.getElementById('txDrvName').value = me.name; document.getElementById('txDrvPhone').value = me.phone;
   let sess = null; try { sess = JSON.parse(localStorage.getItem('kfDrvSession') || 'null'); } catch (e) {}
   document.getElementById('txDrvNote').textContent = sess ? 'Filled in from the Drivers log-in on this phone. Change it here if needed.' : 'Used in the text. Set once per phone (drivers logged in on Drivers fill this in automatically).';
@@ -298,7 +308,7 @@ function renderTextSettings() {
 document.getElementById('txSave').onclick = async () => {
   const msg = document.getElementById('txMsg'), body = { texts: document.getElementById('txOn').checked, template: document.getElementById('txTpl').value.trim() || DEFAULT_TEXT };
   if (window.kfCo && kfCo.unified()) {
-    const pw = document.getElementById('txPw').value; if (!pw) { msg.style.color = 'var(--bad)'; msg.textContent = 'Enter the company password.'; return; }
+    const pw = document.getElementById('txPw').value; if (!pw && !(window.kfIsAdmin && kfIsAdmin())) { msg.style.color = 'var(--bad)'; msg.textContent = 'Enter the company password.'; return; }
     try {
       const r = await kfCo.post('sync', { action: 'saveDispatch', password: pw, dispatch: body });
       if (r.status !== 'saved') { msg.style.color = 'var(--bad)'; msg.textContent = r.status === 'badpassword' ? 'Wrong company password.' : (r.message || 'Could not save.'); return; }
@@ -434,7 +444,97 @@ async function sendPending() {
   localStorage.setItem('kfDispatch', JSON.stringify(s));
 }
 
+/* ======================= v14: Edit load + Assign (office) ======================= */
+let unitsCache = null, driverNames = null;
+function unitLabel(id) { if (!id) return ''; const u = (unitsCache || []).find(x => String(x.id) === String(id)); return u ? (u.unitNo ? u.unitNo + ' · ' : '') + u.name : id; }
+async function loadUnits() {
+  if (unitsCache) return unitsCache;
+  try { const r = await kfCo.post('trucks', { action: 'listUnits' }); if (r.status === 'ok') unitsCache = r.units || []; } catch (e) {}
+  if (!unitsCache) unitsCache = (companySettings().units || []).map(u => ({ id: u.name, name: u.name, status: 'In service' }));
+  return unitsCache;
+}
+async function loadDriverNames() {
+  if (driverNames) return driverNames;
+  try { const j = await (await fetch(kfCo.url('drivers', false) + '&action=drivers&t=' + Date.now())).json(); driverNames = j.drivers || []; } catch (e) { driverNames = []; }
+  return driverNames;
+}
+function findOf(l) { return { bookingId: l.bookingId || '', loadId: l.loadId || '', customerName: l.customerName, timestamp: l.timestamp, location: l.location, species: l.species, truck: l.truck }; }
+// Sends an office change. A device that is not an admin is asked for the company password (never stored).
+async function officePost(body) {
+  let r = await fetch(QUOTE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(kfAuth(body)), redirect: 'follow' }).then(x => x.json());
+  if (r.status === 'noadmin') kfLostAdmin();
+  if (r.status === 'badpassword' || r.status === 'noadmin') {
+    const pw = prompt('Company password:'); if (!pw) return { status: 'cancelled' };
+    r = await fetch(QUOTE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({}, body, { password: pw })), redirect: 'follow' }).then(x => x.json());
+  }
+  return r;
+}
+const EDIT_FIELDS = [['customerName', 'Customer'], ['phone', 'Phone'], ['address', 'Address'], ['location', 'Source location'], ['species', 'Species'], ['product', 'Product', 'select', ['Logs', 'Split']],
+  ['truck', 'Truck config (unit)'], ['tonnes', 'Tonnes', 'n'], ['cords', 'Cords', 'n'], ['km', 'One-way km', 'n'], ['duration', 'Trip time'], ['driveHours', 'Drive hours', 'n'],
+  ['totalHours', 'Total hours', 'n'], ['billedHours', 'Billed hours (price adjustment)', 'n'], ['fuelLitres', 'Fuel litres', 'n'], ['total', 'Total (incl GST)', 'n'],
+  ['priceAdj', 'Price adjustment ($, before GST)', 'n'], ['adjReason', 'Adjustment reason (office only)'], ['status', 'Status', 'select', ['Pending', 'Started', 'Delivered', 'Paid']],
+  ['requestedDate', 'Requested date', 'date'], ['netTonnes', 'Net tonnes (ticket)', 'n'], ['notes', 'Notes', 'area']];
+function openEdit() {
+  if (!current) return;
+  const box = document.getElementById('dEdit'), l = current;
+  box.innerHTML = `<h3 style="margin:10px 0 6px;">Edit load</h3><div class="small">Every field can be changed by hand. Nothing is recalculated by itself: what you type is saved.</div>` +
+    EDIT_FIELDS.map(f => {
+      const v = l[f[0]] == null ? '' : l[f[0]], id = 'ed_' + f[0];
+      if (f[2] === 'select') return `<label for="${id}">${f[1]}</label><select id="${id}">${f[3].map(o => `<option ${String(v || (f[0] === 'product' ? 'Logs' : 'Pending')) === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+      if (f[2] === 'area') return `<label for="${id}">${f[1]}</label><textarea id="${id}">${escHtml(v)}</textarea>`;
+      return `<label for="${id}">${f[1]}</label><input id="${id}" ${f[2] === 'n' ? 'type="number" step="any" inputmode="decimal"' : f[2] === 'date' ? 'type="date"' : ''} value="${escHtml(v)}">`;
+    }).join('') + `<div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-outline" type="button" onclick="closeEdit()">Cancel</button><button class="btn" type="button" onclick="saveEdit()">Save</button></div><div id="edMsg" class="small" style="font-weight:700;margin-top:6px;"></div>`;
+  box.classList.remove('hidden'); document.getElementById('dInfo').classList.add('hidden'); document.getElementById('dOffice').classList.add('hidden');
+  box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function closeEdit() { document.getElementById('dEdit').classList.add('hidden'); document.getElementById('dInfo').classList.remove('hidden'); document.getElementById('dOffice').classList.remove('hidden'); }
+async function saveEdit() {
+  const l = current, ch = {};
+  EDIT_FIELDS.forEach(f => { const e = document.getElementById('ed_' + f[0]); if (!e) return; const v = e.value.trim(), old = l[f[0]] == null ? '' : String(l[f[0]]); if (v !== old && !(f[0] === 'product' && !old && v === 'Logs') && !(f[0] === 'status' && !old && v === 'Pending')) ch[f[0]] = f[2] === 'n' && v !== '' ? +v : v; });
+  // Total hours changed on a load with a price adjustment: offer to recalculate the billed hours (ask first)
+  const adj = ch.priceAdj != null ? +ch.priceAdj : +l.priceAdj;
+  if (ch.totalHours != null && adj && ch.billedHours == null) {
+    const rate = +getRates(l).hourly || 0;
+    if (rate > 0) { const bh = Math.round((+ch.totalHours + adj / rate) * 100) / 100; if (confirm(`This load has a price adjustment. Set billed hours to ${bh} h (new total hours ${ch.totalHours} + $${adj} / $${rate}/hr)?`)) ch.billedHours = bh; }
+  }
+  const keys = Object.keys(ch); if (!keys.length) { closeEdit(); return; }
+  if (!confirm('Save these changes?\n\n' + keys.map(k => (EDIT_FIELDS.find(f => f[0] === k) || [k, k])[1] + ': ' + (l[k] == null || l[k] === '' ? '(blank)' : l[k]) + ' → ' + (ch[k] === '' ? '(blank)' : ch[k])).join('\n'))) return;
+  const msg = document.getElementById('edMsg'); msg.textContent = 'Saving…';
+  try {
+    const r = await officePost({ action: 'editLoad', find: findOf(l), changes: ch });
+    if (r.status === 'cancelled') { msg.textContent = ''; return; }
+    if (r.status !== 'ok') { msg.style.color = 'var(--bad)'; msg.textContent = r.message || ('Not saved (' + r.status + ').'); return; }
+    Object.assign(l, ch); closeEdit(); openLoad(loads.indexOf(l) >= 0 ? loads.indexOf(l) : doneLoads.indexOf(l), loads.indexOf(l) >= 0 ? 'pending' : 'done'); loadLoads();
+  } catch (e) { msg.style.color = 'var(--bad)'; msg.textContent = 'No signal: nothing was saved.'; }
+}
+async function openAssign() {
+  if (!current) return;
+  const box = document.getElementById('dEdit'), l = current;
+  box.innerHTML = '<div class="small">Loading drivers and trucks…</div>'; box.classList.remove('hidden');
+  const [units, names] = await Promise.all([loadUnits(), loadDriverNames()]);
+  const trucks = units.filter(u => (u.type || 'truck') === 'truck' && u.status !== 'Sold');
+  box.innerHTML = `<h3 style="margin:10px 0 6px;">Assign driver &amp; truck</h3>
+    <label for="asDrv">Driver</label><select id="asDrv"><option value="">— none —</option>${names.map(n => `<option ${n === l.driverName ? 'selected' : ''}>${escHtml(n)}</option>`).join('')}</select>
+    <label for="asUnit">Truck</label><select id="asUnit"><option value="">— none —</option>${trucks.map(u => `<option value="${escHtml(u.id)}" ${String(u.id) === String(l.unitId) ? 'selected' : ''} style="${u.status === 'Out of service' ? 'color:#dc2626' : ''}">${escHtml((u.unitNo ? u.unitNo + ' · ' : '') + u.name)}${u.status === 'Out of service' ? ' — OUT OF SERVICE' : ''}</option>`).join('')}</select>
+    <div id="asWarn" class="small" style="color:var(--bad);font-weight:700;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-outline" type="button" onclick="closeEdit()">Cancel</button><button class="btn" type="button" id="asGo">Save</button></div>`;
+  const warn = () => { const u = trucks.find(x => String(x.id) === document.getElementById('asUnit').value); document.getElementById('asWarn').textContent = u && u.status === 'Out of service' ? 'This truck is out of service' + (u.outReason ? ': ' + u.outReason : '') + '.' : ''; };
+  document.getElementById('asUnit').onchange = warn; warn();
+  document.getElementById('dInfo').classList.add('hidden'); document.getElementById('dOffice').classList.add('hidden');
+  document.getElementById('asGo').onclick = async () => {
+    const unitId = document.getElementById('asUnit').value, driverName = document.getElementById('asDrv').value, u = trucks.find(x => String(x.id) === unitId);
+    if (u && u.status === 'Out of service' && !confirm(`${u.name} is OUT OF SERVICE${u.outReason ? ' (' + u.outReason + ')' : ''}. Assign it anyway?`)) return;
+    try {
+      const r = await officePost({ action: 'assignLoad', find: findOf(l), unitId, driverName });
+      if (r.status === 'cancelled') return;
+      if (r.status !== 'ok') { alert(r.message || 'Not saved.'); return; }
+      l.unitId = unitId; l.driverName = driverName; closeEdit(); openLoad(loads.indexOf(l) >= 0 ? loads.indexOf(l) : doneLoads.indexOf(l), loads.indexOf(l) >= 0 ? 'pending' : 'done');
+    } catch (e) { alert('No signal: nothing was saved.'); }
+  };
+}
+
 loadLoads();
+if (window.kfServerV && kfServerV() >= 14) loadUnits().then(() => renderList());
 // new loads, started loads and tickets from other devices show up by themselves
 if (window.kfLive) kfLive(loadLoads, { ms: 20000, when: () => !document.getElementById('listView').classList.contains('hidden') });
 </script>

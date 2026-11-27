@@ -251,6 +251,72 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 
   <!-- SETTINGS VIEW -->
   <div id="view-settings" class="hidden">
+    <div class="card" id="unitsCard">
+      <h2>Truck Units</h2>
+      <div id="unitsList"></div>
+      <div class="unit-add-box" style="margin-top:12px; padding:12px; border-radius:8px;">
+        <div class="form-row">
+          <div class="form-group"><label for="unitName">Unit Name</label><input type="text" id="unitName" placeholder="Straight truck"></div>
+          <div class="form-group"><label for="unitHourly">Hourly cost ($/hr)</label><input type="number" id="unitHourly" value="185"></div>
+          <div class="form-group"><label for="unitMargin">Margin (%)</label><input type="number" id="unitMargin" step="0.1" value="0"></div>
+          <div class="form-group"><label for="unitBilled">Billed hourly (total)</label><input type="text" id="unitBilled" readonly tabindex="-1"></div>
+          <div class="form-group"><label for="unitFuel">Fuel (L/100)</label><input type="number" id="unitFuel" value="50"></div>
+          <div class="form-group"><label for="unitPlate">Plate #</label><input type="text" id="unitPlate" placeholder="ABC123"></div>
+          <div class="form-group"><label for="unitConfig">Config</label><input type="text" id="unitConfig" placeholder="6HB"></div>
+          <div class="form-group"><label for="unitTonnes">Tonnes</label><input type="number" id="unitTonnes" value="16"></div>
+          <div class="form-group"><label for="unitHours">Load/Unload (hrs)</label><input type="number" id="unitHours" step="0.5" value="1.5"></div>
+          <div class="form-group"><label for="unitHaulsSplit">Hauls split</label><select id="unitHaulsSplit"><option value="no">No</option><option value="yes">Yes</option></select></div>
+          <div class="form-group"><label for="unitSplitCords">Split capacity (cords)</label><input type="number" id="unitSplitCords" step="0.5" placeholder="only if it hauls split"></div>
+          <div class="form-group wide"><label for="unitHomeBase">Home base (only if this truck parks somewhere else)</label><input type="text" id="unitHomeBase" placeholder="blank = company home base"></div>
+        </div>
+        <div id="unitEditNote" class="hint hidden" style="margin-bottom:8px;"></div>
+        <button class="btn btn-sm" id="btnAddUnit">Add Unit</button>
+        <button class="btn btn-sm btn-outline hidden" id="btnCancelUnit">Cancel</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">Saved on this device right away. <b>Company settings → Save to Company</b> shares them with every device.</div>
+    </div>
+
+    <div class="card">
+      <h2>Pickup Locations</h2>
+      <div id="locationsList"></div>
+      <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+        <h3 style="margin:0 0 12px; font-size:1rem;">Add / Edit Location</h3>
+        <div class="form-row">
+          <div class="form-group"><label for="locName">Name</label><input type="text" id="locName" placeholder="Sundre"></div>
+          <div class="form-group" style="flex:2"><label for="locAddress">Address</label><input type="text" id="locAddress" placeholder="Sundre, AB or 51.8, -114.5"></div>
+        </div>
+        <div class="form-group">
+          <label>Species: cost per tonne, margin %, total (the total is what gets quoted)</label>
+          <div id="speciesInputs"></div>
+          <button type="button" class="btn btn-outline btn-sm" id="btnAddSpecies">+ Add species</button>
+        </div>
+        <div style="margin-top:12px;">
+        <button class="btn" id="btnAddLocation">Add Location</button>
+        <button class="btn btn-outline hidden" id="btnUpdateLocation">Update</button>
+        <button class="btn btn-outline hidden" id="btnCancelEdit">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-outline" id="btnCoSettings" type="button" style="width:100%;margin:4px 0 14px;">Company settings ▾</button>
+    <div id="coSettingsWrap" class="hidden">
+    <div class="card" id="adminCard">
+      <h2>Admin devices</h2>
+      <div id="noPwBanner" class="api-key-banner hidden"><b>No company password: every device has full access.</b> Create one below (Company Sync → Save to Company asks for it). This device becomes an admin automatically.</div>
+      <div id="adminState" class="hint"></div>
+      <div id="adminMake" class="hidden" style="margin-top:8px;">
+        <div class="form-row">
+          <div class="form-group"><label for="admPw">Company password</label><input type="password" id="admPw" autocomplete="current-password"></div>
+          <div class="form-group"><label for="admName">Name for this device</label><input id="admName" placeholder="e.g. Owner's phone"></div>
+        </div>
+        <button class="btn" id="btnMakeAdmin">Make this device an admin</button>
+      </div>
+      <div id="adminList" style="margin-top:10px;"></div>
+      <div class="btn-pair" id="adminBtns" style="margin-top:8px;">
+        <button class="btn btn-outline btn-sm" id="btnStopAdmin">Stop being admin on this device</button>
+        <button class="btn btn-outline btn-sm" id="btnRemoveAllAdmins" style="color:var(--bad);border-color:var(--bad);">Remove admin from all devices</button>
+      </div>
+      <div id="adminMsg" class="hint" style="font-weight:700;"></div>
+    </div>
     <div class="card" id="appCard">
       <h2>Android app</h2>
       <div id="appInApp" class="hint hidden">You are using the app. To give a copy to someone, share the download link below.</div>
@@ -263,7 +329,8 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
     </div>
     <div class="card" id="syncCard">
       <h2>Company Sync</h2>
-      <div class="form-group" style="margin-bottom:12px;">
+      <div id="coLinkInfo" class="hint hidden" style="margin-bottom:12px;"></div>
+      <div class="form-group" id="syncUrlGroup" style="margin-bottom:12px;">
         <label for="setSyncUrl">Company Sync URL</label>
         <input type="url" id="setSyncUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
         <div class="hint">Enter this one link on a new device and tap <b>Sync to Company</b>. It loads pricing, locations, trucks, the Maps key and every sheet link.</div>
@@ -331,13 +398,13 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
         <button class="btn btn-sm" style="margin-left:8px;" id="btnSaveKey">Save Key</button>
         <div style="margin-top:6px; font-size:0.85rem; color:var(--warn-text);">Enable Places, Geocoding, Routes (and Distance Matrix) APIs.</div>
       </div>
-      <div class="form-group" style="margin-bottom:16px;">
+      <div class="form-group kf-linkfield" style="margin-bottom:16px;">
         <label for="setSheetsUrl">Load Log Sheet URL</label>
         <input type="text" id="setSheetsUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <div class="hint">The Trip Log sheet for loads and invoices. Usually the same link as the Company Sync URL.</div>
       </div>
-      <div class="hint" style="margin:-6px 0 16px;">The Tickets, Inventory and Drivers links are now in each page's own Settings. Company Sync still shares every link with every device.</div>
-      <div class="form-group" style="margin-bottom:20px;">
+      <div class="hint kf-linkfield" style="margin:-6px 0 16px;">The Tickets, Inventory and Drivers links are now in each page's own Settings. Company Sync still shares every link with every device.</div>
+      <div class="form-group kf-linkfield" style="margin-bottom:20px;">
         <label for="setTrucksUrl">Trucks Sheet URL</label>
         <input type="text" id="setTrucksUrl" placeholder="https://script.google.com/macros/s/.../exec">
         <div class="hint">For the upcoming Trucks page. Leave blank until it is set up.</div>
@@ -348,6 +415,8 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
           <div class="form-group"><label for="setCostFuelPrice">Fuel Cost - what we pay ($/L)</label><input type="number" id="setCostFuelPrice" step="0.01" placeholder="same as billed"></div>
           <div class="form-group"><label for="setFuelPrice">Billed Fuel Price - what the client pays ($/L)</label><input type="number" id="setFuelPrice" step="0.01" value="0.90"></div>
           <div class="form-group"><label for="setGst">GST Rate (%)</label><input type="number" id="setGst" step="0.1" value="5"></div>
+          <div class="form-group"><label for="setOffRoadFuel">Off-road diesel - what we pay ($/L)</label><input type="number" id="setOffRoadFuel" step="0.01" placeholder="for loaders / processors"></div>
+          <div class="form-group"><label for="setHomeBase">Home base (the yard where trucks park)</label><input type="text" id="setHomeBase" placeholder="address or 51.8, -114.5"></div>
         </div>
         <div>
           <div class="form-group"><label>Quote Message Options</label>
@@ -361,46 +430,20 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
           </div>
         </div>
       </div>
-      <h3 style="margin:20px 0 10px;">Truck Units</h3>
-      <div id="unitsList"></div>
-      <div class="unit-add-box" style="margin-top:12px; padding:12px; border-radius:8px;">
-        <div class="form-row">
-          <div class="form-group"><label for="unitName">Unit Name</label><input type="text" id="unitName" placeholder="Straight truck"></div>
-          <div class="form-group"><label for="unitHourly">Hourly cost ($/hr)</label><input type="number" id="unitHourly" value="185"></div>
-          <div class="form-group"><label for="unitMargin">Margin (%)</label><input type="number" id="unitMargin" step="0.1" value="0"></div>
-          <div class="form-group"><label for="unitBilled">Billed hourly (total)</label><input type="text" id="unitBilled" readonly tabindex="-1"></div>
-          <div class="form-group"><label for="unitFuel">Fuel (L/100)</label><input type="number" id="unitFuel" value="50"></div>
-          <div class="form-group"><label for="unitPlate">Plate #</label><input type="text" id="unitPlate" placeholder="ABC123"></div>
-          <div class="form-group"><label for="unitConfig">Config</label><input type="text" id="unitConfig" placeholder="6HB"></div>
-          <div class="form-group"><label for="unitTonnes">Tonnes</label><input type="number" id="unitTonnes" value="16"></div>
-          <div class="form-group"><label for="unitHours">Load/Unload (hrs)</label><input type="number" id="unitHours" step="0.5" value="1.5"></div>
+      <h3 style="margin:20px 0 6px;">Wages and costs (Statistics)</h3>
+      <div class="settings-grid">
+        <div>
+          <div class="form-group"><label for="setEmpCost">Employer cost on wages (%): CPP, EI, WCB, holiday pay</label><input type="number" id="setEmpCost" step="0.1" value="12"></div>
+          <div class="form-group"><label for="setOtHours">Overtime after (hours per week)</label><input type="number" id="setOtHours" step="1" value="50"></div>
+          <div class="form-group"><label for="setOtMult">Overtime pay (x hourly)</label><input type="number" id="setOtMult" step="0.1" value="1.5"></div>
+          <div class="form-group"><label for="setWeekStart">Pay week starts on</label><select id="setWeekStart"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></div>
         </div>
-        <button class="btn btn-sm" id="btnAddUnit">Add Unit</button>
+        <div><div class="form-group"><label for="setCategories">Expense categories (one per line)</label><textarea id="setCategories" rows="9"></textarea></div></div>
       </div>
       <button class="btn" id="btnSaveSettings" style="margin-top:16px;">Save Settings</button>
       <div class="hint" style="margin-top:8px;">Saves on this device. To share with other devices, use <b>Save to Company</b> at the top.</div>
     </div>
 
-    <div class="card">
-      <h2>Pickup Locations</h2>
-      <div id="locationsList"></div>
-      <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
-        <h3 style="margin:0 0 12px; font-size:1rem;">Add / Edit Location</h3>
-        <div class="form-row">
-          <div class="form-group"><label for="locName">Name</label><input type="text" id="locName" placeholder="Sundre"></div>
-          <div class="form-group" style="flex:2"><label for="locAddress">Address</label><input type="text" id="locAddress" placeholder="Sundre, AB or 51.8, -114.5"></div>
-        </div>
-        <div class="form-group">
-          <label>Species: cost per tonne, margin %, total (the total is what gets quoted)</label>
-          <div id="speciesInputs"></div>
-          <button type="button" class="btn btn-outline btn-sm" id="btnAddSpecies">+ Add species</button>
-        </div>
-        <div style="margin-top:12px;">
-        <button class="btn" id="btnAddLocation">Add Location</button>
-        <button class="btn btn-outline hidden" id="btnUpdateLocation">Update</button>
-        <button class="btn btn-outline hidden" id="btnCancelEdit">Cancel</button>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -423,6 +466,15 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
     <h3>Notes for this load</h3>
     <p style="color:var(--muted);font-size:14px;margin:0 0 10px;">Special instructions (gate codes, call ahead, stacking, etc.). Shown to dispatch when the load is opened. Optional.</p>
     <textarea id="bookNotes" rows="4" maxlength="1000" style="width:100%;" placeholder="e.g. Call 30 min before arrival. Gate code 1234."></textarea>
+    <div id="adjBox" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+      <div class="form-row">
+        <div class="form-group"><label for="bookAdj">Price adjustment ($, before GST)</label><input type="number" id="bookAdj" step="0.01" inputmode="decimal" placeholder="+ upcharge or - deal"></div>
+        <div class="form-group"><label for="bookAdjWhy">Reason</label><select id="bookAdjWhy"><option value="">-</option><option>Upcharge</option><option>Deal</option><option>Other</option></select></div>
+      </div>
+      <input type="text" id="bookAdjNote" maxlength="150" placeholder="Short reason (office only, never on the invoice)" style="width:100%;">
+      <div id="adjPreview" style="margin-top:8px;font-weight:700;"></div>
+    </div>
+    <div id="lowStockNote" class="hidden" style="margin-top:10px;padding:8px 10px;border-radius:8px;border:1px solid #f59e0b;"></div>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
       <button class="btn btn-outline" id="btnNotesCancel">Cancel</button>
       <button class="btn" id="btnNotesOk">Book Load</button>
@@ -453,8 +505,7 @@ const defaultSettings = {
   units: [],
   quoteShow: { cords: true, tonnes: true, perCord: false, perTonne: false, total: true },
   locations: [],
-  yards: [],
-  yardPassword: 'knight'
+  yards: []
 };
 
 const $ = id => document.getElementById(id);
@@ -494,6 +545,9 @@ function markDirty() { try { localStorage.setItem(DIRTY_KEY, '1'); } catch (e) {
 function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch (e) {} }
 
 /* ---------- truck units ---------- */
+const MONEY_DEFAULTS = { employerCostPct: 12, otWeeklyHours: 50, otMultiplier: 1.5, weekStartsOn: 0,
+  categories: ['Fuel', 'Repairs - parts', 'Repairs - shop', 'Wages - drivers', 'Wages - mechanic', 'Wood purchases', 'Insurance', 'Truck/equipment payments', 'Licences & permits', 'Tires', 'Office & phone', 'Yard costs', 'Other'] };
+function moneySettings() { return Object.assign({}, MONEY_DEFAULTS, settings.money || {}); }
 function renderUnits() {
   const list = $('unitsList');
   if (!list) return;
@@ -502,16 +556,24 @@ function renderUnits() {
     const m = cost > 0 ? Math.round((billed / cost - 1) * 1000) / 10 : 0;
     return `
     <div class="unit-row">
-      <span><strong>${esc(u.name)}</strong> — $${r2(billed)}/hr billed${m ? ` (cost $${r2(cost)} + ${m}%)` : ''} · ${esc(u.fuel)} L/100 · ${esc(u.tonnes)}t · ${esc(u.plate || '')} · ${esc(u.config || '')}</span>
-      <button class="btn btn-outline btn-sm" data-del-unit="${esc(u.id)}">Remove</button>
+      <span><strong>${esc(u.name)}</strong> — $${r2(billed)}/hr billed${m ? ` (cost $${r2(cost)} + ${m}%)` : ''} · ${esc(u.fuel)} L/100 · ${esc(u.tonnes)}t · ${esc(u.plate || '')} · ${esc(u.config || '')}${u.haulsSplit ? ` · hauls split ${esc(u.splitCords || '?')} cords` : ''}${(u.aliases || []).length ? `<br><span class="small">was: ${esc(u.aliases.join(', '))}</span>` : ''}</span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+        <button class="btn btn-outline btn-sm" data-edit-unit="${esc(u.id)}">Edit</button>
+        <button class="btn btn-outline btn-sm" data-real-cost="${esc(u.id)}">Use real costs</button>
+        <button class="btn btn-outline btn-sm" data-del-unit="${esc(u.id)}">Remove</button>
+      </span>
     </div>`;
   }).join('') || '<p style="color:var(--muted);">No units yet. Add one below.</p>';
 }
 $('unitsList').addEventListener('click', e => {
-  const b = e.target.closest('[data-del-unit]');
+  const b = e.target.closest('[data-del-unit]'), ed = e.target.closest('[data-edit-unit]'), rc = e.target.closest('[data-real-cost]');
   if (b) deleteUnit(b.dataset.delUnit);
+  if (ed) editUnit(ed.dataset.editUnit);
+  if (rc && window.kfUseRealCosts) kfUseRealCosts(rc.dataset.realCost);
 });
 function deleteUnit(id) {
+  const u = (settings.units || []).find(x => String(x.id) === String(id));
+  if (!u || !confirm(`Remove the unit "${u.name}"?\n\nLoads already booked with it keep their name, but their invoices will no longer find its hourly and fuel rates.`)) return;
   settings.units = settings.units.filter(u => String(u.id) !== String(id));
   saveSettings(); markDirty();
   renderUnits();
@@ -520,26 +582,60 @@ function updateUnitBilled() { $('unitBilled').value = '$' + withMargin($('unitHo
 $('unitHourly').addEventListener('input', updateUnitBilled);
 $('unitMargin').addEventListener('input', updateUnitBilled);
 updateUnitBilled();
-$('btnAddUnit').onclick = () => {
-  const name = $('unitName').value.trim();
-  if (!name) return alert('Enter a unit name.');
+let editingUnitId = null;
+function unitFormValues() {
   const cost = +$('unitHourly').value || 0, margin = +$('unitMargin').value || 0;
+  return {
+    name: $('unitName').value.trim(), costHourly: cost, marginPct: margin, hourly: withMargin(cost, margin),
+    fuel: +$('unitFuel').value || 0, tonnes: +$('unitTonnes').value || 0, hours: +$('unitHours').value || 0,
+    plate: $('unitPlate').value || '', config: $('unitConfig').value || '',
+    haulsSplit: $('unitHaulsSplit').value === 'yes', splitCords: $('unitHaulsSplit').value === 'yes' ? (+$('unitSplitCords').value || 0) : 0,
+    homeBase: $('unitHomeBase').value.trim()
+  };
+}
+function clearUnitForm() {
+  editingUnitId = null; $('unitName').value = ''; $('unitHaulsSplit').value = 'no'; $('unitSplitCords').value = ''; $('unitHomeBase').value = '';
+  $('btnAddUnit').textContent = 'Add Unit'; $('btnCancelUnit').classList.add('hidden'); $('unitEditNote').classList.add('hidden');
+}
+function editUnit(id) {
+  const u = (settings.units || []).find(x => String(x.id) === String(id)); if (!u) return;
+  editingUnitId = u.id;
+  $('unitName').value = u.name || ''; $('unitHourly').value = unitCostHourly(u); $('unitMargin').value = u.marginPct != null ? u.marginPct : 0;
+  $('unitFuel').value = u.fuel || 0; $('unitPlate').value = u.plate || ''; $('unitConfig').value = u.config || '';
+  $('unitTonnes').value = u.tonnes || 0; $('unitHours').value = u.hours || 0;
+  $('unitHaulsSplit').value = u.haulsSplit ? 'yes' : 'no'; $('unitSplitCords').value = u.splitCords || ''; $('unitHomeBase').value = u.homeBase || '';
+  updateUnitBilled();
+  $('btnAddUnit').textContent = 'Update unit'; $('btnCancelUnit').classList.remove('hidden');
+  $('unitEditNote').textContent = 'Editing ' + u.name + '. Changing a rate changes invoices not made yet for loads already booked with this unit (that is how it works today).';
+  $('unitEditNote').classList.remove('hidden');
+  $('unitName').scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+$('btnCancelUnit').onclick = clearUnitForm;
+// How many booked loads use this unit name (needs signal; null = unknown)
+async function loadsUsingName(name) {
+  try { const u = settings.sheetsUrl; if (!u) return null; const j = await (await fetch(u + (u.includes('?') ? '&' : '?') + 't=' + Date.now())).json(); return (j.rows || []).filter(r => String(r.truck) === String(name)).length; } catch (e) { return null; }
+}
+$('btnAddUnit').onclick = async () => {
+  const v = unitFormValues();
+  if (!v.name) return alert('Enter a unit name.');
   settings.units = settings.units || [];
-  settings.units.push({
-    id: Date.now(),
-    name,
-    costHourly: cost,
-    marginPct: margin,
-    hourly: withMargin(cost, margin),
-    fuel: +$('unitFuel').value || 0,
-    tonnes: +$('unitTonnes').value || 0,
-    hours: +$('unitHours').value || 0,
-    plate: $('unitPlate').value || '',
-    config: $('unitConfig').value || ''
-  });
+  if (editingUnitId != null) {
+    const u = settings.units.find(x => String(x.id) === String(editingUnitId)); if (!u) return clearUnitForm();
+    if (v.name !== u.name) {
+      if (settings.units.some(x => x !== u && x.name === v.name)) return alert('Another unit already has that name.');
+      const n = await loadsUsingName(u.name);
+      if (!confirm(`Rename "${u.name}" to "${v.name}"?\n\n${n == null ? 'Loads' : n + ' load(s)'} booked with the old name keep it. The old name is remembered on this unit, so their invoices still find its rates.`)) return;
+      u.aliases = [...new Set([...(u.aliases || []), u.name])].filter(a => a !== v.name);
+    }
+    const rateChanged = +u.hourly !== +v.hourly || +u.fuel !== +v.fuel;
+    if (rateChanged && !confirm('The billed rate or fuel use changed. Invoices not made yet for loads already booked with this unit will use the new numbers. Save?')) return;
+    Object.assign(u, v); if (!Array.isArray(u.aliases)) u.aliases = [];       // same unit id
+  } else {
+    settings.units.push(Object.assign({ id: Date.now(), aliases: [] }, v));
+  }
   saveSettings(); markDirty();
   renderUnits();
-  $('unitName').value = '';
+  clearUnitForm();
 };
 
 function parseCoords(str) {
@@ -599,12 +695,68 @@ window.kfBack = function () {
   if (!$('view-settings').classList.contains('hidden')) { showView('quote'); return true; }
   return false;
 };
+/* ---------- v14: Company settings fold (remembered on this device), admin devices, no link fields ---------- */
+function setCoOpen(open) {
+  $('coSettingsWrap').classList.toggle('hidden', !open);
+  $('btnCoSettings').textContent = 'Company settings ' + (open ? '▴' : '▾');
+  try { localStorage.setItem('kfSettingsOpen', open ? '1' : '0'); } catch (e) {}
+}
+$('btnCoSettings').onclick = () => setCoOpen($('coSettingsWrap').classList.contains('hidden'));
+setCoOpen(localStorage.getItem('kfSettingsOpen') === '1');
+const hasConfig = () => !!(window.kfConfigUrl && kfConfigUrl());
+function applyLinkVisibility() {
+  const cfg = hasConfig();
+  document.querySelectorAll('.kf-linkfield').forEach(el => el.classList.toggle('hidden', cfg || kfCo.unified()));
+  $('syncUrlGroup').classList.toggle('hidden', cfg || kfCo.unified());
+  const info = $('coLinkInfo');
+  if (cfg || kfCo.unified()) {
+    const name = (companyMeta && companyMeta.companyName) || localStorage.getItem('kfCompanyName') || settings.companyName || '';
+    info.innerHTML = `Company: <b>${esc(name || '(not named yet)')}</b><br><span style="word-break:break-all;font-size:.8rem;">${esc(kfCo.base() || kfConfigUrl())}</span>`;
+    info.classList.remove('hidden');
+  } else info.classList.add('hidden');
+  if (cfg) $('btnSwitchCo').classList.add('hidden');
+}
+async function renderAdminCard() {
+  if (!$('adminCard')) return;
+  const isTok = !!(window.kfAdminToken && kfAdminToken()), v14 = (window.kfServerV ? kfServerV() : 0) >= 14 || (companyMeta && companyMeta.v >= 14);
+  const noPw = !!(companyMeta && companyMeta.hasPassword === false);
+  $('adminCard').classList.toggle('hidden', !kfCo.unified() && !hasConfig());
+  $('noPwBanner').classList.toggle('hidden', !noPw);
+  $('adminMake').classList.toggle('hidden', isTok || noPw || !v14);
+  $('adminBtns').classList.toggle('hidden', !isTok);
+  $('adminState').textContent = !v14 ? 'Admin devices need the updated company script.' : noPw ? '' : isTok ? `This device is an admin (${localStorage.getItem('kfDeviceName') || 'this device'}). Password boxes are hidden and everything is unlocked.` : 'This device is not an admin. Enter the company password once to make it one.';
+  $('pwEnterBox').classList.toggle('hidden', isTok || (companyMeta && !companyMeta.hasPassword));
+  const box = $('adminList'); box.innerHTML = '';
+  if (!isTok || !v14 || navigator.onLine === false) return;
+  try {
+    const r = await kfCo.post('sync', { action: 'listAdmins' });
+    if (r.status !== 'ok') return;
+    box.innerHTML = (r.devices || []).map(d => `<div class="unit-row"><span><b>${esc(d.name)}</b>${d.me ? ' (this device)' : ''}<br><span class="small">added ${new Date(d.at).toLocaleDateString()} · last seen ${new Date(d.seen).toLocaleString()}</span></span>${d.me ? '' : `<button class="btn btn-outline btn-sm" data-rm-admin="${esc(d.id)}">Remove</button>`}</div>`).join('') || '<div class="hint">No admin devices.</div>';
+  } catch (e) {}
+}
+$('adminList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-rm-admin]'); if (!b) return;
+  if (!confirm('Remove admin from that device? It will have to enter the company password again.')) return;
+  const r = await kfCo.post('sync', { action: 'removeAdmin', id: b.dataset.rmAdmin }); $('adminMsg').textContent = r.status === 'ok' ? 'Removed.' : (r.message || 'Could not remove.'); renderAdminCard();
+});
+$('btnMakeAdmin').onclick = async () => {
+  const pw = $('admPw').value, nm = $('admName').value.trim();
+  if (!pw || !nm) { $('adminMsg').textContent = 'Enter the company password and a name for this device.'; return; }
+  $('adminMsg').textContent = 'Checking…';
+  try { const r = await kfMakeAdmin(pw, nm); if (r.ok) { $('admPw').value = ''; location.reload(); } else $('adminMsg').textContent = r.msg || 'Could not make this device an admin.'; } catch (e) { $('adminMsg').textContent = 'No signal.'; }
+};
+$('btnStopAdmin').onclick = () => kfStopAdmin();
+$('btnRemoveAllAdmins').onclick = async () => {
+  if (!confirm('Remove admin from ALL devices, including this one? Every office device will have to enter the company password again.')) return;
+  const r = await kfCo.post('sync', { action: 'removeAllAdmins' });
+  if (r.status === 'ok') { localStorage.removeItem('kfAdminToken'); location.reload(); } else $('adminMsg').textContent = r.message || 'Could not remove.';
+};
 function showView(name) {
   $('view-quote').classList.toggle('hidden', name !== 'quote');
   $('view-settings').classList.toggle('hidden', name !== 'settings');
   $('nav-quote').classList.toggle('active', name === 'quote');
   $('nav-settings').classList.toggle('active', name === 'settings');
-  if (name === 'settings') { renderSettings(); refreshMeta(); }
+  if (name === 'settings') { renderSettings(); refreshMeta(); applyLinkVisibility(); }
 }
 
 function renderLocations() {
@@ -645,6 +797,11 @@ function renderSettings() {
   $('setFuelPrice').value = settings.fuelPrice;
   $('setCostFuelPrice').value = (settings.costFuelPrice === undefined || settings.costFuelPrice === null) ? '' : settings.costFuelPrice;
   $('setGst').value = settings.gst;
+  $('setOffRoadFuel').value = settings.offRoadFuelPrice != null ? settings.offRoadFuelPrice : '';
+  $('setHomeBase').value = settings.homeBase || '';
+  const mo = moneySettings();
+  $('setEmpCost').value = mo.employerCostPct; $('setOtHours').value = mo.otWeeklyHours; $('setOtMult').value = mo.otMultiplier;
+  $('setWeekStart').value = String(mo.weekStartsOn); $('setCategories').value = (mo.categories || []).join('\n');
   const qs = settings.quoteShow || {};
   $('qCords').checked = qs.cords !== false;
   $('qTonnes').checked = qs.tonnes !== false;
@@ -654,6 +811,7 @@ function renderSettings() {
   renderUnits();
   renderLocations();
   updateSyncUi();
+  renderAdminCard();
 }
 
 $('btnSaveKey').onclick = () => {
@@ -685,6 +843,12 @@ $('btnSaveSettings').onclick = () => {
   settings.fuelPrice = numOr($('setFuelPrice').value, settings.fuelPrice);
   if ($('setCostFuelPrice').value === '') delete settings.costFuelPrice; else settings.costFuelPrice = +$('setCostFuelPrice').value;
   settings.gst = numOr($('setGst').value, settings.gst);
+  if ($('setOffRoadFuel').value === '') delete settings.offRoadFuelPrice; else settings.offRoadFuelPrice = +$('setOffRoadFuel').value;
+  settings.homeBase = $('setHomeBase').value.trim();
+  settings.money = {
+    employerCostPct: numOr($('setEmpCost').value, 12), otWeeklyHours: numOr($('setOtHours').value, 50), otMultiplier: numOr($('setOtMult').value, 1.5),
+    weekStartsOn: +$('setWeekStart').value || 0, categories: $('setCategories').value.split('\n').map(x => x.trim()).filter(Boolean)
+  };
   settings.quoteShow = {
     cords: $('qCords').checked, tonnes: $('qTonnes').checked,
     perCord: $('qPerCord').checked, perTonne: $('qPerTonne').checked, total: $('qTotal').checked
@@ -1094,7 +1258,7 @@ function blockHtml(i) {
         km: +km.toFixed(1), duration: o.durText || '',
         driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2),
         fuelLitres: +lt.fuelLitres.toFixed(1),
-        hourly: truck.hourly,
+        hourly: truck.hourly, unitId: truck.key, costHourly: truck.costHourly, fuelL100: truck.fuel, loadHrs: truck.hours, product: 'Logs',
         fuelCost: +parts.fuelBilled.toFixed(2),
         cost: {
           productCost: truck.tonnes * spCostTonne(sp), productBilled: woodCost,
@@ -1307,7 +1471,7 @@ function calcMixed(box) {
     tonnes: r2(totalTonnes), cords: +cordEq.toFixed(1), total, truckCost, woodCost: woodBilled,
     km: +km.toFixed(1), duration: o.durText || '',
     driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2), fuelLitres: +lt.fuelLitres.toFixed(1),
-    hourly: unit.hourly, fuelCost: +parts.fuelBilled.toFixed(2),
+    hourly: unit.hourly, unitId: unit.id, costHourly: unitCostHourly(unit), fuelL100: unit.fuel, loadHrs: unit.hours, product: 'Logs', fuelCost: +parts.fuelBilled.toFixed(2),
     cost: {
       productCost: woodCost, productBilled: woodBilled,
       truckCost: parts.truckCost, truckBilled: parts.truckBilled,
@@ -1375,18 +1539,55 @@ $('btnViewQuote').onclick = () => {
 };
 $('btnCloseCost').onclick = () => $('costModal').classList.remove('show');
 
-function askBookingNotes() {
+/* ---------- price adjustment (v14) ----------
+   The adjustment is folded into the trucking line by changing the billed hours: billed hours = quoted hours + adj / billed hourly
+   (2 decimals), so hours x rate multiplies out exactly. The adjusted total uses those rounded hours (a cent or two of rounding
+   is absorbed into the total, never shown as its own line). The reason is internal only. */
+function adjFor(r, adj) {
+  const gst = (+settings.gst || 0) / 100, hrs = +r.totalHours || 0, rate = +r.hourly || 0;
+  adj = +adj || 0;
+  if (!adj) return { adj: 0, billedHours: '', total: r.total, quoted: r.total, fold: true };
+  if (!(rate > 0)) return { adj, billedHours: '', total: r2(r.total + adj * (1 + gst)), quoted: r.total, fold: false };
+  const bh = r2(hrs + adj / rate), deltaSub = r2((bh - hrs) * rate);
+  return { adj, billedHours: bh, total: r2(r.total + deltaSub * (1 + gst)), quoted: r.total, fold: true, negative: bh < 0 };
+}
+let bookingAdj = { adj: 0, reason: '' };
+function askBookingNotes(selected) {
   return new Promise(resolve => {
     const m = $('notesModal'), ta = $('bookNotes');
-    const done = v => { m.classList.remove('show'); $('btnNotesOk').onclick = $('btnNotesCancel').onclick = null; resolve(v); };
+    const preview = () => {
+      const adj = +$('bookAdj').value || 0;
+      $('adjPreview').innerHTML = (selected || []).map(r => {
+        const a = adjFor(r, adj);
+        return `<div>${esc(r.truck)} · ${esc(r.species)}: quoted $${(+r.total).toFixed(2)}${adj ? ` → <span style="color:${adj < 0 ? 'var(--bad)' : 'var(--good)'}">adjusted $${a.total.toFixed(2)}</span> incl. GST${a.billedHours !== '' ? ` <span class="small">(${a.billedHours} h billed)</span>` : ''}` : ' incl. GST'}${a.negative ? '<br><span style="color:var(--bad)">The deal is bigger than the trucking: billed hours would be below 0.</span>' : ''}${adj && !a.fold ? '<br><span class="small">This truck has no billed hourly rate, so the adjustment cannot be folded into trucking hours.</span>' : ''}</div>`;
+      }).join('');
+    };
+    const done = v => {
+      if (v !== null) {
+        const adj = +$('bookAdj').value || 0, why = [$('bookAdjWhy').value, $('bookAdjNote').value.trim()].filter(Boolean).join(': ');
+        if (adj && (selected || []).some(r => adjFor(r, adj).negative) && !confirm('The adjustment is bigger than the trucking amount (billed hours would go below 0). Book anyway?')) return;
+        if (adj && !why && !confirm('No reason entered for the price adjustment. Book anyway?')) return;
+        bookingAdj = { adj, reason: why };
+      }
+      m.classList.remove('show'); $('btnNotesOk').onclick = $('btnNotesCancel').onclick = null; $('bookAdj').oninput = null; resolve(v);
+    };
     $('btnNotesOk').onclick = () => done(ta.value.trim());
     $('btnNotesCancel').onclick = () => done(null);
-    ta.value = '';
+    ta.value = ''; $('bookAdj').value = ''; $('bookAdjWhy').value = ''; $('bookAdjNote').value = '';
+    $('bookAdj').oninput = preview; preview();
+    if (window.kfLowStockNote) kfLowStockNote(selected); else $('lowStockNote').classList.add('hidden');
     m.classList.add('show');
     setTimeout(() => { try { ta.focus(); } catch (e) {} }, 50);
   });
 }
-let bookingBusy = false, lastBookedSig = '';
+let bookingBusy = false, lastBookedSig = '', pendingBooking = null;   // pendingBooking: {sig, id} while a booking's result is unknown
+function newBookingId() { return 'B' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function bookingData(r) {
+  const c = r.cost || {}, estCost = (c.productCost || 0) + (c.truckCost || 0) + (c.fuelCost || 0), estBilled = (c.productBilled || 0) + (c.truckBilled || 0) + (c.fuelBilled || 0);
+  return { v: 14, costHourly: r2(r.costHourly), hourly: r2(r.hourly), fuelL100: r.fuelL100, fuelPrice: +settings.fuelPrice || 0, costFuelPrice: costFuel(), gst: +settings.gst || 0,
+    loadHrs: r.loadHrs, spCostTonne: r.tonnes ? r2((c.productCost || 0) / r.tonnes) : 0, ppt: r.tonnes ? r2((c.productBilled || 0) / r.tonnes) : 0,
+    estCost: r2(estCost), estBilled: r2(estBilled), estProfit: r2(estBilled - estCost), speed: +settings.speed || 0, unitId: r.unitId };
+}
 $('btnBookLoad').onclick = async () => {
   if (bookingBusy || $('notesModal').classList.contains('show')) return;
   const name = ($('customerName') || {}).value || '';
@@ -1401,19 +1602,29 @@ $('btnBookLoad').onclick = async () => {
   const selected = lastCalcResults.filter(r => selectedOptions.has(r.id));
   const sig = JSON.stringify([name.trim(), address.trim(), selected.map(r => r.id).sort()]);
   if (sig === lastBookedSig && !confirm('This exact selection was already booked from this screen. Book it again?')) return;
-  const notes = await askBookingNotes();
+  const notes = await askBookingNotes(selected);
   if (notes === null) return;   // cancelled: nothing is booked
+  if (window.kfConfirmStock && !(await kfConfirmStock(selected))) return;
+  // the same booking sent again (no answer last time) keeps its id, so the sheet never gets it twice
+  const bookingId = pendingBooking && pendingBooking.sig === sig ? pendingBooking.id : newBookingId();
+  pendingBooking = { sig, id: bookingId };
+  const legsFor = r => (window.kfLegs && kfLegs[r.locId + '|' + r.unitId]) || null;
   const payload = {
-    notes: notes,
+    notes: notes, bookingId,
     timestamp: new Date().toISOString(),
     customerName: name, phone: phone, address: address,
-    options: selected.map(r => ({
-      location: r.location, species: r.species, truck: r.truck,
-      tonnes: r.tonnes, cords: r.cords, total: r.total, km: r.km,
-      duration: r.duration, driveHours: r.driveHours, totalHours: r.totalHours, fuelLitres: r.fuelLitres,
-      pricePerTonne: r.woodCost && r.tonnes ? +(r.woodCost / r.tonnes).toFixed(2) : 0,
-      hourly: r.hourly || 0, fuelCost: r.fuelCost || 0
-    }))
+    options: selected.map(r => {
+      const a = adjFor(r, bookingAdj.adj);
+      return {
+        location: r.location, species: r.species, truck: r.truck,
+        tonnes: r.tonnes, cords: r.cords, total: a.total, km: r.km,
+        duration: r.duration, driveHours: r.driveHours, totalHours: r.totalHours, fuelLitres: r.fuelLitres,
+        pricePerTonne: r.woodCost && r.tonnes ? +(r.woodCost / r.tonnes).toFixed(2) : 0,
+        hourly: r.hourly || 0, fuelCost: r.fuelCost || 0,
+        quotedTotal: r2(r.total), priceAdj: a.adj || '', adjReason: a.adj ? bookingAdj.reason : '', billedHours: a.billedHours,
+        product: r.product || 'Logs', bookingData: bookingData(r), legs: legsFor(r)
+      };
+    })
   };
   const btn = $('btnBookLoad'), label = btn.textContent;
   bookingBusy = true; btn.disabled = true; btn.textContent = 'Booking…';
@@ -1425,8 +1636,10 @@ $('btnBookLoad').onclick = async () => {
     let data = null;
     try { data = await res.json(); } catch (e) {}
     lastBookedSig = sig;
+    if (data && data.status === 'ok') pendingBooking = null;
+    if (data && data.status === 'ok' && data.duplicate) { alert('This booking had already reached the sheet. It was not added again.'); return; }
     if (data && data.status === 'ok') alert('Quote saved to Google Sheet.' + (notes && !data.notesSaved ? '\n\nWARNING: your notes were NOT saved. The booking script has not been updated for notes yet.' : ''));
-    else if (data && data.status === 'error') { lastBookedSig = ''; alert('The sheet reported an error: ' + (data.message || 'unknown')); }
+    else if (data && data.status === 'error') { lastBookedSig = ''; pendingBooking = null; alert('The sheet reported an error: ' + (data.message || 'unknown')); }
     else alert('Sent, but no confirmation came back. Check Dispatch before booking again.');
   } catch (e) {
     lastBookedSig = sig;
@@ -1461,8 +1674,10 @@ async function companyGet(url) {
   return res.json();
 }
 async function companyPost(url, payload) {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' });
-  return res.json();
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(window.kfAuth ? kfAuth(payload) : payload), redirect: 'follow' });
+  const j = await res.json();
+  if (j && j.status === 'noadmin' && window.kfLostAdmin) kfLostAdmin();
+  return j;
 }
 function readSyncUrlField() {
   if (kfCo.unified()) return (settings.syncUrl || '').trim();
@@ -1491,11 +1706,12 @@ async function refreshMeta() {
   try {
     const data = await companyGet(url);
     companyMeta = data._meta || null;
+    if (companyMeta) { localStorage.setItem('kfServerV', String(companyMeta.v || 0)); if (companyMeta.hasPassword === false) localStorage.setItem('kfNoPassword', '1'); else localStorage.removeItem('kfNoPassword'); }
     if (kfCo.unified() && data.status === 'nokey') { setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); lostKey(); return; }
     if (!companyMeta) setStatus('The company script is the old version: password protection is OFF. Update it with quote-apps-script-v3.gs.', 'warn');
     else if (!$('syncStatus').textContent || $('syncStatus').classList.contains('warn')) setStatus(`Linked. Company revision ${companyMeta.rev}${companyMeta.hasPassword ? '' : '. No password yet: you will create one on first save.'}`, 'ok');
   } catch (e) { /* offline: leave UI as is */ }
-  updateSyncUi();
+  updateSyncUi(); applyLinkVisibility(); renderAdminCard();
 }
 
 // Adopt a URL from the company copy unless this device edited it more recently.
@@ -1520,6 +1736,10 @@ function applyCompanyData(data, force) {
   if (data.quoteShow && typeof data.quoteShow === 'object') settings.quoteShow = data.quoteShow;
   if (data.dispatch && typeof data.dispatch === 'object') settings.dispatch = data.dispatch;
   if (data.apiKey && data.apiKey !== settings.apiKey) { settings.apiKey = data.apiKey; keyChanged = true; }
+  if (data.money && typeof data.money === 'object') settings.money = data.money;                 // v14
+  if (data.homeBase != null) settings.homeBase = data.homeBase;
+  if (data.offRoadFuelPrice != null && data.offRoadFuelPrice !== '') settings.offRoadFuelPrice = +data.offRoadFuelPrice; else delete settings.offRoadFuelPrice;
+  delete settings.yardPassword;
   if (kfCo.unified()) { saveSettings(); return { keyChanged }; }     // one company link: page links are fixed, not synced
   adoptUrl(data.sheetsUrl, data.sheetsUrlAt, force, () => settings.sheetsUrl, () => settings.sheetsUrlAt,
     (v, at) => { settings.sheetsUrl = v; settings.sheetsUrlAt = at; });
@@ -1592,6 +1812,8 @@ function companyPayload() {
     sheetsUrl: settings.sheetsUrl || '', sheetsUrlAt: settings.sheetsUrlAt || 0
   };
   if (settings.costFuelPrice !== undefined && settings.costFuelPrice !== null && settings.costFuelPrice !== '') o.costFuelPrice = settings.costFuelPrice;
+  o.money = moneySettings(); o.homeBase = settings.homeBase || '';                       // v14
+  if (settings.offRoadFuelPrice != null && settings.offRoadFuelPrice !== '') o.offRoadFuelPrice = settings.offRoadFuelPrice;
   return o;
 }
 const SAVE_MSG = {
@@ -1624,10 +1846,12 @@ async function saveToCompany() {
       const p1 = $('pwNew').value, p2 = $('pwNew2').value;
       if (p1.length < 4) return setStatus('Create a company password (at least 4 characters) and confirm it, then tap Save to Company.', 'bad');
       if (p1 !== p2) return setStatus('The two passwords do not match.', 'bad');
-      const r = await companyPost(url, { action: 'setPassword', newPassword: p1 });
+      const r = await companyPost(url, { action: 'setPassword', newPassword: p1, deviceName: localStorage.getItem('kfDeviceName') || 'Device that created the password' });
       if (r.status !== 'ok') return setStatus(SAVE_MSG[r.status] || r.message || 'Could not create the password.', 'bad');
       password = p1; companyMeta.hasPassword = true;
-    } else {
+      if (r.adminToken) { localStorage.setItem('kfAdminToken', r.adminToken); localStorage.removeItem('kfNoPassword'); }   // creating it makes THIS device an admin
+      if (r.key && kfCo.unified()) kfCo.apply(kfCo.base(), r.key, r.meta);
+    } else if (!(window.kfAdminToken && kfAdminToken())) {
       password = $('pwCurrent').value;
       if (!password) return setStatus('Enter the company password, then tap Save to Company.', 'bad');
     }
@@ -1673,8 +1897,9 @@ $('btnChangePw').onclick = async () => {
   if (n1.length < 4) return setStatus('The new password needs at least 4 characters.', 'bad');
   if (n1 !== n2) return setStatus('The new passwords do not match.', 'bad');
   try {
-    const r = await companyPost(url, { action: 'setPassword', password: oldP, newPassword: n1 });
+    const r = await companyPost(url, { action: 'setPassword', password: oldP, newPassword: n1, deviceName: localStorage.getItem('kfDeviceName') || 'Device that changed the password' });
     if (r.status === 'ok') {
+      if (r.adminToken) localStorage.setItem('kfAdminToken', r.adminToken); else localStorage.removeItem('kfAdminToken');
       $('pwOld').value = $('pwNew3').value = $('pwNew3b').value = '';
       if (kfCo.unified() && r.key) { kfCo.apply(kfCo.base(), r.key, r.meta); settings = loadSettings(); setStatus('Company password changed. Other devices must connect again with the new password.', 'ok'); }
       else setStatus('Company password changed. Everyone uses the new one from now on.', 'ok');
@@ -1750,9 +1975,10 @@ $('btnSetup').onclick = async () => {
   try {
     let logo = '';
     if ($('suLogo').files[0]) { try { logo = await kfShrinkImage($('suLogo').files[0], 256); } catch (e) {} }
-    const r = await companyPost(base + '?svc=sync', { action: 'setPassword', newPassword: p1 });
+    const r = await companyPost(base + '?svc=sync', { action: 'setPassword', newPassword: p1, deviceName: 'Device that set up the company' });
     if (r.status !== 'ok' || !r.key) return say(r.message || 'Could not create the company.', true);
     kfCo.apply(base, r.key, r.meta); settings = loadSettings(); settings.companyName = name;
+    if (r.adminToken) localStorage.setItem('kfAdminToken', r.adminToken);
     const profile = { name, phone: $('suPhone').value.trim(), email: $('suEmail').value.trim(), addr: $('suAddr').value.trim(), logo };
     await companyPost(settings.syncUrl, { action: 'saveProfile', password: p1, profile });
     localStorage.setItem('kfCompany', JSON.stringify(profile));
@@ -1812,7 +2038,9 @@ $('btnMove').onclick = async () => {
   finally { b.disabled = false; }
 };
 
-if (!settings.syncUrl && localStorage.getItem('coLoggedIn') !== '1' && !localStorage.getItem('kfSkipConnect')) {
+if (location.hash === '#setup' && hasConfig()) {            // nav.js sign-in found a company with no password yet: set it up here
+  $('coUrl').value = kfConfigUrl(); showConnect(); setTimeout(() => $('btnConnect').click(), 50);
+} else if (!hasConfig() && !settings.syncUrl && localStorage.getItem('coLoggedIn') !== '1' && !localStorage.getItem('kfSkipConnect')) {
   showConnect();
 } else if (settings.syncUrl) {
   setTimeout(() => pullCompany(false), 500);

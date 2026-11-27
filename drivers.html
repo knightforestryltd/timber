@@ -173,6 +173,8 @@ let shift = LS.get('kfDrvShift', null);         // the active shift (local first
 let lastPos = LS.get('kfDrvLastPos', null);     // {lat, lon, at, kph, acc}
 let online = true, dirty = false, tab = 'drivers', serverV = LS.get('kfDrvServerV', 0);
 
+// v14: a phone keeps a signed session token, never the passcode. Old sessions ({name, passcode}) still work until the next login with signal.
+function sAuth() { return session && session.token ? { token: session.token, name: session.name } : { name: session ? session.name : '', passcode: session ? session.passcode : '' }; }
 function syncedDriversUrl() { try { return localStorage.getItem('driversUrl') || ''; } catch (e) { return ''; } }
 function saveShiftLocal() { if (shift) LS.set('kfDrvShift', shift); else LS.del('kfDrvShift'); }
 
@@ -294,7 +296,7 @@ async function placeFor(lat, lon) {
   const remember = o => { const keys = Object.keys(cache); if (keys.length > 400) keys.slice(0, 100).forEach(k => delete cache[k]); cache[ck] = o; LS.set('kfDrvPlaces', cache); };
   if (navigator.onLine !== false) {
     // 1) the Drivers script asks Google Maps (no API key needed, works from any phone)
-    const auth = session ? { name: session.name, passcode: session.passcode } : adminPw() ? { password: adminPw() } : null;
+    const auth = session ? sAuth() : (window.kfAdminToken && kfAdminToken()) ? { adminToken: kfAdminToken() } : adminPw() ? { password: adminPw() } : null;
     if (auth && URL_) {
       const r = await api(Object.assign({ action: 'place', lat, lon }, auth), 7000);
       if (r && r.status === 'ok' && r.name) { remember({ name: r.name, lat: r.lat, lon: r.lon, prov: r.prov || '', source: 'Google (Drivers script)' }); placeInfo = { source: 'Google (Drivers script)', error: '' }; return describe(lat, lon, r.name, r.lat, r.lon, r.prov); }
@@ -525,7 +527,7 @@ async function getHistory(force) {
   const cached = LS.get('kfDrvHist', null), me = session && session.name;
   let list = cached && cached.name === me ? cached.shifts : [];
   if ((force || !cached || Date.now() - cached.at > 10 * 60000) && session) {
-    const r = await api({ action: 'driverHistory', name: session.name, passcode: session.passcode, days: 16 });
+    const r = await api(Object.assign({ action: 'driverHistory', days: 16 }, sAuth()));
     if (r.status === 'ok' && Array.isArray(r.shifts)) { list = r.shifts.map(normalize); LS.set('kfDrvHist', { at: Date.now(), name: me, shifts: list }); }
   }
   const byId = {}; localDone().forEach(s => byId[s.id] = s); list.forEach(s => byId[s.id] = s);
@@ -569,7 +571,9 @@ async function renderLogin(msg) {
   let names = LS.get('kfDrvNames', []);
   v.innerHTML = `<div class="card"><h2 style="margin-top:0">Driver log in</h2>${msg ? `<div class="notice bad">${esc(msg)}</div>` : ''}
     <label>Driver</label><select id="lgName"></select><label>Passcode</label><input id="lgPass" type="password" inputmode="numeric" autocomplete="off" placeholder="Passcode from the office">
-    <div class="err" id="lgErr"></div><button class="btn" id="lgGo" style="width:100%;margin-top:8px">Log in</button></div>`;
+    <div class="err" id="lgErr"></div><button class="btn" id="lgGo" style="width:100%;margin-top:8px">Log in</button>
+    ${window.kfConfigUrl && kfConfigUrl() && !(window.kfIsAdmin && kfIsAdmin()) ? '<button class="btn btn-outline" id="lgOffice" style="width:100%;margin-top:10px">Office: sign in with the company password</button>' : ''}</div>`;
+  if ($('lgOffice')) $('lgOffice').onclick = () => kfShowSignIn('Office devices: enter the company password once.');
   const fill = list => { $('lgName').innerHTML = '<option value="">Select your name</option>' + list.map(n => `<option>${esc(n)}</option>`).join(''); };
   fill(names);
   getJson('action=drivers').then(g => { if (g && g.drivers) { LS.set('kfDrvNames', g.drivers); const cur = $('lgName') && $('lgName').value; if ($('lgName')) { fill(g.drivers); if (cur) $('lgName').value = cur; } } });
@@ -578,11 +582,15 @@ async function renderLogin(msg) {
     $('lgGo').disabled = true; $('lgErr').textContent = 'Logging in…';
     const r = await api({ action: 'driverLogin', name, passcode: pass });
     $('lgGo').disabled = false;
-    if (r.status === 'ok') { session = { name, passcode: pass }; LS.set('kfDrvSession', session); setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } renderDrivers(); }
+    if (r.status === 'ok') { session = r.token ? { name, passcode: '', token: r.token } : { name, passcode: pass }; LS.set('kfDrvSession', session); setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } renderDrivers(); }
     else $('lgErr').textContent = r.status === 'badpassword' ? 'Wrong name or passcode.' : r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal. You need signal to log in the first time.' : (r.message || 'Could not log in.');
   };
 }
 function setCtx(r) {
+  // v14: swap a stored passcode for the session token as soon as the office script hands one out
+  if (r.token && session && session.token !== r.token) { session = { name: session.name, passcode: '', token: r.token }; LS.set('kfDrvSession', session); }
+  if (r.sv) { try { localStorage.setItem('kfServerV', String(r.sv)); } catch (e) {} }
+  delete r.token;
   ctx = r; delete ctx.openShift; LS.set('kfDrvCtx', ctx);
   if (r.unitOdo) { const lo = LS.get('kfDrvLastOdo', {}); Object.assign(lo, r.unitOdo); LS.set('kfDrvLastOdo', lo); }
   if (r.lastClose && tms(r.lastClose) > tms(LS.get('kfDrvLastClose', ''))) LS.set('kfDrvLastClose', r.lastClose);
@@ -775,7 +783,7 @@ async function pushShift(opts) {
     const last = lastEvent();
     const pos = lastPos ? { lat: lastPos.lat, lon: lastPos.lon, at: lastPos.at, place: (last && last.place) || '', status: curStatus() } : null;
     const pts = LS.get('kfDrvPts', []).slice(0, 400);
-    const body = { action: opts.submit ? 'submitShift' : 'saveShift', name: session.name, passcode: session.passcode, shift: payloadShift(), pos, pts };
+    const body = Object.assign({ action: opts.submit ? 'submitShift' : 'saveShift', shift: payloadShift(), pos, pts }, sAuth());
     if (opts.pdfBase64) body.pdfBase64 = opts.pdfBase64;
     const r = await api(body, opts.submit ? 60000 : 25000);
     if (r.status === 'ok') { dirty = false; const q = LS.get('kfDrvPts', []); LS.set('kfDrvPts', q.slice(pts.length)); }
@@ -1116,11 +1124,19 @@ window.addEventListener('afterprint', () => { $('printArea').innerHTML = ''; });
 
 /* ============================== ADMIN + SETTINGS ============================== */
 let admin = { cfg: null, drivers: [], sub: 'logs', filter: '', mapDriver: '', mapDate: '' };
+// v14: an admin device sends its admin token. A password typed here is only kept for this session when the company
+// script is still the old version (it cannot hand out tokens yet).
 const adminPw = () => SS.get('kfDrvAdmin');
-async function adminApi(action, extra, ms) { return api(Object.assign({ action, password: adminPw() }, extra || {}), ms); }
+async function adminApi(action, extra, ms) {
+  const tok = window.kfAdminToken && kfAdminToken();
+  const r = await api(Object.assign({ action }, tok ? { adminToken: tok } : { password: adminPw() }, extra || {}), ms);
+  if (tok && r && (r.status === 'badpassword' || r.status === 'noadmin')) { if (window.kfLostAdmin) kfLostAdmin(); }
+  return r;
+}
 
 async function adminGate(container, title, then) {
   if (!URL_) { container.innerHTML = '<div class="card">Connect this phone first (Drivers tab).</div>'; return; }
+  if (window.kfIsAdmin && kfIsAdmin()) { const rt = await adminApi('adminCheck'); if (rt.status === 'ok') return then(); if (rt.status === 'offline') { container.innerHTML = '<div class="card"><div class="notice">No signal. Admin needs a connection.</div></div>'; return; } }
   if (!adminPw() && /[?&]k=/.test(URL_)) { const r0 = await api({ action: 'adminCheck', password: '' }); if (r0.status === 'ok') { SS.set('kfDrvAdmin', '(company device)'); return then(); } }
   if (adminPw()) { const r = await adminApi('adminCheck'); if (r.status === 'ok') return then(); if (r.status === 'offline') { container.innerHTML = '<div class="card"><div class="notice">No signal. Admin needs a connection.</div></div>'; return; } SS.del('kfDrvAdmin'); }
   const ping = await getJson('action=ping');
@@ -1132,6 +1148,12 @@ async function adminGate(container, title, then) {
   $('adGo').onclick = async () => {
     const p = $('adPw').value; if (!p) { $('adErr').textContent = 'Enter the password.'; return; }
     if (create) { if (p.length < 4) { $('adErr').textContent = 'At least 4 characters.'; return; } if (p !== $('adPw2').value) { $('adErr').textContent = 'The passwords do not match.'; return; } const r = await api({ action: 'adminSetPassword', newPassword: p }); if (r.status !== 'ok') { $('adErr').textContent = r.message || 'Could not set the password.'; return; } SS.set('kfDrvAdmin', p); return then(); }
+    if (window.kfMakeAdmin && (kfCo.base() || (window.kfConfigUrl && kfConfigUrl()))) {
+      const nm = prompt('Name for this device (so it can be removed later):', localStorage.getItem('kfDeviceName') || 'Office device'); if (nm === null) return;
+      let mk = null; try { mk = await kfMakeAdmin(p, nm || 'Office device'); } catch (e) { $('adErr').textContent = 'No signal.'; return; }
+      if (mk.ok && !mk.old) return then();
+      if (!mk.ok) { $('adErr').textContent = mk.msg || 'Wrong password.'; return; }
+    }
     SS.set('kfDrvAdmin', p); const r = await adminApi('adminCheck');
     if (r.status === 'ok') return then(); SS.del('kfDrvAdmin'); $('adErr').textContent = r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal.' : 'Wrong password.';
   };
@@ -1145,7 +1167,7 @@ function renderAdmin() {
     const r = await loadCfg(); if (r.status !== 'ok') { v.innerHTML = '<div class="card"><div class="notice bad">Could not load admin data.</div></div>'; return; }
     v.innerHTML = `${(r.v || serverV) < 3 ? needV2('The rule choices, map, shift editing and village names') : ''}<div class="seg" id="adSeg">${[['logs', 'Shifts'], ['map', 'Map'], ['units', 'Units'], ['exp', 'Expenses']].map(x => `<button data-s="${x[0]}" class="${admin.sub === x[0] ? 'on' : ''}">${x[1]}</button>`).join('')}</div><div id="adBody"></div><div class="btnrow noprint" style="justify-content:flex-start"><button class="btn btn-sm btn-outline" id="adLock">Lock admin</button></div>`;
     v.querySelectorAll('#adSeg button').forEach(b => b.onclick = () => { admin.sub = b.dataset.s; renderAdmin(); });
-    $('adLock').onclick = () => { SS.del('kfDrvAdmin'); renderAdmin(); };
+    $('adLock').onclick = () => { SS.del('kfDrvAdmin'); if (window.kfAdminToken && kfAdminToken()) { kfStopAdmin(); return; } renderAdmin(); };
     const body = $('adBody');
     if (admin.sub === 'logs') renderShiftList(body);
     else if (admin.sub === 'map') renderMap(body);
@@ -1311,6 +1333,7 @@ function renderSettings() {
         };
       });
     }
+    if (window.kfConfigUrl && kfConfigUrl()) { const us = $('urlSet'); [us.previousElementSibling, us, us.nextElementSibling, $('urlUpd')].forEach(e => { if (e) e.style.display = 'none'; }); }
     $('urlUpd').onclick = () => { const u = $('urlSet').value.trim(); if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(u)) { $('stMsg').textContent = 'That is not a script link.'; return; } URL_ = u; LS.set('kfDrvUrl', u); kfLinks.set('driversUrl', u); $('stMsg').textContent = 'Saved on this phone. Quote → Settings → Save to Company shares it with every device.'; $('stMsg').style.color = 'var(--good)'; };
     $('plTest').onclick = async () => {
       $('stMsg').style.color = ''; $('stMsg').textContent = 'Getting GPS…'; const p = await getPosition();
@@ -1342,7 +1365,8 @@ if (window.kfLive) kfLive(() => { const b = $('adBody'); if (tab === 'admin' && 
   const h = (location.hash || '').replace('#', ''); tab = ['admin', 'settings'].includes(h) ? h : 'drivers';
   showTab(tab);
   if (shift && session && !shift.submittedPending) { pushShift(); keepAwake(); }
-  if (session && URL_ && navigator.onLine !== false) api({ action: 'driverLogin', name: session.name, passcode: session.passcode }).then(r => { if (r.status === 'ok') { const os = r.openShift; setCtx(r); if (!shift && os) { shift = normalize(os); saveShiftLocal(); } if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderDrivers(); } });
+  if (session && URL_ && navigator.onLine !== false) api(Object.assign({ action: 'driverLogin' }, sAuth())).then(r => {
+    if ((r.status === 'badpassword') && session && session.token) { session = null; LS.del('kfDrvSession'); if (tab === 'drivers') renderLogin('Please log in again (your passcode was changed by the office). Your open shift is kept on this phone.'); return; } if (r.status === 'ok') { const os = r.openShift; setCtx(r); if (!shift && os) { shift = normalize(os); saveShiftLocal(); } if (tab === 'drivers' && !$('sheetOv').classList.contains('show')) renderDrivers(); } });
   const n = $('companyNameBanner'); const s = mainSettings(); if (n && s.companyName) n.textContent = s.companyName;
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

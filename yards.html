@@ -99,7 +99,7 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
       <button class="btn btn-outline btn-sm" onclick="showMenu()">← Back</button>
       <h2>Manual Adjustment</h2>
       <div id="manualLock">
-        <div class="form-group"><label>Password required</label><input type="password" id="manualPass" placeholder="Password"></div>
+        <div class="form-group"><label>Company password required</label><input type="password" id="manualPass" placeholder="Password"></div>
         <button class="btn" onclick="unlockManual()">Unlock</button>
       </div>
       <div id="manualForm" class="hidden">
@@ -128,8 +128,8 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
     <div class="card">
       <button class="btn btn-outline btn-sm" onclick="showMenu()">← Back</button>
       <h2>Yard Settings</h2>
-      <div class="form-group"><label>Yard Inventory Sheet URL</label><input id="yardUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
-      <div class="form-group"><label>New Password</label><input type="password" id="newPass" placeholder="Leave blank to keep"></div>
+      <div class="form-group kf-linkfield"><label>Yard Inventory Sheet URL</label><input id="yardUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <input type="hidden" id="newPass">
       <button class="btn" onclick="saveYardSettings()">Save</button>
     </div>
   </div>
@@ -137,7 +137,6 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
 
 <script>
 let YARD_URL = localStorage.getItem('yardUrl') || '';
-let YARD_PASS = localStorage.getItem('yardPass') || 'knight';
 let inventory = [];
 let currentYard = '';
 let currentSpecies = '';
@@ -176,8 +175,10 @@ function showTransfer() {
 function showManual() {
   hideAll();
   document.getElementById('manualScreen').classList.remove('hidden');
-  document.getElementById('manualLock').classList.remove('hidden');
-  document.getElementById('manualForm').classList.add('hidden');
+  // v14: admin devices are unlocked; others ask the company password (no Inventory password any more)
+  const adm = window.kfIsAdmin && kfIsAdmin();
+  document.getElementById('manualLock').classList.toggle('hidden', !!adm);
+  document.getElementById('manualForm').classList.toggle('hidden', !adm);
   fillYardSelects();
 }
 
@@ -190,10 +191,9 @@ async function unlockManual() {
     else alert('Wrong company password (or no signal).');
     return;
   }
-  if (document.getElementById('manualPass').value === YARD_PASS) {
-    document.getElementById('manualLock').classList.add('hidden');
-    document.getElementById('manualForm').classList.remove('hidden');
-  } else alert('Wrong password');
+  // a stand-alone device (no company link) has nothing to check the password against
+  document.getElementById('manualLock').classList.add('hidden');
+  document.getElementById('manualForm').classList.remove('hidden');
 }
 
 function showAddYard() {
@@ -235,6 +235,8 @@ function showSettings() {
   hideAll();
   document.getElementById('settingsScreen').classList.remove('hidden');
   document.getElementById('yardUrl').value = YARD_URL;
+  const noLinks = (window.kfConfigUrl && kfConfigUrl()) || (window.kfCo && kfCo.unified());
+  document.querySelectorAll('#settingsScreen .kf-linkfield').forEach(e => e.classList.toggle('hidden', !!noLinks));
 }
 
 // phone back button (nav.js): one level at a time
@@ -414,8 +416,6 @@ async function saveManual() {
 function saveYardSettings() {
   const url = document.getElementById('yardUrl').value.trim();
   if (url) { YARD_URL = url; localStorage.setItem('yardUrl', url); localStorage.setItem('yardUrlAt', String(Date.now())); localStorage.setItem('kfDirty', '1'); }
-  const np = document.getElementById('newPass').value.trim();
-  if (np) { YARD_PASS = np; localStorage.setItem('yardPass', np); }
   alert('Settings saved.');
   showMenu();
 }

@@ -423,10 +423,19 @@ function mergeGuard_(inc, cur) {
 function loadRows_() {
   var sh = sheet_('Loads'), last = sh.getLastRow();
   if (last < 5) return [];
-  var rows = sh.getRange(5, 1, last - 4, 20).getValues().filter(function (r) { return r[1]; }).map(function (r) {
-    return { timestamp: r[0], customerName: r[1], phone: r[2], address: r[3], location: r[4], species: r[5], truck: r[6], tonnes: r[7], cords: r[8],
+  // Columns A..T are read exactly as before (r[0]..r[19]); v14 columns U.. are added when the sheet has them.
+  var w = Math.max(20, Math.min(sh.getLastColumn(), LOAD_ALL.length));
+  var rows = sh.getRange(5, 1, last - 4, w).getValues().filter(function (r) { return r[1]; }).map(function (r) {
+    var o = { timestamp: r[0], customerName: r[1], phone: r[2], address: r[3], location: r[4], species: r[5], truck: r[6], tonnes: r[7], cords: r[8],
       km: r[9], duration: r[10], driveHours: r[11], totalHours: r[12], fuelLitres: r[13], total: r[14],
       status: r[15] || 'Pending', loadId: r[16] || '', netTonnes: r[17] || '', invoiceData: r[18] || '', notes: r[19] || '' };
+    if (w > 20) {
+      var x = function (i) { var v = r[i]; return v == null ? '' : (v instanceof Date ? day_(v) : v); };
+      o.quotedTotal = x(20); o.priceAdj = x(21); o.adjReason = x(22); o.billedHours = x(23); o.bookingId = x(24); o.product = x(25);
+      o.requestedDate = x(26); o.unitId = x(27); o.driverName = x(28); o.bookingData = x(29);
+      o.emptyOutKm = x(30); o.emptyOutH = x(31); o.loadedKm = x(32); o.loadedH = x(33); o.emptyBackKm = x(34); o.emptyBackH = x(35); o.emptyFuelL = x(36);
+    }
+    return o;
   });
   try { addPlaces_(rows); } catch (e) {}
   return rows;
@@ -477,6 +486,12 @@ function loadsPost_(d) {
   var sh = sheet_('Loads');
   if (d.action === 'updateStatus') { var ok = updateStatus_(sh, d); if (ok) log_('loads', 'status ' + (d.status || ''), d.loadId || d.customerName, { netTonnes: d.netTonnes || '' }); return json_({ status: ok ? 'ok' : 'notfound' }); }
   if (d.action === 'saveInvoice') { var ok2 = saveInvoice_(sh, d); if (ok2) log_('loads', 'invoice saved', d.loadId || d.customerName, ''); return json_({ status: ok2 ? 'ok' : 'notfound' }); }
+  if (d.action === 'editLoad' || d.action === 'assignLoad') {
+    var ad = isAdmin_({}, d); if (!ad.ok) return adminFail_(ad);
+    var who = adminName_(d) || 'office';
+    if (d.action === 'assignLoad') d.changes = { unitId: cap_(d.unitId, 60), driverName: cap_(d.driverName, 80) };
+    return json_(editLoad_(sh, d, who));
+  }
   if (d.action === 'sendInvoice') {
     var opts = { to: d.to || Session.getEffectiveUser().getEmail(), subject: d.subject || 'Invoice', body: d.body || 'See attached invoice.' };
     if (d.pdfBase64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(d.pdfBase64), 'application/pdf', d.filename || 'package.pdf')];
@@ -485,15 +500,53 @@ function loadsPost_(d) {
     return json_({ status: 'sent', attached: !!(opts.attachments && d.pdfBase64), version: 2 });
   }
   if (d.action) return json_({ status: 'error', message: 'Unknown action: ' + d.action });
-  // a booking (no action field)
+  // a booking (no action field). Columns A..T are written exactly as before; v14 fields (all optional) go to U..AK.
   var ts = d.timestamp || new Date().toISOString(), next = Math.max(sh.getLastRow() + 1, 5), notes = String(d.notes || '').slice(0, 1000);
-  var rows = (d.options || []).map(function (o) {
+  var known = {}, bid0 = cap_(d.bookingId, 40);
+  if (bid0 && sh.getLastRow() >= 5 && sh.getLastColumn() >= 25) sh.getRange(5, 25, sh.getLastRow() - 4, 1).getValues().forEach(function (v) { if (v[0]) known[String(v[0])] = 1; });
+  var n0 = function (v) { return v === '' || v == null || isNaN(Number(v)) ? '' : Number(v); };
+  var rows = (d.options || []).map(function (o, i) {
+    var bid = bid0 ? bid0 + '-' + (i + 1) : '';
+    if (bid && known[bid]) return null;                                  // a resent booking is never added twice
+    var lg = o.legs || {};
     return [ts, d.customerName || '', d.phone || '', d.address || '', o.location || '', o.species || '', o.truck || '', o.tonnes || '', o.cords || '', o.km || '',
-      o.duration || '', o.driveHours || '', o.totalHours || '', o.fuelLitres || '', o.total || '', 'Pending', '', '', '', notes];
+      o.duration || '', o.driveHours || '', o.totalHours || '', o.fuelLitres || '', o.total || '', 'Pending', '', '', '', notes,
+      n0(o.quotedTotal), n0(o.priceAdj), cap_(o.adjReason, 200), n0(o.billedHours), bid, cap_(o.product, 20), cap_(o.requestedDate, 12), '', '',
+      o.bookingData ? cap_(typeof o.bookingData === 'string' ? o.bookingData : JSON.stringify(o.bookingData), 4000) : '',
+      n0(lg.emptyOutKm), n0(lg.emptyOutH), n0(lg.loadedKm), n0(lg.loadedH), n0(lg.emptyBackKm), n0(lg.emptyBackH), n0(lg.emptyFuelL)];
+  }).filter(function (r) { return r; });
+  if (rows.length) sh.getRange(next, 1, rows.length, LOAD_ALL.length).setValues(rows);
+  log_('loads', 'booked', d.customerName || '', rows.length + ' option(s)' + (bid0 ? ' ' + bid0 : ''));
+  return json_({ status: 'ok', notesSaved: true, v: SCRIPT_VERSION, duplicate: !rows.length && !!(d.options || []).length });
+}
+
+// v14: find a load by its Booking ID (new bookings), else exactly the old way (findRow_: Load ID, then customer + time + ...).
+function findLoad_(sheet, q) {
+  if (q && q.bookingId && sheet.getLastRow() >= 5 && sheet.getLastColumn() >= 25) {
+    var ids = sheet.getRange(5, 25, sheet.getLastRow() - 4, 1).getValues();
+    for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(q.bookingId)) return i + 5;
+  }
+  return findRow_(sheet, q || {});
+}
+// Dispatch -> Edit load: every field by hand. Only changed cells are written; the Log gets before and after.
+var LOAD_EDIT_COLS = { customerName: 2, phone: 3, address: 4, location: 5, species: 6, truck: 7, tonnes: 8, cords: 9, km: 10, duration: 11, driveHours: 12,
+  totalHours: 13, fuelLitres: 14, total: 15, status: 16, netTonnes: 18, notes: 20, priceAdj: 22, adjReason: 23, billedHours: 24, product: 26, requestedDate: 27,
+  unitId: 28, driverName: 29 };
+var LOAD_STATUSES = ['Pending', 'Started', 'Delivered', 'Paid'];
+function editLoad_(sh, d, who) {
+  var row = findLoad_(sh, d.find || {}); if (row < 0) return { status: 'notfound', message: 'That load was not found in the sheet.' };
+  var ch = d.changes || {}, vals = sh.getRange(row, 1, 1, LOAD_ALL.length).getValues()[0], before = {}, after = {}, n = 0;
+  if (ch.status != null && LOAD_STATUSES.indexOf(String(ch.status)) < 0) return { status: 'error', message: 'Status must be one of ' + LOAD_STATUSES.join(', ') + '.' };
+  Object.keys(ch).forEach(function (k) {
+    var col = LOAD_EDIT_COLS[k]; if (!col) return;
+    var old = vals[col - 1], nv = ch[k] == null ? '' : ch[k];
+    if (k === 'notes') nv = String(nv).slice(0, 1000); else if (typeof nv === 'string') nv = cap_(nv, 300);
+    var oldS = old instanceof Date ? (k === 'requestedDate' ? day_(old) : old.toISOString()) : String(old);
+    if (oldS === String(nv)) return;
+    sh.getRange(row, col).setValue(nv); before[k] = oldS; after[k] = nv; n++;
   });
-  if (rows.length) sh.getRange(next, 1, rows.length, 20).setValues(rows);
-  log_('loads', 'booked', d.customerName || '', rows.length + ' option(s)');
-  return json_({ status: 'ok', notesSaved: true });
+  if (n) log_('loads', 'load edited', vals[16] || vals[24] || vals[1], { by: who, before: before, after: after });
+  return { status: 'ok', changed: n, v: SCRIPT_VERSION };
 }
 function findRow_(sheet, q) {
   var lastRow = sheet.getLastRow(); if (lastRow < 5) return -1;
