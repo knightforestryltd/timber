@@ -8,6 +8,7 @@
 <script src="theme.js"></script>
 <script src="kf-config.js"></script>
 <script src="nav.js"></script>
+<script src="kf-stock.js"></script>
 <style>
 .container { max-width: 700px; margin: 0 auto; padding: 12px; }
 .card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border); }
@@ -22,6 +23,12 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
 .load-adjust { background: var(--adj-bg); }
 .load-row { padding: 10px; border-radius: 8px; margin-bottom: 6px; border: 1px solid var(--border); }
 .hidden { display: none; }
+.neg { color: var(--bad); font-weight: 800; }
+.tag { display: inline-block; font-size: .72rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); margin-right: 4px; }
+.tag.split { background: #7c3aed; color: #fff; } .tag.pend { background: #f59e0b; color: #111; } .tag.void { background: #64748b; color: #fff; }
+.void-row { opacity: .5; text-decoration: line-through; }
+.calc { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
 @media (max-width: 700px) { .container { padding: 8px; } }
 </style>
 
@@ -50,6 +57,11 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
     <div class="card">
       <h2>Yards</h2>
       <div id="yardList"></div>
+      <div id="v14Menu" class="hidden">
+        <button class="menu-item" onclick="showDrop()">Drop at yard (logs)</button>
+        <button class="menu-item" onclick="showProcess()">Process logs to split</button>
+        <button class="menu-item" id="pendBtn" onclick="showPending()">Drops to confirm</button>
+      </div>
       <button class="menu-item" onclick="showAddYard()">Add New Yard</button>
       <button class="menu-item" onclick="showTransfer()">Inventory Transfer</button>
       <button class="menu-item" onclick="showManual()">Manual Adjustment</button>
@@ -112,6 +124,8 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
       </div>
     </div>
   </div>
+
+  <div id="v14Screen" class="hidden"><div class="card" id="v14Box"></div></div>
 
   <div id="addYardScreen" class="hidden">
     <div class="card">
@@ -218,11 +232,12 @@ async function addNewYard() {
     await fetch(YARD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
     // Also add as pickup location for quoting
     try {
-      const s = JSON.parse(localStorage.getItem('knightForestrySettings') || '{}');
+      // v14: the Quote page's own settings (it read a different key before, so new yards never reached Quote)
+      const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
       if (!s.locations) s.locations = [];
       if (!s.locations.find(l => l.name === name)) {
-        s.locations.push({ id: Date.now(), name: name, address: name, species: [{ name: document.getElementById('newYardSpecies').value || 'Birch', price: 0, conv: 1.75 }] });
-        localStorage.setItem('knightForestrySettings', JSON.stringify(s));
+        s.locations.push({ id: Date.now(), name: name, address: name, species: [] });      // Quote shows its stock as "needs a price"
+        localStorage.setItem('knightForestrySettings_v3', JSON.stringify(s)); localStorage.setItem('kfDirty', '1');
       }
     } catch(e) {}
     alert('Yard added and available for quoting.');
@@ -243,11 +258,11 @@ function showSettings() {
 window.kfBack = function () {
   const vis = id => !document.getElementById(id).classList.contains('hidden');
   if (vis('speciesScreen')) { showYard(currentYard); return true; }
-  if (['yardScreen', 'transferScreen', 'manualScreen', 'addYardScreen', 'settingsScreen'].some(vis)) { showMenu(); return true; }
+  if (['yardScreen', 'transferScreen', 'manualScreen', 'addYardScreen', 'settingsScreen', 'v14Screen'].some(vis)) { showMenu(); return true; }
   return false;
 };
 function hideAll() {
-  ['menuScreen','yardScreen','speciesScreen','transferScreen','manualScreen','addYardScreen','settingsScreen'].forEach(id => {
+  ['menuScreen','yardScreen','speciesScreen','transferScreen','manualScreen','addYardScreen','settingsScreen','v14Screen'].forEach(id => {
     document.getElementById(id).classList.add('hidden');
   });
 }
@@ -255,9 +270,12 @@ function hideAll() {
 async function loadInventory() {
   if (!YARD_URL) return;
   try {
-    const res = await fetch(YARD_URL + (YARD_URL.includes('?') ? '&' : '?') + 't=' + Date.now());
+    const res = await fetch(YARD_URL + (YARD_URL.includes('?') ? '&' : '?') + 'all=1&t=' + Date.now());
     const data = await res.json();
     inventory = data.rows || [];
+    const v14 = inventory.some(r => 'status' in r) || (window.kfServerV && kfServerV() >= 14);
+    document.getElementById('v14Menu').classList.toggle('hidden', !v14);
+    const pend = inventory.filter(r => r.status === 'Pending').length; document.getElementById('pendBtn').textContent = 'Drops to confirm' + (pend ? ' (' + pend + ')' : '');
     renderYardList();
     const vis = id => !document.getElementById(id).classList.contains('hidden');
     if (vis('yardScreen') && currentYard) renderYardSpecies(currentYard);
@@ -279,6 +297,7 @@ function renderYardList() {
 }
 
 function renderYardSpecies(yard) {
+  if (inventory.some(r => 'status' in r)) return renderYardSpeciesV14(yard);
   const rows = inventory.filter(r => r.yard === yard);
   const species = [...new Set(rows.map(r => r.species))];
   const el = document.getElementById('yardSpecies');
@@ -303,6 +322,7 @@ function renderYardSpecies(yard) {
 }
 
 function renderSpeciesDetail(yard, species) {
+  if (inventory.some(r => 'status' in r)) return renderSpeciesDetailV14(yard, species);
   const loads = inventory.filter(r => r.yard === yard && r.species === species);
   let tonnes = 0, cost = 0, inT = 0;
   loads.forEach(l => {
@@ -332,7 +352,7 @@ function fillYardSelects() {
   });
   // Pickup locations from quoting settings
   try {
-    const s = JSON.parse(localStorage.getItem('knightForestrySettings') || '{}');
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
     const locs = (s.locations || []).map(l => `<option>${l.name}</option>`).join('');
     document.getElementById('tfPickup').innerHTML = locs || '<option>No locations</option>';
   } catch(e) {}
@@ -412,6 +432,200 @@ async function saveManual() {
     showMenu();
   } catch(e) { alert('Saved (no-cors).'); }
 }
+
+/* ======================= v14: logs + split, weighted average cost, drops, processing ======================= */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const r2 = n => Math.round((+n || 0) * 100) / 100;
+const $$ = id => document.getElementById(id);
+const QS = () => { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch (e) { return {}; } };
+const newId = p => (p || '') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function locOf(name) { return (QS().locations || []).find(l => l.name === name); }
+function spAt(locName, species) { const l = locOf(locName); return l && (l.species || []).find(x => x.name === species); }
+const spCostTonne = sp => sp ? (sp.costPerTonne != null && sp.costPerTonne !== '' ? +sp.costPerTonne : +sp.pricePerTonne || 0) : 0;
+const convOf = (yard, species) => { const sp = spAt(yard, species); return sp && +sp.tonnesPerCord > 0 ? +sp.tonnesPerCord : 1.8; };
+// office requests to the yards service (an admin device sends its token; others are asked the company password)
+async function yardPost(body) {
+  const send = b => fetch(YARD_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(window.kfAuth ? kfAuth(b) : b), redirect: 'follow' }).then(r => r.json());
+  let r = await send(body);
+  if (r.status === 'badpassword' || r.status === 'noadmin') { const pw = prompt('Company password:'); if (!pw) return { status: 'cancelled' }; r = await send(Object.assign({}, body, { password: pw })); }
+  return r;
+}
+function screen(html) { hideAll(); $$('v14Screen').classList.remove('hidden'); $$('v14Box').innerHTML = '<button class="btn btn-outline btn-sm" onclick="showMenu()">← Back</button>' + html; window.scrollTo(0, 0); }
+function renderYardSpeciesV14(yard) {
+  const rows = inventory.filter(r => r.yard === yard), species = [...new Set(rows.map(r => r.species))];
+  const el = $$('yardSpecies');
+  if (!species.length) { el.innerHTML = '<p style="color:var(--muted);">No inventory yet.</p>'; return; }
+  el.innerHTML = species.map(sp => {
+    const L = kfStock.stock(inventory, yard, sp, 'Logs'), S = kfStock.stock(inventory, yard, sp, 'Split'), s = spAt(yard, sp), conv = convOf(yard, sp);
+    const hasSplit = rows.some(r => r.species === sp && r.product === 'Split');
+    const sellT = s ? +s.pricePerTonne || 0 : 0, sellC = s ? +s.splitPricePerCord || 0 : 0;
+    return `<div class="species-card" onclick="showSpecies('${esc(yard).replace(/'/g, "\\'")}','${esc(sp).replace(/'/g, "\\'")}')"><strong>${esc(sp)}</strong>
+      <div><span class="tag">Logs</span> <span class="${L.qty < 0 ? 'neg' : ''}">${L.qty.toFixed(1)} t</span> (~${(L.qty / conv).toFixed(1)} cords) · avg cost $${L.avg.toFixed(2)}/t${sellT ? ' · sells $' + sellT.toFixed(2) + '/t' : ''} · value $${Math.max(0, L.qty * L.avg).toFixed(0)}</div>
+      ${hasSplit ? `<div><span class="tag split">SPLIT</span> <span class="${S.qty < 0 ? 'neg' : ''}">${S.qty.toFixed(1)} cords</span> · avg cost $${S.avg.toFixed(2)}/cord${sellC ? ' · sells $' + sellC.toFixed(2) + '/cord · margin $' + (sellC - S.avg).toFixed(2) + '/cord' : ' · <b>no sell price yet</b>'} · value $${Math.max(0, S.qty * S.avg).toFixed(0)}</div>` : ''}</div>`;
+  }).join('');
+}
+function renderSpeciesDetailV14(yard, species) {
+  const loads = inventory.filter(r => r.yard === yard && r.species === species).slice().reverse();
+  const L = kfStock.stock(inventory, yard, species, 'Logs'), S = kfStock.stock(inventory, yard, species, 'Split');
+  $$('speciesSummary').innerHTML = `<p><span class="tag">Logs</span> <span class="${L.qty < 0 ? 'neg' : ''}">${L.qty.toFixed(1)} t</span> at $${L.avg.toFixed(2)}/t &nbsp; <span class="tag split">SPLIT</span> <span class="${S.qty < 0 ? 'neg' : ''}">${S.qty.toFixed(1)} cords</span> at $${S.avg.toFixed(2)}/cord</p>
+    <button class="btn btn-outline btn-sm" onclick="editSplitPrice('${esc(yard).replace(/'/g, "\\'")}','${esc(species).replace(/'/g, "\\'")}')">Split sell price</button>`;
+  const processes = {};
+  $$('speciesLoads').innerHTML = loads.map(l => {
+    const cls = l.status === 'Void' ? 'void-row' : l.type === 'Out' ? 'load-out' : (l.type === 'Adjust' ? 'load-adjust' : 'load-in');
+    const first = l.processId && !processes[l.processId] && l.status !== 'Void'; if (l.processId) processes[l.processId] = 1;
+    return `<div class="load-row ${cls}"><strong>${esc(l.type)}</strong> ${l.product === 'Split' ? '<span class="tag split">SPLIT</span>' : ''}${l.status === 'Pending' ? '<span class="tag pend">waiting for office</span>' : ''}${l.status === 'Void' ? '<span class="tag void">void</span>' : ''}
+      ${l.product === 'Split' ? esc(l.cords) + ' cords' : esc(l.status === 'Pending' ? l.pendingTonnes : l.tonnes) + ' t'}${l.costPerTonne !== '' && l.costPerTonne != null && l.product !== 'Split' ? ' · $' + esc(l.costPerTonne) + '/t' : ''}${l.costPerCord ? ' · $' + esc(l.costPerCord) + '/cord' : ''}${l.haulCost ? ' · haul $' + esc(l.haulCost) : ''}<br>
+      <small>${esc(new Date(l.timestamp).toLocaleDateString())} ${esc(l.ticket || '')} ${esc(l.source || '')} ${esc(String(l.notes || '').replace(/\{.*\}/, ''))}${l.loadId ? ' · load ' + esc(l.loadId) : ''}${l.by ? ' · ' + esc(l.by) : ''}</small>
+      ${first ? `<br><button class="btn btn-outline btn-sm" onclick="undoProcess('${esc(l.processId)}')">Undo this processing run</button>` : ''}</div>`;
+  }).join('') || '<p>No loads.</p>';
+}
+async function undoProcess(id) {
+  if (!confirm('Undo this processing run? Both rows (logs out, split in) are marked VOID; nothing is deleted.')) return;
+  const r = await yardPost({ action: 'undoProcess', id }); if (r.status !== 'ok') { if (r.status !== 'cancelled') alert(r.message || 'Not saved.'); return; }
+  await loadInventory(); renderSpeciesDetail(currentYard, currentSpecies);
+}
+async function editSplitPrice(yard, species) {
+  const sp = spAt(yard, species), cur = sp && sp.splitPricePerCord ? sp.splitPricePerCord : '';
+  if (!locOf(yard)) return alert(yard + ' is not set up as a location in Quote → Settings yet. Add it there first (same name).');
+  const v = prompt('Split SELL price per cord for ' + species + ' at ' + yard + ' ($):', cur); if (v === null || v === '' || isNaN(+v)) return;
+  const r = await yardPost({ action: 'saveSplitPrice', yard, species, splitPricePerCord: +v });
+  if (r.status !== 'ok') { if (r.status !== 'cancelled') alert(r.message || 'Not saved.'); return; }
+  const s = QS(), loc = (s.locations || []).find(l => l.name === yard); if (loc) { let x = (loc.species || []).find(y => y.name === species); if (x) x.splitPricePerCord = +v; localStorage.setItem('knightForestrySettings_v3', JSON.stringify(s)); }
+  alert('Saved for every device.'); renderSpeciesDetail(yard, species);
+}
+
+/* ---- 1. drop at yard: wood price (snapshot of "what we pay" at the pickup) + haul cost of a FULL load shared by tonnes dropped ---- */
+async function routeKm(fromAddr, toAddr) {
+  const key = QS().apiKey; if (!key || !fromAddr || !toAddr) return null;
+  const pt = a => { const m = String(a).trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/); return m ? { location: { latLng: { latitude: +m[1], longitude: +m[2] } } } : { address: a }; };
+  try {
+    const r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'routes.distanceMeters' }, body: JSON.stringify({ origin: pt(fromAddr), destination: pt(toAddr), travelMode: 'DRIVE' }) });
+    const j = await r.json(); const m = j.routes && j.routes[0] && j.routes[0].distanceMeters; return m ? m / 1000 : null;
+  } catch (e) { return null; }
+}
+function haulCalc(km, unit, tonnes) {
+  const s = QS(), speed = +s.speed || 90, costFuel = s.costFuelPrice != null && s.costFuelPrice !== '' ? +s.costFuelPrice : (+s.fuelPrice || 0);
+  if (!unit || !(km > 0)) return null;
+  const roundKm = km * 2, hrs = roundKm / speed + (+unit.hours || 0), costH = unit.costHourly != null && unit.costHourly !== '' ? +unit.costHourly : +unit.hourly || 0;
+  const truck = hrs * costH, fuel = roundKm / 100 * (+unit.fuel || 0) * costFuel, full = truck + fuel, share = +unit.tonnes > 0 ? Math.min(1, tonnes / +unit.tonnes) : 1;
+  return { roundKm, hrs, truck, fuel, full, share, haul: r2(full * share), text: `Round trip ${roundKm.toFixed(0)} km: ${hrs.toFixed(2)} h × $${costH.toFixed(2)}/h = $${truck.toFixed(2)} + fuel ${(roundKm / 100 * (+unit.fuel || 0)).toFixed(0)} L × $${costFuel.toFixed(2)} = $${fuel.toFixed(2)} → full load $${full.toFixed(2)} × ${tonnes} t / ${unit.tonnes} t = <b>$${(full * share).toFixed(2)}</b>` };
+}
+async function showDrop(pending) {
+  const s = QS(), yards = getYards(), locs = (s.locations || []), units = s.units || [];
+  let tickets = []; try { const tu = localStorage.getItem('scriptUrl'); if (tu) tickets = ((await (await fetch(tu)).json()).rows || []).slice(-40).reverse(); } catch (e) {}
+  screen(`<h2>${pending ? 'Confirm driver drop' : 'Drop at yard (logs)'}</h2>${pending ? `<div class="calc">${esc(pending.notes)} · ${esc(new Date(pending.timestamp).toLocaleString())}</div>` : ''}
+    <div class="grid2"><div class="form-group"><label>Yard</label><input id="dpYard" list="dpYl" value="${esc(pending ? pending.yard : (yards[0] || ''))}"><datalist id="dpYl">${yards.map(y => `<option value="${esc(y)}">`).join('')}</datalist></div>
+    <div class="form-group"><label>Species</label><input id="dpSp" value="${esc(pending ? pending.species : '')}"></div>
+    <div class="form-group"><label>Pickup location (source)</label><select id="dpSrc"><option value="">—</option>${locs.map(l => `<option ${pending && pending.source === l.name ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Scale ticket (optional)</label><select id="dpTk"><option value="">—</option>${tickets.map(t => `<option value="${esc(t[0])}">${esc(t[0])} · ${esc(t[1] || '')} · net ${esc(t[6])}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Tonnes dropped</label><input id="dpT" type="number" step="0.01" inputmode="decimal" value="${esc(pending ? pending.pendingTonnes : '')}"></div>
+    <div class="form-group"><label>Wood price ($/t, what we pay)</label><input id="dpW" type="number" step="0.01" inputmode="decimal"></div>
+    <div class="form-group"><label>Truck unit used</label><select id="dpU">${units.map(u => `<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.tonnes)} t)</option>`).join('')}</select></div>
+    <div class="form-group"><label>One-way km pickup → yard</label><input id="dpKm" type="number" step="0.1" inputmode="decimal" placeholder="looked up from the map"></div></div>
+    <div class="calc" id="dpCalc"></div>
+    <div class="form-group"><label>Haul cost ($, you can change it)</label><input id="dpH" type="number" step="0.01" inputmode="decimal"></div>
+    <div class="calc" id="dpCpt"></div><div id="dpE" style="color:var(--bad);font-weight:700;"></div>
+    <button class="btn" id="dpGo" style="width:100%;margin-top:8px">${pending ? 'Confirm drop' : 'Save drop'}</button>`);
+  let hTyped = false;
+  const fillWood = () => { const sp = spAt($$('dpSrc').value, $$('dpSp').value.trim()); if (sp && !$$('dpTk').value) $$('dpW').value = spCostTonne(sp).toFixed(2); };
+  const recalc = () => {
+    const u = units.find(x => String(x.id) === $$('dpU').value), t = +$$('dpT').value || 0, c = haulCalc(+$$('dpKm').value, u, t);
+    $$('dpCalc').innerHTML = c ? 'Haul = cost of a FULL load of ' + esc(u.name) + ' pickup → yard and back, at our cost rates, shared by the tonnes dropped. ' + c.text : 'Enter the km (or add a Maps key) to work out the haul cost.';
+    if (c && !hTyped) $$('dpH').value = c.haul.toFixed(2);
+    const w = +$$('dpW').value || 0, h = +$$('dpH').value || 0; $$('dpCpt').innerHTML = t > 0 ? `Cost in the yard: $${w.toFixed(2)} wood + $${(h / t).toFixed(2)} haul = <b>$${(w + h / t).toFixed(2)} per tonne</b>` : '';
+  };
+  const lookKm = async () => { const l = locOf($$('dpSrc').value), y = locOf($$('dpYard').value.trim()); if (!l) return; $$('dpKm').placeholder = 'looking up…'; const km = await routeKm(l.address, y ? y.address : $$('dpYard').value.trim()); if (km) { $$('dpKm').value = km.toFixed(1); } $$('dpKm').placeholder = km ? '' : 'type the km'; recalc(); };
+  $$('dpSrc').onchange = () => { fillWood(); lookKm(); }; $$('dpSp').oninput = fillWood; $$('dpYard').onchange = lookKm;
+  $$('dpTk').onchange = () => { const t = tickets.find(x => String(x[0]) === $$('dpTk').value); if (t) { let net = +t[6] || 0; if (net > 500) net = net / 1000; if (net) $$('dpT').value = r2(net); if (+t[7] && net) $$('dpW').value = (+t[7] / net).toFixed(2); if (t[3] && !$$('dpSrc').value) { const o = [...$$('dpSrc').options].find(x => x.value === t[3]); if (o) $$('dpSrc').value = t[3]; } } recalc(); };
+  ['dpT', 'dpW', 'dpKm', 'dpU'].forEach(id => { $$(id).oninput = recalc; $$(id).onchange = recalc; });
+  $$('dpH').oninput = () => { hTyped = true; recalc(); };
+  fillWood(); if ($$('dpSrc').value) lookKm(); recalc();
+  $$('dpGo').onclick = async () => {
+    const t = +$$('dpT').value, yard = $$('dpYard').value.trim(), sp = $$('dpSp').value.trim();
+    if (!yard || !sp || !(t > 0)) { $$('dpE').textContent = 'Yard, species and tonnes are needed.'; return; }
+    const u = units.find(x => String(x.id) === $$('dpU').value);
+    $$('dpGo').disabled = true;
+    const r = pending ? await yardPost({ action: 'confirmDrop', id: pending.entryId, tonnes: t, woodPrice: +$$('dpW').value || 0, haulCost: +$$('dpH').value || 0 })
+      : await yardPost({ action: 'drop', drop: { id: newId('DROP-'), yard, species: sp, tonnes: t, cords: r2(t / convOf(yard, sp)), woodPrice: +$$('dpW').value || 0, haulCost: +$$('dpH').value || 0, ticket: $$('dpTk').value, source: $$('dpSrc').value, unit: u ? u.name : '' } });
+    $$('dpGo').disabled = false;
+    if (r.status !== 'ok') { if (r.status !== 'cancelled') $$('dpE').textContent = r.message || 'Not saved.'; return; }
+    await loadInventory(); if (window.kfAlertsRefresh) kfAlertsRefresh(true); alert(pending ? 'Drop confirmed.' : 'Drop saved.'); showMenu();
+  };
+}
+function showPending() {
+  const p = inventory.filter(r => r.status === 'Pending');
+  screen(`<h2>Drops to confirm</h2><div class="calc">Drivers' drops count in the yard only after you confirm the price and haul cost.</div>` +
+    (p.map((r, i) => `<div class="load-row load-in"><strong>${esc(r.yard)}</strong> · ${esc(r.species)} · ${esc(r.pendingTonnes)} t<br><small>${esc(r.notes)} · ${esc(new Date(r.timestamp).toLocaleString())}${r.source ? ' · from ' + esc(r.source) : ''}</small><br>
+      <button class="btn btn-sm" onclick="confirmPending(${i})">Confirm</button> <button class="btn btn-outline btn-sm" onclick="voidPending(${i})">Not real / remove</button></div>`).join('') || '<p>Nothing waiting.</p>'));
+  window.__pend = p;
+}
+function confirmPending(i) { showDrop(window.__pend[i]); }
+async function voidPending(i) { const p = window.__pend[i]; if (!confirm('Mark this drop VOID? It is kept as a record but never counts.')) return; const r = await yardPost({ action: 'voidEntry', id: p.entryId }); if (r.status !== 'ok') { if (r.status !== 'cancelled') alert(r.message || 'Not saved.'); return; } await loadInventory(); showPending(); }
+
+/* ---- 2. process logs into split: raw used = cords × t/cord × (1 + waste %), at the current average cost per tonne ---- */
+async function showProcess() {
+  const yards = getYards(), s = QS(), mo = Object.assign({ employerCostPct: 12 }, s.money || {});
+  screen(`<h2>Process logs to split</h2>
+    <div class="grid2"><div class="form-group"><label>Yard</label><select id="prY">${yards.map(y => `<option>${esc(y)}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Species</label><input id="prS" list="prSl"><datalist id="prSl"></datalist></div>
+    <div class="form-group"><label>Cords of split produced</label><input id="prC" type="number" step="0.1" inputmode="decimal"></div>
+    <div class="form-group"><label>t per cord (this run only)</label><input id="prF" type="number" step="0.01" inputmode="decimal"></div>
+    <div class="form-group"><label>Waste %</label><input id="prW" type="number" step="0.5" value="0"></div>
+    <div class="form-group"><label>Log cost $/t (yard average)</label><input id="prLc" type="number" step="0.01"></div>
+    <div class="form-group"><label>Labour hours</label><input id="prLh" type="number" step="0.25"></div><div class="form-group"><label>Labour rate $/h</label><input id="prLr" type="number" step="0.01"></div>
+    <div class="form-group"><label>Equipment hours</label><input id="prEh" type="number" step="0.1"></div><div class="form-group"><label>Equipment fuel $</label><input id="prEf" type="number" step="0.01"></div>
+    <div class="form-group"><label>Equipment wear $</label><input id="prEw" type="number" step="0.01"></div><div class="form-group"><label>Other cost $</label><input id="prO" type="number" step="0.01" value="0"></div>
+    <div class="form-group"><label>SELL price per cord $</label><input id="prSell" type="number" step="0.01"></div></div>
+    <div class="calc" id="prClock">Looking for yard time-clock hours…</div><div class="calc" id="prCalc"></div><div id="prE" style="color:var(--bad);font-weight:700;"></div>
+    <button class="btn" id="prGo" style="width:100%;margin-top:8px">Save processing run</button>`);
+  const fillSp = () => { const y = $$('prY').value, sps = [...new Set(inventory.filter(r => r.yard === y).map(r => r.species))]; $$('prSl').innerHTML = sps.map(x => `<option value="${esc(x)}">`).join(''); if (!$$('prS').value && sps[0]) $$('prS').value = sps[0]; fillY(); };
+  let clock = null;
+  const fillY = () => { const y = $$('prY').value, sp = $$('prS').value.trim(), L = kfStock.stock(inventory, y, sp, 'Logs'), x = spAt(y, sp); $$('prF').value = convOf(y, sp); $$('prLc').value = (L.avg || spCostTonne(x)).toFixed(2); if (x && x.splitPricePerCord) $$('prSell').value = x.splitPricePerCord; applyClock(); calc(); };
+  const calc = () => {
+    const y = $$('prY').value, sp = $$('prS').value.trim(), c = +$$('prC').value || 0, f = +$$('prF').value || 1.8, w = +$$('prW').value || 0, raw = r2(c * f * (1 + w / 100)), lc = +$$('prLc').value || 0;
+    const labour = r2((+$$('prLh').value || 0) * (+$$('prLr').value || 0) * (1 + (+mo.employerCostPct || 0) / 100)), other = labour + (+$$('prEf').value || 0) + (+$$('prEw').value || 0) + (+$$('prO').value || 0);
+    const cpc = c ? (raw * lc + other) / c : 0, sell = +$$('prSell').value || 0, onHand = kfStock.stock(inventory, y, sp, 'Logs').qty;
+    $$('prCalc').innerHTML = c ? `Logs used: ${c} cords × ${f} t × (1 + ${w}%) = <b>${raw} t</b> (on hand ${onHand.toFixed(1)} t${onHand < raw ? ' <span class="neg">not enough logs: it will go below zero</span>' : ''})<br>
+      Cost per cord = (${raw} t × $${lc.toFixed(2)} + labour $${labour.toFixed(2)} incl. ${mo.employerCostPct}% employer cost + equipment and other $${(other - labour).toFixed(2)}) ÷ ${c} = <b>$${cpc.toFixed(2)}/cord</b>${sell ? ` · sells $${sell.toFixed(2)} · <b>margin $${(sell - cpc).toFixed(2)}/cord</b>` : ''}` : '';
+    return { raw, cpc, labour, onHand };
+  };
+  // Processing time from yard shifts for this yard + species since the last run (and equipment hours) pre-fills labour and equipment
+  const applyClock = () => {
+    if (!clock) return; const y = $$('prY').value, sp = $$('prS').value.trim().toLowerCase();
+    const last = inventory.filter(r => r.yard === y && String(r.species).toLowerCase() === sp && r.processId && r.status !== 'Void').map(r => +new Date(r.timestamp)).sort((a, b) => b - a)[0] || 0;
+    let hrs = 0, cost = 0, eh = 0, ef = 0, ew = 0; const people = clock.people || [], units = clock.units || [];
+    (clock.shifts || []).filter(x => x.type === 'yard' && x.yard === y).forEach(x => {
+      const end = +new Date(x.closedAt || Date.now()); let procH = 0;
+      (x.tasks || []).forEach((t, i, a) => { const t0 = +new Date(t.t), t1 = a[i + 1] ? +new Date(a[i + 1].t) : end; if (t.k === 'processing' && String(t.sp || '').toLowerCase() === sp && t0 >= last) procH += (t1 - t0) / 3600000; });
+      if (!procH) return; hrs += procH;
+      const p = people.find(z => String(z.id) === String(x.driverId)); let rates = {}; try { rates = JSON.parse((p && p.rates) || '{}'); } catch (e) {}
+      cost += procH * (+(rates.yard != null ? rates.yard : p ? p.hourlyRate : 0) || 0);
+      const share = (end - +new Date(x.startedAt)) > 0 ? procH * 3600000 / (end - +new Date(x.startedAt)) : 0;
+      (x.equip || []).forEach(e => { const h = Math.max(0, (+e.endHours || 0) - (+e.startHours || 0)) * share, u = units.find(z => String(z.id) === String(e.unitId)) || {}; eh += h;
+        const price = u.fuelType === 'offroad' ? (+s.offRoadFuelPrice || 0) : (s.costFuelPrice != null && s.costFuelPrice !== '' ? +s.costFuelPrice : +s.fuelPrice || 0);
+        ef += h * (+u.fuelBurnLph || 0) * price; ew += h * (+u.wearPerHour || 0); });
+    });
+    $$('prClock').innerHTML = hrs ? `From the yard time clock since the last run: <b>${hrs.toFixed(2)} h</b> processing, ${eh.toFixed(1)} equipment hours. Filled in below; change anything before saving.` : 'No processing time on the yard clock for this yard and species since the last run. Type the hours in.';
+    if (hrs) { $$('prLh').value = r2(hrs); $$('prLr').value = hrs ? r2(cost / hrs) : ''; $$('prEh').value = r2(eh); $$('prEf').value = r2(ef); $$('prEw').value = r2(ew); }
+    calc();
+  };
+  $$('prY').onchange = fillSp; $$('prS').onchange = fillY;
+  ['prC', 'prF', 'prW', 'prLc', 'prLh', 'prLr', 'prEf', 'prEw', 'prO', 'prSell'].forEach(id => $$(id).oninput = calc);
+  fillSp();
+  try { const from = new Date(Date.now() - 120 * 86400000).toLocaleDateString('en-CA'); const r = await kfCo.post('money', { action: 'summary', from }); if (r.status === 'ok') { clock = r; applyClock(); } else $$('prClock').textContent = 'Yard clock hours need an admin device. Type the hours in.'; } catch (e) { $$('prClock').textContent = 'No signal for the yard clock. Type the hours in.'; }
+  $$('prGo').onclick = async () => {
+    const y = $$('prY').value, sp = $$('prS').value.trim(), c = +$$('prC').value || 0, k = calc();
+    if (!sp || !(c > 0)) { $$('prE').textContent = 'Species and cords are needed.'; return; }
+    if (k.onHand < k.raw && !confirm(`${y} has ${k.onHand.toFixed(1)} t of ${sp} logs and this run uses ${k.raw} t. Process anyway? (Logs on hand will go below zero.)`)) return;
+    $$('prGo').disabled = true;
+    const r = await yardPost({ action: 'process', process: { id: newId('PR-'), yard: y, species: sp, cords: c, factor: +$$('prF').value, wastePct: +$$('prW').value || 0, logCostPerTonne: +$$('prLc').value || 0,
+      labourHours: +$$('prLh').value || 0, labour: k.labour, equipHours: +$$('prEh').value || 0, equipFuel: +$$('prEf').value || 0, equipWear: +$$('prEw').value || 0, otherCost: +$$('prO').value || 0, sellPerCord: $$('prSell').value } });
+    $$('prGo').disabled = false;
+    if (r.status !== 'ok') { if (r.status !== 'cancelled') $$('prE').textContent = r.message || 'Not saved.'; return; }
+    await loadInventory(); alert(`Saved: ${c} cords of ${sp} split at $${(+r.costPerCord || k.cpc).toFixed(2)}/cord.`); showYard(y);
+  };
+}
+if (location.hash === '#pending') setTimeout(() => { if (inventory.length) showPending(); else loadInventory().then(showPending); }, 600);
 
 function saveYardSettings() {
   const url = document.getElementById('yardUrl').value.trim();

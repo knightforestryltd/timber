@@ -14,6 +14,7 @@
 <script src="theme.js"></script>
 <script src="kf-config.js"></script>
 <script src="nav.js"></script>
+<script src="kf-stock.js"></script>
 <style>
 /* colors/fields/buttons/header come from theme.css; this file = Quote page layout */
 .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
@@ -153,6 +154,11 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
 .cost-table .rowlabel small { display: block; color: var(--muted); font-weight: 400; }
 
 .actions { grid-template-columns: repeat(3, 1fr); }
+.split-sub { margin-left: 22px; font-size: .85rem; color: var(--muted); }
+.species-row.split-row { background: rgba(124, 58, 237, .08); border-left: 4px solid #7c3aed; }
+.split-tag { display: inline-block; background: #7c3aed; color: #fff; font-size: .7rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; margin-left: 4px; }
+.low-note { display: block; font-size: .72rem; color: #b45309; font-weight: 700; }
+.needs-price { color: var(--bad); font-weight: 700; }
 @media (max-width: 700px) {
   .actions .btn { padding: 10px 4px; font-size: .82rem; }
   .btn-pair { grid-template-columns: 1fr; }
@@ -756,9 +762,14 @@ function showView(name) {
   $('view-settings').classList.toggle('hidden', name !== 'settings');
   $('nav-quote').classList.toggle('active', name === 'quote');
   $('nav-settings').classList.toggle('active', name === 'settings');
-  if (name === 'settings') { renderSettings(); refreshMeta(); applyLinkVisibility(); }
+  if (name === 'settings') { renderSettings(); refreshMeta(); applyLinkVisibility(); refreshYardStock(); }
 }
 
+function needsPriceBadges(loc) {
+  const yi = yardInfo[loc.name]; if (!yi) return '';
+  const have = (loc.species || []).map(s => s.name);
+  return Object.keys(yi).filter(sp => !have.includes(sp) && yi[sp].Logs && yi[sp].Logs.qty > 0).map(sp => `<span class="badge needs-price" data-np-loc="${esc(loc.id)}" data-np-sp="${esc(sp)}" data-np-cost="${esc(yi[sp].Logs.avg)}" style="cursor:pointer;">${esc(sp)}: needs a price (avg cost $${yi[sp].Logs.avg.toFixed(2)}/t) · tap to add</span>`).join('');
+}
 function renderLocations() {
   const list = $('locationsList');
   if (!list) return;
@@ -769,7 +780,7 @@ function renderLocations() {
         ${(loc.species || []).map(s => {
           const cost = spCostTonne(s), m = cost > 0 ? Math.round(((+s.pricePerTonne || 0) / cost - 1) * 1000) / 10 : 0;
           return `<span class="badge">${esc(s.name)} $${esc(s.pricePerTonne)}/t${m ? ` (cost $${r2(cost)} + ${m}%)` : ''} (${esc(s.tonnesPerCord || 1.8)} t/cord)</span>`;
-        }).join('')}
+        }).join('')}${needsPriceBadges(loc)}
       </div>
       <div>
         <button class="btn btn-outline btn-sm" data-edit-loc="${esc(loc.id)}">Edit</button>
@@ -782,6 +793,8 @@ $('locationsList').addEventListener('click', e => {
   const ed = e.target.closest('[data-edit-loc]'), del = e.target.closest('[data-del-loc]');
   if (ed) editLocation(ed.dataset.editLoc);
   if (del) deleteLocation(del.dataset.delLoc);
+  const np = e.target.closest('[data-np-loc]');
+  if (np) { editLocation(np.dataset.npLoc); addSpeciesRow({ name: np.dataset.npSp, costPerTonne: +np.dataset.npCost, marginPct: '' }); }
 });
 
 function renderSettings() {
@@ -1099,8 +1112,9 @@ $('btnCalculate').onclick = async () => {
   try {
     const yardUrl = localStorage.getItem('yardUrl');
     if (yardUrl) {
-      const res = await fetch(yardUrl);
+      const res = await fetch(yardUrl + (yardUrl.includes('?') ? '&' : '?') + 'all=1');
       const data = await res.json();
+      setYardStock(data.rows || []);
       const yards = [...new Set((data.rows || []).map(r => r.yard).filter(Boolean))];
       yards.forEach(y => {
         if (!settings.locations.find(l => l.name === y)) {
@@ -1241,7 +1255,8 @@ function blockHtml(i) {
   (o.loc.species || []).forEach(sp => {
     if (!speciesMatches(sp, selectedSpecies)) return;
     any = true; speciesCount++;
-    h += `<div class="species-row"><div class="species-name">${esc(sp.name)}<br><span class="small">$${esc(sp.pricePerTonne)}/t</span></div><div class="truck-options">`;
+    const yLogs = yardQty(o.loc.name, sp.name, 'Logs');
+    h += `<div class="species-row"><div class="species-name">${esc(sp.name)}${yardInfo[o.loc.name] ? ' - logs' : ''}<br><span class="small">$${esc(sp.pricePerTonne)}/t</span>${yLogs ? `<br><span class="small" style="${yLogs.qty < 0 ? 'color:var(--bad)' : ''}">${yLogs.qty.toFixed(1)} t on hand</span>` : ''}</div><div class="truck-options">`;
     getTruckOptions().forEach(truck => {
       const truckCost = calcTruckCost(km, truck.hourly, truck.fuel, truck.hours);
       const woodCost = truck.tonnes * sp.pricePerTonne;
@@ -1273,11 +1288,13 @@ function blockHtml(i) {
         <span class="truck">${esc(truck.label)}</span>
         <span class="price">$${total.toFixed(0)}</span>
         <span class="sub">$${perTonne}/t</span>
-        <span class="sub">$${perCord}/cord</span>
+        <span class="sub">$${perCord}/cord</span>${yLogs && yLogs.qty < truck.tonnes ? `<span class="low-note">Low: ${Math.max(0, yLogs.qty).toFixed(1)} t on hand</span>` : ''}
       </div>`;
     });
     h += `</div></div>`;
+    h += splitRowHtml(o, sp, km);
   });
+  h += needsPriceRowsHtml(o);
   if (speciesCount > 1 && (settings.units || []).length) {
     const unitOptions = settings.units.map(u => `<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.tonnes)}t)</option>`).join('');
     const speciesInputs = o.loc.species.map(sp => `
@@ -1314,6 +1331,62 @@ $('results').addEventListener('click', e => {
 $('results').addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('price-chip')) { e.preventDefault(); toggleSelect(e.target.dataset.id, e.target); }
 });
+
+/* ======================= v14: yard stock, SPLIT rows (sold per cord), low stock never blocks ======================= */
+let yardInfo = {};          // yard name -> species -> { Logs: {qty, avg}, Split: {qty, avg} }
+function setYardStock(rows) {
+  yardInfo = {}; if (!window.kfStock) return;
+  const all = kfStock.all(rows);
+  Object.keys(all).forEach(k => { const [y, sp, pr] = k.split('|'); yardInfo[y] = yardInfo[y] || {}; yardInfo[y][sp] = yardInfo[y][sp] || {}; yardInfo[y][sp][pr] = all[k]; });
+}
+const yardQty = (yard, sp, product) => yardInfo[yard] && yardInfo[yard][sp] && yardInfo[yard][sp][product] || null;
+// split choice under each species (remembered on this device)
+function splitChosen() { try { return JSON.parse(localStorage.getItem('kfQuoteSplit') || '[]'); } catch (e) { return []; } }
+(function addSplitBoxes() {
+  const chosen = splitChosen();
+  document.querySelectorAll('.species-cb').forEach(cb => {
+    const l = document.createElement('label'); l.className = 'split-sub';
+    l.innerHTML = `<input type="checkbox" class="split-cb" value="${esc(cb.value)}" ${chosen.includes(cb.value) ? 'checked' : ''}> Split`;
+    cb.closest('label').after(l);
+  });
+  document.getElementById('speciesFilter').addEventListener('change', e => { if (e.target.classList.contains('split-cb')) { try { localStorage.setItem('kfQuoteSplit', JSON.stringify([...document.querySelectorAll('.split-cb:checked')].map(x => x.value))); } catch (er) {} } });
+})();
+function splitWanted(sp) { const sel = [...document.querySelectorAll('.split-cb:checked')].map(x => x.value.toLowerCase()); return sel.length > 0 && speciesMatches(sp, sel); }
+// Row "Birch - SPLIT": $/cord, cords on hand; chips only for units that haul split (cords x $/cord + same trucking maths as logs)
+function splitRowHtml(o, sp, km) {
+  const price = +sp.splitPricePerCord || 0; if (!(price > 0) || !splitWanted(sp)) return '';
+  const units = (settings.units || []).filter(u => u.haulsSplit && +u.splitCords > 0), ys = yardQty(o.loc.name, sp.name, 'Split'), conv = +sp.tonnesPerCord || 1.8;
+  let h = `<div class="species-row split-row"><div class="species-name">${esc(sp.name)} <span class="split-tag">SPLIT</span><br><span class="small">$${price.toFixed(2)}/cord</span>${ys ? `<br><span class="small" style="${ys.qty < 0 ? 'color:var(--bad)' : ''}">${ys.qty.toFixed(1)} cords on hand</span>` : ''}</div><div class="truck-options">`;
+  if (!units.length) h += '<span class="small">No truck unit is set to haul split (Settings → Truck Units → Hauls split).</span>';
+  units.forEach(u => {
+    const truck = { key: u.id, label: u.name, tonnes: u.tonnes, hourly: u.hourly, costHourly: unitCostHourly(u), fuel: u.fuel, hours: u.hours };
+    const cords = +u.splitCords, truckCost = calcTruckCost(km, truck.hourly, truck.fuel, truck.hours), woodCost = cords * price, total = (truckCost + woodCost) * (1 + settings.gst / 100);
+    const id = `${o.loc.id}|${sp.name}|SPLIT|${u.id}`, parts = tripParts(km, truck), lt = logTimes(o, truck);
+    const costPerCord = ys && ys.avg ? ys.avg : (+sp.splitCostPerCord || 0);
+    lastCalcResults.push({ id, locId: o.loc.id, location: o.loc.name, species: sp.name, truck: u.name, tonnes: r2(cords * conv), cords, total, truckCost, woodCost,
+      km: +km.toFixed(1), duration: o.durText || '', driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2), fuelLitres: +lt.fuelLitres.toFixed(1),
+      hourly: u.hourly, unitId: u.id, costHourly: unitCostHourly(u), fuelL100: u.fuel, loadHrs: u.hours, product: 'Split', fuelCost: +parts.fuelBilled.toFixed(2),
+      cost: { productCost: cords * costPerCord, productBilled: woodCost, truckCost: parts.truckCost, truckBilled: parts.truckBilled, fuelCost: parts.fuelCost, fuelBilled: parts.fuelBilled, hrs: parts.hrs, litres: parts.litres, gstPct: settings.gst } });
+    h += `<div class="price-chip${selectedOptions.has(id) ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(id)}"><span class="truck">${esc(u.name)} <span class="split-tag">SPLIT</span></span><span class="price">$${total.toFixed(0)}</span><span class="sub">${cords} cords</span><span class="sub">$${(total / cords).toFixed(0)}/cord</span>${ys && ys.qty < cords ? `<span class="low-note">Low: ${Math.max(0, ys.qty).toFixed(1)} cords on hand</span>` : ''}</div>`;
+  });
+  return h + '</div></div>';
+}
+// A yard with stock of a species it has no price for: shown (no price chips) so it is not forgotten
+function needsPriceRowsHtml(o) {
+  const yi = yardInfo[o.loc.name]; if (!yi) return '';
+  const have = (o.loc.species || []).map(s => s.name), sel = Array.from(document.querySelectorAll('.species-cb:checked')).map(cb => cb.value.toLowerCase());
+  return Object.keys(yi).filter(sp => !have.includes(sp) && speciesMatches({ name: sp }, sel) && ((yi[sp].Logs && yi[sp].Logs.qty) || (yi[sp].Split && yi[sp].Split.qty)))
+    .map(sp => `<div class="species-row"><div class="species-name">${esc(sp)}<br><span class="small needs-price">needs a price</span></div><div class="truck-options"><span class="small">${yi[sp].Logs ? yi[sp].Logs.qty.toFixed(1) + ' t on hand at $' + yi[sp].Logs.avg.toFixed(2) + '/t' : ''}${yi[sp].Split ? ' · ' + yi[sp].Split.qty.toFixed(1) + ' cords split' : ''}. Set its price in Settings → Pickup Locations → ${esc(o.loc.name)}.</span></div></div>`).join('');
+}
+// Low inventory never blocks booking: a note in the booking pop-up and one "Book anyway?" (OK is the default button)
+function shortages(selected) {
+  return (selected || []).map(r => { const q = yardQty(r.location, r.species, r.product === 'Split' ? 'Split' : 'Logs'); if (!q) return null; const need = r.product === 'Split' ? r.cords : r.tonnes, unit = r.product === 'Split' ? 'cords' : 't'; return q.qty < need ? `${r.species} ${r.product === 'Split' ? 'split' : 'logs'} at ${r.location}: ${Math.max(0, q.qty).toFixed(1)} ${unit} on hand, this load is ${(+need).toFixed(1)} ${unit}.` : null; }).filter(Boolean);
+}
+window.kfLowStockNote = function (selected) { const s = shortages(selected), el = $('lowStockNote'); el.classList.toggle('hidden', !s.length); el.innerHTML = s.map(esc).join('<br>'); };
+window.kfConfirmStock = async function (selected) { const s = shortages(selected); return !s.length || confirm(s.join('\n') + '\n\nBook anyway?'); };
+async function refreshYardStock() {
+  try { const yu = localStorage.getItem('yardUrl'); if (!yu) return; const j = await (await fetch(yu + (yu.includes('?') ? '&' : '?') + 'all=1&t=' + Date.now())).json(); setYardStock(j.rows || []); renderLocations(); } catch (e) {}
+}
 
 function toggleSelect(id, el) {
   if (selectedOptions.has(id)) { selectedOptions.delete(id); if (el) el.classList.remove('selected'); }

@@ -382,7 +382,8 @@ function rates(l) {
     cvf: (sp && sp.cvf) || 1.3,
     hourly: (unit && unit.hourly) || l.hourly || 0,
     fuelL100: unit ? (+unit.fuel || 0) : 0,
-    fuelPrice: +s.fuelPrice || 0
+    fuelPrice: +s.fuelPrice || 0,
+    splitPerCord: (sp && +sp.splitPricePerCord) || 0, splitCvf: (sp && +sp.tonnesPerCord) || 1.8      // v14: split is sold per cord
   };
 }
 
@@ -393,6 +394,7 @@ function openInvoice(i) {
   $('invCustomer').innerHTML = `<p><strong>${esc(current.customerName)}</strong></p><p>${esc(current.address)}</p><p>${esc(current.phone)}</p><p>${esc(current.species)} - ${esc(current.location)}</p>`;
   $('invUnit').value = 'tonne';
   $('invAmount').value = toTonnes(current.netTonnes) || current.tonnes || '';
+  if (current.product === 'Split') { $('invUnit').value = 'cord'; $('invAmount').value = current.cords || ''; }
   $('invKm').value = current.km || '';
   $('invDisplay').value = 'detail';
   $('cashAmount').value = '';
@@ -413,6 +415,8 @@ function updateAmount() {
 function calcInvoice() {
   if (!current) return null;
   const r = rates(current);
+  const isSplit = current.product === 'Split' && r.splitPerCord > 0;
+  if (isSplit) { r.cvf = r.splitCvf; }
   const unit = $('invUnit').value;
   const amt = +$('invAmount').value || 0;
   const tonnes = unit === 'cord' ? amt * r.cvf : amt;
@@ -426,7 +430,7 @@ function calcInvoice() {
   const mode = (document.querySelector('input[name="invMode"]:checked') || {}).value || 'ticket';
   $('cashBox').style.display = mode === 'adjust' ? 'block' : 'none';
 
-  const product = r2(tonnes * r.ppt);
+  const product = isSplit ? r2(cords * r.splitPerCord) : r2(tonnes * r.ppt);
   const trip = r2(hours * r.hourly);
   const fuel = r2((km * 2 / 100) * r.fuelL100 * r.fuelPrice);   // same formula as the Quote app
   let sub = r2(product + trip + fuel), gst, total;
@@ -456,7 +460,7 @@ function calcInvoice() {
     lines = [{ d: desc || 'Firewood', q: `${qty.toFixed(2)} ${lbl} @ $${money(per)}/${lbl}`, a: sub }];
   } else {
     lines = [
-      { d: desc || 'Product', q: `${tonnes.toFixed(2)} t @ $${money(r.ppt)}/t`, a: product },
+      { d: desc || 'Product', q: isSplit ? `${cords.toFixed(2)} cords split @ $${money(r.splitPerCord)}/cord` : `${tonnes.toFixed(2)} t @ $${money(r.ppt)}/t`, a: product },
       { d: 'Trip time', q: `${hoursText} @ $${money(r.hourly)}/hr`, a: trip },
       { d: 'Fuel surcharge (FSC)', q: `${km * 2} km × ${r.fuelL100} L/100km × $${money(r.fuelPrice)}/L`, a: fuel }
     ].filter(x => x.a);
