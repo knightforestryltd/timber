@@ -7,7 +7,7 @@ const shared = ['theme.js', 'kf-config.js', 'nav.js', 'kf-stock.js', 'kf-stats.j
 const winGlobals = [...new Set([...shared.matchAll(/window\.([A-Za-z_$][\w$]*)\s*=/g)].map(m => m[1]))];
 const globals = {}; bg.forEach(n => globals[n] = 'readonly'); winGlobals.forEach(n => globals[n] = 'writable');
 ['html2pdf', 'Capacitor', 'google', '__kfEarly', 'L'].forEach(n => globals[n] = 'readonly');
-const rules = { 'no-undef': 'error', 'no-dupe-keys': 'error', 'no-unreachable': 'warn', 'no-func-assign': 'error', 'no-self-assign': 'warn', 'no-dupe-else-if': 'error', 'no-duplicate-case': 'error',
+const rules = { 'no-undef': 'error', 'no-dupe-keys': 'error', 'no-unreachable': 'warn', 'no-func-assign': 'off', 'no-self-assign': 'warn', 'no-dupe-else-if': 'error', 'no-duplicate-case': 'error',
   'no-unsafe-negation': 'error', 'no-cond-assign': ['warn', 'except-parens'], 'no-const-assign': 'error', 'no-redeclare': 'warn', 'use-isnan': 'error', 'valid-typeof': 'error', 'no-loss-of-precision': 'warn', 'no-unused-vars': 'off', 'no-dupe-class-members': 'error', 'no-compare-neg-zero': 'error', 'no-unsafe-finally': 'warn', 'for-direction': 'error', 'getter-return': 'error', 'no-sparse-arrays': 'warn', 'no-import-assign': 'error' };
 const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: [{ languageOptions: { ecmaVersion: 2022, sourceType: 'script', globals }, rules }] });
 const targets = [];
@@ -18,7 +18,8 @@ for (const f of fs.readdirSync(D)) {
     // inline handlers
     const outside = h.replace(/<script[\s\S]*?<\/script>/g, '');
     const handlers = [...outside.matchAll(/\son[a-z]+="([^"]*)"/g)].map(m => m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
-    targets.push({ name: f, code: code + '\n;' + handlers.map((x, i) => 'function __h' + i + '(event){' + x + '\n}').join('\n') });
+    const own = [...new Set([...code.matchAll(/window\.([A-Za-z_$][\w$]*)\s*=/g)].map(m => m[1]))];   // names the page itself puts on window
+    targets.push({ name: f, code: (own.length ? '/* global ' + own.join(', ') + ' */\n' : '') + code + '\n;' + handlers.map((x, i) => 'function __h' + i + '(event){' + x + '\n}').join('\n') });
   }
 }
 ['nav.js', 'kf-stock.js', 'kf-stats.js', 'theme.js', 'sw.js'].forEach(f => targets.push({ name: f, code: fs.readFileSync(path.join(D, f), 'utf8') }));

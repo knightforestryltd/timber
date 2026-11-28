@@ -608,7 +608,7 @@ async function renderLogin(msg) {
     $('lgGo').disabled = true; $('lgErr').textContent = 'Logging in…';
     const r = await api({ action: 'driverLogin', name, passcode: pass });
     $('lgGo').disabled = false;
-    if (r.status === 'ok') { session = r.token ? { name, passcode: '', token: r.token } : { name, passcode: pass }; LS.set('kfDrvSession', session); const oy = r.openYardShift; setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } if (oy && !yard) { yard = oy; saveYard(); } renderDrivers(); }
+    if (r.status === 'ok') { session = r.token ? { name, passcode: '', token: r.token } : { name, passcode: pass }; LS.set('kfDrvSession', session); if (window.kfFixMenu) kfFixMenu(); const oy = r.openYardShift; setCtx(r); if (r.openShift && !shift) { shift = normalize(r.openShift); saveShiftLocal(); } if (oy && !yard) { yard = oy; saveYard(); } renderDrivers(); }
     else $('lgErr').textContent = r.status === 'badpassword' ? 'Wrong name or passcode.' : r.status === 'locked' ? 'Too many tries. Wait 10 minutes.' : r.status === 'offline' ? 'No signal. You need signal to log in the first time.' : (r.message || 'Could not log in.');
   };
 }
@@ -695,7 +695,7 @@ function renderStart() {
 async function logout() {
   if (shift) { alert('Submit your open shift first.'); return; }
   if (yard) { alert('Clock out of yard work first.'); return; }
-  session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); LS.del('kfDrvHist'); stopWatch(); renderDrivers();
+  session = null; ctx = null; LS.del('kfDrvSession'); LS.del('kfDrvCtx'); LS.del('kfDrvHist'); stopWatch(); renderDrivers(); if (window.kfFixMenu) kfFixMenu();
 }
 
 function pretripTag() { return !shift.pretrip ? ['todo', 'Required'] : shift.pretrip.defects ? ['bad', 'Defects'] : ['ok', 'Done']; }

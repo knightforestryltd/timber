@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Invoicing</title>
-<script src="html2pdf.bundle.min.js"></script>
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
 <script src="kf-config.js"></script>
@@ -754,6 +753,7 @@ function openPreview(pages) {
 
 /* ---------- PDF + delivery ---------- */
 async function makePdf(pages, quality, scale) {
+  if (typeof html2pdf === 'undefined' && window.kfPdfLib) await kfPdfLib();   // v14.4: loaded on first use
   if (typeof html2pdf === 'undefined') throw new Error('PDF library not loaded (html2pdf.bundle.min.js missing).');
   window.scrollTo(0, 0);
   const wrap = document.createElement('div');

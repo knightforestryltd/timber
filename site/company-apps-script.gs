@@ -21,6 +21,9 @@
 // v14.3: rolling named backup · tickets never overwritten · kg->tonnes fixed · no tonnes-per-cord default · Delivered At column ·
 //        per-device password lockouts · "busy" instead of lock errors · read-only requests skip the lock · light driver saves ·
 //        5-minute position + speed ping (no GPS trail) · Dispatch gets recent loads only · Log trimmed nightly · GST from settings
+// v14.4: tabs grow past row 1000 (rows are added at the bottom; nothing moves) · much faster menu badges, driver log in,
+//        Drivers admin and Statistics (the Shifts log + signature columns are only read where shown) · settings size checked
+//        before saving · editor test sets up PM templates · bad ticket rows answered cleanly
 var SCRIPT_VERSION = 14;     // pages check v >= 14 for the Trucks / Statistics / admin-token features
 var APP = 'company';
 var SHEET_NAME = 'Company Data';

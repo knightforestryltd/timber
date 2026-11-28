@@ -440,6 +440,14 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
       'header .kfMenu.more.end{-webkit-mask-image:none;mask-image:none}';
     document.head.appendChild(st);
   }
+  // v14.4: pages call kfFixMenu() after someone signs in or out, so the menu matches at once
+  // v14.4: the 900 KB PDF tool is loaded the first time a PDF is made, not with every page
+  window.kfPdfLib = function () {
+    if (window.html2pdf) return Promise.resolve();
+    if (!window.__kfPdf) window.__kfPdf = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = 'html2pdf.bundle.min.js'; s.onload = function () { res(); }; s.onerror = function () { window.__kfPdf = null; rej(new Error('PDF library not loaded (no signal?).')); }; document.head.appendChild(s); });
+    return window.__kfPdf;
+  };
+  window.kfFixMenu = function () { try { fixMenu(); } catch (e) {} };
   function fixMenu() {
     var a0 = document.querySelector('header a[href="dispatch.html"]'); if (!a0) return;
     menuCss();

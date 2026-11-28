@@ -66,7 +66,6 @@ input, select, textarea { width: 100%; padding: 12px; min-height: 46px; font-siz
   <div id="view"></div>
 </div>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
-<script src="html2pdf.bundle.min.js" defer></script>
 <script>
 /* ======================================================================
    Statistics (v14): the company's own bottom line. Office only. One svc=money summary call; all maths here (kf-stats.js).
@@ -531,7 +530,7 @@ function renderExport() {
   $('csvAll').onclick = () => { TABLES.all = { title: 'Sales and costs ' + periodLabel(), cols: [{ t: 'Type', k: 'type' }, { t: 'Date', k: 'd' }, { t: 'What', k: 'what' }, { t: 'Category', k: 'cat' }, { t: 'Before GST', k: 'amt' }, { t: 'GST', k: 'gst' }],
     rows: p.sales.map(s => ({ type: 'Sale', d: s.d, what: s.ref + ' ' + s.who, cat: 'Sales', amt: s.rev.sub, gst: s.rev.gst })).concat(p.costs.map(c => ({ type: 'Cost', d: c.d, what: c.src, cat: c.cat, amt: c.amount, gst: c.gst || 0 }))) }; csv('all'); };
   $('pdfGo').onclick = async () => {
-    if (typeof html2pdf === 'undefined') return alert('The PDF tool is still loading. Try again in a moment.');
+    if (typeof html2pdf === 'undefined') { try { await kfPdfLib(); } catch (e) { return alert('The PDF tool could not load. Check your signal and try again.'); } }
     const html = `<div style="font-family:Arial;color:#0f172a;padding:10px;width:700px"><h2>${esc((JSON.parse(localStorage.getItem('kfCompany') || '{}').name) || '')} · Statistics · ${esc(periodLabel())}</h2>
       <table style="width:100%;border-collapse:collapse" border="1" cellpadding="5"><tr><td>Sales (before GST)</td><td>${money(T.sales)}</td></tr><tr><td>Costs</td><td>${money(T.costs)}</td></tr><tr><td><b>Net profit</b></td><td><b>${money(T.profit)} (${T.margin}%)</b></td></tr><tr><td>Cash in</td><td>${money(T.cashIn)}</td></tr><tr><td>GST collected / paid</td><td>${money(T.gstIn)} / ${money(T.gstOut)}</td></tr></table>
       <h3>Costs by category</h3><table style="width:100%;border-collapse:collapse" border="1" cellpadding="4">${Object.keys(p.byCat).map(c => `<tr><td>${esc(c)}</td><td>${money(p.byCat[c])}</td></tr>`).join('')}</table>

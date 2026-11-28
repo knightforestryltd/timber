@@ -290,12 +290,15 @@ async function deleteLoad() {
 }
 
 function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let notesShownFor = null;
 function showLoadNotes(l) {
   const n = String(l.notes || '').trim();
   const box = document.getElementById('dNotes');
   if (box) box.innerHTML = n ? '<strong>Notes:</strong> ' + escHtml(n).replace(/\n/g, '<br>') : '';
   if (box) box.style.display = n ? '' : 'none';
   if (!n) return;
+  const key = l.customerName + '|' + l.timestamp;            // v14.4: once per opening (not again when the same load redraws, e.g. after Check Ticket)
+  if (key === notesShownFor) return; notesShownFor = key;
   document.getElementById('notesPopupText').innerHTML = escHtml(n).replace(/\n/g, '<br>');
   document.getElementById('notesPopup').style.display = 'flex';
 }
@@ -391,6 +394,7 @@ window.kfBack = function () {
   return false;
 };
 function showList() {
+  notesShownFor = null;
   document.getElementById('settingsView').classList.add('hidden');
   document.getElementById('detailView').classList.add('hidden');
   document.getElementById('listView').classList.remove('hidden');
