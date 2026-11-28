@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dispatch</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<script src="kf-config.js"></script>
+<script src="nav.js"></script>
+<style>
+.container { max-width: 700px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); cursor: pointer; }
+.card:hover { border-color: var(--primary-light); }
+.pending-pay { border-color: var(--amber); }
+/* load cards: status at a glance */
+.ld { border-left: 6px solid var(--border); }
+.ld.started { border-color: #16a34a; background: rgba(22, 163, 74, .10); }
+.ld.delivered { border-color: #d97706; background: rgba(217, 119, 6, .12); }
+.ld.paid { border-color: #2563eb; background: rgba(37, 99, 235, .07); }
+.ld .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.pill { display: inline-block; font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--text); }
+.pill.started { background: #16a34a; color: #fff; } .pill.delivered { background: #d97706; color: #fff; } .pill.paid { background: #2563eb; color: #fff; }
+.ld .where { font-weight: 700; margin-top: 4px; }
+.tabs2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.tabs2 button { padding: 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: .95rem; cursor: pointer; }
+.tabs2 button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
+textarea { width: 100%; padding: 12px; min-height: 90px; font-size: 16px; box-sizing: border-box; }
+.ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1000; display: none; align-items: flex-start; justify-content: center; padding: 12px; overflow: auto; }
+.ov.show { display: flex; } .ov .sheet { background: var(--card); color: var(--text); border-radius: 16px; width: 100%; max-width: 520px; padding: 18px; margin: auto 0; }
+.small { font-size: .8rem; color: var(--muted); }
+label { display: block; margin-bottom: 4px; font-size: .9rem; }
+input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
+.hidden { display: none; }
+@media (max-width: 700px) { .container { padding: 8px; } }
+</style>
+
+</head>
+<body>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <a href="#" onclick="showDispatchSettings();return false;" id="nav-settings" style="color:white;text-decoration:none;padding:6px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" onclick="location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="#" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+    </div>
+  </div>
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
+</header>
+<div class="container">
+  <div id="listView">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h2>Dispatch</h2><button class="btn btn-outline btn-sm" onclick="loadLoads()" title="Refresh">↻</button></div>
+    <div class="tabs2"><button id="tabPending" class="on" onclick="setListTab('pending')">Pending</button><button id="tabDone" onclick="setListTab('done')">Invoiced</button></div>
+    <div class="small" id="listCounts" style="margin:-2px 0 6px;"></div>
+    <div class="small" id="listUpdated" style="margin:0 0 8px;"></div>
+    <div id="loadList"></div>
+  </div>
+  <div id="settingsView" class="hidden">
+    <button class="btn btn-outline" onclick="showList()">&larr; Back</button>
+    <div class="card" style="cursor:default; margin-top:12px;" id="dispLinks"></div>
+    <div class="card" style="cursor:default;" id="textCard">
+      <h2 style="margin-top:0">Customer texts</h2>
+      <label style="display:flex;gap:10px;align-items:center;font-weight:600;"><input type="checkbox" id="txOn"> Text the customer when their load starts</label>
+      <div class="small" style="margin:6px 0 10px;">When a ticket starts a load, this phone opens its messaging app with the text ready to send to the customer, from the driver's own number. Nothing is sent without tapping Send.</div>
+      <label for="txTpl">Message</label>
+      <textarea id="txTpl"></textarea>
+      <div class="small">Fill-ins: {customer} {species} {eta} {driver} {driverPhone} {company} {loadId}</div>
+      <div id="txPwWrap" class="hidden"><label for="txPw">Company password (saves for every device)</label><input type="password" id="txPw" autocomplete="current-password"></div>
+      <button class="btn" id="txSave" style="margin-top:8px;">Save</button>
+      <div id="txMsg" class="small" style="margin-top:6px;font-weight:600;"></div>
+      <h3 style="margin:16px 0 4px;">This phone's driver</h3>
+      <div class="small" id="txDrvNote" style="margin-bottom:6px;"></div>
+      <label for="txDrvName">Driver name</label><input id="txDrvName" placeholder="e.g. Kevin">
+      <label for="txDrvPhone">Driver phone</label><input id="txDrvPhone" type="tel" placeholder="403 000 0000">
+      <button class="btn btn-outline" id="txDrvSave">Save driver</button>
+    </div>
+  </div>
+  <div id="detailView" class="hidden">
+    <button class="btn btn-outline" onclick="showList()">&larr; Back</button>
+    <div class="card" style="cursor:default; margin-top:12px;">
+      <h2 id="dName"></h2>
+      <div id="dInfo"></div>
+      <div id="dOffice" style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;">
+        <button class="btn btn-outline" type="button" onclick="openEdit()">Edit load</button>
+        <button class="btn btn-outline" type="button" onclick="openAssign()">Assign driver &amp; truck</button>
+        <button class="btn btn-outline" type="button" id="delLoadBtn" onclick="deleteLoad()" style="color:var(--bad);border-color:var(--bad);">Delete load</button>
+      </div>
+      <div id="dEdit" class="hidden"></div>
+      <div id="dNotes" style="display:none;padding:10px 12px;margin:8px 0;border-radius:10px;border:1px solid var(--amber);"></div>
+      <div class="small" id="dDays"></div>
+      <hr style="border-color:var(--border);">
+      <label>Scale Ticket # (Load ID)</label>
+      <div id="ticketPick" class="small" style="margin:4px 0 8px"></div>
+      <input id="ticketInput" placeholder="or type the ticket number">
+      <button class="btn" onclick="checkTicket()">Check Ticket</button>
+      <div id="ticketResult" style="margin:12px 0;"></div>
+      <button class="btn btn-outline hidden" id="textBtn" onclick="offerText(true)" style="margin-bottom:10px;">Text the customer</button>
+      <button class="btn" id="deliveredBtn" disabled onclick="markDelivered()">Delivered</button>
+    </div>
+  </div>
+</div>
+<script>
+let loads = [];
+let current = null;
+function loadKey(l) { return (l.customerName || '') + '|' + (l.timestamp || ''); }
+// the Net Tonnes column is always tonnes (scale tickets are kg and are divided by 1000 when they are attached)
+function toTonnes(v) { const n = parseFloat(v); return n ? Math.round(n * 100) / 100 : v; }
+const SHOW_STATUS = v => String(v || '') === 'Paid' ? 'Invoiced' : (v || 'Pending');   // the sheet still stores "Paid"; it means invoiced
+function fmtHours(h) { if (!h) return ''; const hrs = Math.floor(h); const mins = Math.round((h - hrs) * 60); return hrs ? hrs + 'h ' + mins + 'm' : mins + 'm'; }
+function fmtMoney(v) { const n = parseFloat(v); return isNaN(n) ? v : n.toFixed(2); }
+function getRates(l) {
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    const loc = (s.locations || []).find(x => x.name === l.location);
+    const sp = loc && (loc.species || []).find(x => x.name === l.species);
+    const unit = (s.units || []).find(x => x.name === l.truck) || (s.units || []).find(x => (x.aliases || []).includes(l.truck));
+    return {
+      ppt: sp ? sp.pricePerTonne : (l.pricePerTonne || 0),
+      hourly: unit ? unit.hourly : (l.hourly || 0),
+      fuelL100: unit ? unit.fuel : 70,
+      fuelPrice: s.fuelPrice || 0.90
+    };
+  } catch(e) { return { ppt: 0, hourly: 0, fuelL100: 70, fuelPrice: 0.90 }; }
+}
+function lineItemsHtml(l) {
+  const tonnes = toTonnes(l.netTonnes) || l.tonnes || 0;
+  const rates = getRates(l);
+  const ppt = rates.ppt || l.pricePerTonne || 0;
+  const product = tonnes * ppt;
+  const hours = l.billedHours !== '' && l.billedHours != null && !isNaN(+l.billedHours) ? +l.billedHours : (l.totalHours || 0);
+  const hourly = rates.hourly || l.hourly || 0;
+  const trip = hours * hourly;
+  const roundKm = (l.km || 0) * 2;
+  const fuel = (roundKm / 100) * rates.fuelL100 * rates.fuelPrice;
+  const sub = product + trip + fuel;
+  return `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+    <p><strong>Ticket tonnes:</strong> ${tonnes} t × $${ppt.toFixed(2)} = $${product.toFixed(2)}</p>
+    <p><strong>Trip hours:</strong> ${fmtHours(hours)} × $${hourly}/hr = $${trip.toFixed(2)}</p>
+    <p><strong>Fuel surcharge (FSC):</strong> $${fuel.toFixed(2)}</p>
+    <p style="font-size:1.1rem;"><strong>Billable:</strong> $${sub.toFixed(2)}</p>
+  </div>`;
+}
+function getLocalState() { try { return JSON.parse(localStorage.getItem('kfDispatch') || '{}'); } catch(e) { return {}; } }
+function setLocalState(k, v) { const s = getLocalState(); s[k] = v; localStorage.setItem('kfDispatch', JSON.stringify(s)); }
+let QUOTE_URL = '';
+let TICKET_URL = localStorage.getItem('scriptUrl') || '';
+
+function getCompanyInitials() {
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    let co = {}; try { co = JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch (e) {}
+    const name = co.name || s.companyName || 'Company';
+    const parts = name.replace(/ltd|inc|llc/gi, '').trim().split(/\s+/);
+    return ((parts[0]||'')[0] || '') + ((parts[1]||'')[0] || '');
+  } catch(e) { return 'KF'; }
+}
+
+function ticketPrefix() {
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return getCompanyInitials().toUpperCase() + '-' + d.getFullYear() + '-' + mm + dd + '-';
+}
+
+async function loadLoads() {
+  try {
+    const s = JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}');
+    QUOTE_URL = s.sheetsUrl || '';
+    if (!QUOTE_URL) { document.getElementById('loadList').innerHTML = '<p>This device is not signed in yet. Open <b>Quote</b> to sign in.</p>'; return; }
+    await sendPending();
+    const res = await fetch(QUOTE_URL + (QUOTE_URL.includes('?') ? '&' : '?') + 'recent=1&t=' + Date.now());   // open loads + the last 60 days
+    const data = await res.json();
+    if (data.status === 'nokey') { document.getElementById('loadList').innerHTML = '<p>This device is not signed in to the company. Open <b>Quote</b> to sign in.</p>'; return; }
+    const paidAt = r => { try { const j = r.invoiceData ? JSON.parse(r.invoiceData) : null; return (j && +j.paidAt) || new Date(r.timestamp || 0).getTime(); } catch (e) { return new Date(r.timestamp || 0).getTime(); } };
+    doneLoads = (data.rows || []).filter(r => (r.status || '').toLowerCase() === 'paid').sort((a, b) => paidAt(b) - paidAt(a)).slice(0, 100);
+    loads = (data.rows || []).filter(r => (r.status || '').toLowerCase() !== 'paid');
+    // the sheet is the truth; this phone only remembers changes that have not reached the sheet yet
+    const local = getLocalState();
+    loads.forEach(l => {
+      const st = local[loadKey(l)];
+      if (st && st.pending) { if (st.loadId) l.loadId = st.loadId; if (st.status && (l.status || '').toLowerCase() !== 'paid') l.status = st.status; if (st.netTonnes) l.netTonnes = toTonnes(st.netTonnes); l._pending = true; }
+    });
+    const lu = document.getElementById('listUpdated'); if (lu) lu.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · tap ↻ to refresh';
+    loads = loads.filter(l => (l.status || '').toLowerCase() !== 'paid');
+    renderList();
+  } catch(e) {
+    document.getElementById('loadList').innerHTML = '<p>Could not get the loads (no signal, or the office sheet did not answer). Tap ↻ to try again.</p>';
+  }
+}
+
+function daysSince(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+  return diff + ' day' + (diff === 1 ? '' : 's') + ' since quoted';
+}
+
+let listTab = 'pending', doneLoads = [];
+function setListTab(t) { listTab = t; document.getElementById('tabPending').classList.toggle('on', t === 'pending'); document.getElementById('tabDone').classList.toggle('on', t === 'done'); renderList(); }
+function statusOf(l) { const s = String(l.status || '').toLowerCase(); return s === 'paid' ? 'paid' : s === 'delivered' ? 'delivered' : s === 'started' ? 'started' : 'waiting'; }
+const STATUS_LABEL = { waiting: 'Waiting', started: 'Started', delivered: 'Delivered · ready to invoice', paid: 'Invoiced' };
+function cycleText(l) { const h = +l.totalHours; return h ? (Math.round(h * 10) / 10) + ' hrs cycle' : (l.duration || ''); }
+function cardHtml(l, i, list) {
+  const st = statusOf(l), t = toTonnes(l.netTonnes) || l.tonnes;
+  return `<div class="card ld ${st}" onclick="openLoad(${i}, '${list}')">
+    <div class="top"><strong>${escHtml(l.customerName || 'No name')}</strong><span class="pill ${st}">${STATUS_LABEL[st]}${l.loadId && st !== 'waiting' ? ' · ' + escHtml(l.loadId) : ''}</span></div>
+    <div class="where">${escHtml(l.place || l.address || 'No address')}</div>
+    <div>${escHtml(l.species || '')}${t ? ' · ' + escHtml(t) + ' t' : ''} · from ${escHtml(l.location || '—')}${l.truck ? ' · ' + escHtml(l.truck) : ''}</div>
+    ${l.driverName || l.unitId || l.requestedDate ? `<div class="small">${l.requestedDate ? 'For ' + escHtml(l.requestedDate) + ' · ' : ''}${l.driverName || l.unitId ? escHtml(l.driverName || 'no driver') + ' · ' + escHtml(unitLabel(l.unitId) || 'no truck') : '<b>not assigned</b>'}</div>` : ''}
+    <div class="small">${escHtml(cycleText(l))}${l.km ? ' · ' + escHtml(l.km) + ' km one way' : ''} · ${escHtml(daysSince(l.timestamp))}${l._pending ? ' · <b>not sent yet</b>' : ''}</div>
+  </div>`;
+}
+function renderList() {
+  const el = document.getElementById('loadList');
+  const c = { waiting: 0, started: 0, delivered: 0 }; loads.forEach(l => c[statusOf(l)]++);
+  document.getElementById('listCounts').innerHTML = `<b>${c.waiting}</b> waiting · <b style="color:#16a34a">${c.started}</b> started · <b style="color:#d97706">${c.delivered}</b> delivered, pending billing · <b style="color:#2563eb">${doneLoads.length}</b> paid`;
+  if (listTab === 'done') { el.innerHTML = doneLoads.length ? doneLoads.map((l, i) => cardHtml(l, i, 'done')).join('') : '<p style="color:var(--muted);">No paid loads yet.</p>'; return; }
+  if (!loads.length) { el.innerHTML = '<p style="color:var(--muted);">No pending loads.</p>'; return; }
+  el.innerHTML = loads.map((l, i) => cardHtml(l, i, 'pending')).join('');
+}
+
+// cords only when a tonnes-per-cord factor is set for this species at this location (no default). Split is always cords.
+function actualCords(l) {
+  if (String(l.product || '') === 'Split') return l.cords || '';
+  const tonnes = +toTonnes(l.netTonnes) || +l.tonnes || 0;
+  if (!tonnes) return l.cords || '';
+  return kfCords(tonnes, kfFactor(l.location, l.species));
+}
+function openLoad(i, list) {
+  current = list === 'done' ? doneLoads[i] : loads[i];
+  const isDone = list === 'done';
+  document.getElementById('listView').classList.add('hidden');
+  document.getElementById('detailView').classList.remove('hidden');
+  document.getElementById('dName').textContent = (current.customerName || '') + (current.loadId ? '  ·  ' + current.loadId : '');
+  document.getElementById('dInfo').innerHTML = `
+    <p><strong>Phone:</strong> ${current.phone || '—'}</p>
+    <p><strong>Address:</strong> ${escHtml(current.address || '—')}${current.place ? '<br><span class="small">' + escHtml(current.place) + '</span>' : ''}${current.placeLat ? ` · <a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${current.placeLat},${current.placeLon}">directions</a>` : ''}</p>
+    <p><strong>Source:</strong> ${current.location || '—'}</p>
+    <p><strong>Species:</strong> ${current.species || '—'}</p>
+    <p><strong>Truck:</strong> ${current.truck || '—'}</p>
+    <p><strong>Tonnes:</strong> ${toTonnes(current.netTonnes) || current.tonnes || '—'}${actualCords(current) !== '' ? ' · <strong>Cords:</strong> ~' + actualCords(current) : ''}</p>
+    <p><strong>Trip:</strong> ${current.totalHours ? fmtHours(current.totalHours) + ' cycle' : (current.duration || '—')} · ${current.km || '—'} km</p>
+    <p><strong>Total:</strong> $${fmtMoney(current.total)}${+current.priceAdj ? ` <span class="small">(quoted $${fmtMoney(current.quotedTotal)}, adjustment ${+current.priceAdj > 0 ? '+' : ''}$${fmtMoney(current.priceAdj)}${current.adjReason ? ': ' + escHtml(current.adjReason) : ''}${current.billedHours !== '' && current.billedHours != null ? ' · ' + escHtml(current.billedHours) + ' h billed' : ''})</span>` : ''}</p>
+    ${current.requestedDate ? `<p><strong>Requested:</strong> ${escHtml(current.requestedDate)}</p>` : ''}
+    ${current.driverName || current.unitId ? `<p><strong>Assigned:</strong> ${escHtml(current.driverName || '—')} · ${escHtml(unitLabel(current.unitId) || '—')}</p>` : ''}
+    ${current.netTonnes ? lineItemsHtml(current) : ''}
+    <p><strong>Status:</strong> ${SHOW_STATUS(current.status)}</p>
+    ${current.netTonnes ? '<p><strong>Net tonnes (ticket):</strong> ' + toTonnes(current.netTonnes) + '</p>' : ''}
+  `;
+  document.getElementById('dDays').textContent = daysSince(current.timestamp);
+  document.getElementById('dEdit').classList.add('hidden'); document.getElementById('dEdit').innerHTML = '';
+  document.getElementById('dOffice').classList.toggle('hidden', !(window.kfServerV && kfServerV() >= 14));
+  showLoadNotes(current);
+  document.getElementById('ticketInput').value = current.loadId || ticketPrefix();
+  document.getElementById('ticketResult').textContent = '';
+  showTicketPick(isDone);
+  document.getElementById('deliveredBtn').disabled = current.status !== 'Started' && !current.loadId;
+  // a paid load is finished: show it, nothing to change
+  ['ticketInput', 'deliveredBtn'].forEach(id => document.getElementById(id).classList.toggle('hidden', isDone));
+  document.querySelector('#detailView .btn[onclick="checkTicket()"]').classList.toggle('hidden', isDone);
+  document.getElementById('textBtn').classList.toggle('hidden', isDone || statusOf(current) !== 'started' || !textSettings().texts || !current.phone);
+  // only loads not delivered yet can be deleted (a delivered load is already out of inventory and may be billed)
+  document.getElementById('delLoadBtn').classList.toggle('hidden', isDone || statusOf(current) === 'delivered' || statusOf(current) === 'paid');
+}
+// Dispatch -> Delete load: removes the row from the Load Log sheet (a copy goes to the sheet's Log tab first).
+async function deleteLoad() {
+  const l = current; if (!l) return;
+  const st = statusOf(l);
+  if (st === 'delivered' || st === 'paid') { alert('A delivered or paid load cannot be deleted. Use Edit load instead.'); return; }
+  const what = (l.customerName || 'No name') + '\n' + [l.species, l.tonnes ? l.tonnes + ' t' : '', l.location ? 'from ' + l.location : '', l.truck].filter(Boolean).join(' · ');
+  if (!confirm('Delete this load?\n\n' + what + (l.loadId ? '\nLoad ID ' + l.loadId + ' (already started)' : '') + '\n\nIt is removed from Dispatch and the Load Log sheet. A copy is kept in the sheet\'s Log tab.')) return;
+  const b = document.getElementById('delLoadBtn'); b.disabled = true;
+  try {
+    const r = await officePost({ action: 'deleteLoad', find: findOf(l) });
+    if (r.status === 'cancelled') return;
+    if (r.status !== 'ok') { alert(/Unknown action/.test(r.message || '') ? 'Deleting loads needs the updated company script. Deploy the new version of company-apps-script.gs first.' : (r.message || ('Not deleted (' + r.status + ').'))); return; }
+    loads = loads.filter(x => x !== l);
+    const s = getLocalState(); delete s[loadKey(l)]; localStorage.setItem('kfDispatch', JSON.stringify(s));
+    current = null; showList();
+  } catch (e) { alert('No signal: nothing was deleted.'); }
+  finally { b.disabled = false; }
+}
+
+function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showLoadNotes(l) {
+  const n = String(l.notes || '').trim();
+  const box = document.getElementById('dNotes');
+  if (box) box.innerHTML = n ? '<strong>Notes:</strong> ' + escHtml(n).replace(/\n/g, '<br>') : '';
+  if (box) box.style.display = n ? '' : 'none';
+  if (!n) return;
+  document.getElementById('notesPopupText').innerHTML = escHtml(n).replace(/\n/g, '<br>');
+  document.getElementById('notesPopup').style.display = 'flex';
+}
+function showDispatchSettings() {
+  ['listView', 'detailView'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('settingsView').classList.remove('hidden');
+  kfLinks.card(document.getElementById('dispLinks'), ['sheetsUrl', 'scriptUrl'], () => { TICKET_URL = kfLinks.get('scriptUrl'); });
+  renderTextSettings();
+}
+
+/* ---------- customer texts (sent from the driver's own phone with the messaging app) ---------- */
+const DEFAULT_TEXT = 'Hi {customer}, your load of {species} is loaded and on its way. Estimated arrival around {eta}. Your driver today is {driver} {driverPhone}. - {company}';
+function companySettings() { try { return JSON.parse(localStorage.getItem('knightForestrySettings_v3') || '{}'); } catch (e) { return {}; } }
+function textSettings() { const d = companySettings().dispatch || {}, local = (() => { try { return JSON.parse(localStorage.getItem('kfTextLocal') || 'null'); } catch (e) { return null; } })(); const x = (window.kfCo && kfCo.unified()) ? d : (local || d); return { texts: !!x.texts, template: x.template || DEFAULT_TEXT }; }
+function driverInfo() {
+  let name = '', phone = '';
+  try { const sess = JSON.parse(localStorage.getItem('kfDrvSession') || 'null'), ctx = JSON.parse(localStorage.getItem('kfDrvCtx') || 'null'); if (sess) name = sess.name || ''; if (ctx && ctx.driver) phone = ctx.driver.phone || ''; } catch (e) {}
+  try { const me = JSON.parse(localStorage.getItem('kfDispatchDriver') || '{}'); if (me.name) name = me.name; if (me.phone) phone = me.phone; } catch (e) {}
+  return { name, phone };
+}
+function renderTextSettings() {
+  const t = textSettings(), me = driverInfo(), uni = !!(window.kfCo && kfCo.unified());
+  document.getElementById('txOn').checked = t.texts; document.getElementById('txTpl').value = t.template;
+  document.getElementById('txPwWrap').classList.toggle('hidden', !uni || (window.kfIsAdmin && kfIsAdmin()));
+  document.getElementById('txDrvName').value = me.name; document.getElementById('txDrvPhone').value = me.phone;
+  let sess = null; try { sess = JSON.parse(localStorage.getItem('kfDrvSession') || 'null'); } catch (e) {}
+  document.getElementById('txDrvNote').textContent = sess ? 'Filled in from the Drivers log-in on this phone. Change it here if needed.' : 'Used in the text. Set once per phone (drivers logged in on Drivers fill this in automatically).';
+  document.getElementById('txMsg').textContent = '';
+}
+document.getElementById('txSave').onclick = async () => {
+  const msg = document.getElementById('txMsg'), body = { texts: document.getElementById('txOn').checked, template: document.getElementById('txTpl').value.trim() || DEFAULT_TEXT };
+  if (window.kfCo && kfCo.unified()) {
+    const pw = document.getElementById('txPw').value; if (!pw && !(window.kfIsAdmin && kfIsAdmin())) { msg.style.color = 'var(--bad)'; msg.textContent = 'Enter the company password.'; return; }
+    try {
+      const r = await kfCo.post('sync', { action: 'saveDispatch', password: pw, dispatch: body });
+      if (r.status !== 'saved') { msg.style.color = 'var(--bad)'; msg.textContent = r.status === 'badpassword' ? 'Wrong company password.' : (r.message || 'Could not save.'); return; }
+      const s = companySettings(); s.dispatch = r.dispatch; localStorage.setItem('knightForestrySettings_v3', JSON.stringify(s)); localStorage.setItem('kfCompanyRev', String(r.rev));
+      document.getElementById('txPw').value = ''; msg.style.color = 'var(--good)'; msg.textContent = 'Saved for every device.';
+    } catch (e) { msg.style.color = 'var(--bad)'; msg.textContent = 'No signal: nothing was saved.'; }
+  } else { localStorage.setItem('kfTextLocal', JSON.stringify(body)); msg.style.color = 'var(--good)'; msg.textContent = 'Saved on this device.'; }
+};
+document.getElementById('txDrvSave').onclick = () => {
+  localStorage.setItem('kfDispatchDriver', JSON.stringify({ name: document.getElementById('txDrvName').value.trim(), phone: document.getElementById('txDrvPhone').value.trim() }));
+  const m = document.getElementById('txMsg'); m.style.color = 'var(--good)'; m.textContent = 'Driver saved on this phone.';
+};
+function etaText(l) {
+  let oneWay = (+l.driveHours || 0) / 2;                       // driveHours is the round trip
+  if (!oneWay && l.km) oneWay = (+l.km) / 80;
+  if (!oneWay) return 'later today';
+  const t = new Date(Date.now() + oneWay * 3600000), m = Math.round(t.getMinutes() / 5) * 5;
+  t.setMinutes(m, 0, 0);
+  return t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+function buildText(l) {
+  const me = driverInfo(); let co = ''; try { co = JSON.parse(localStorage.getItem('kfCompany') || '{}').name || companySettings().companyName || ''; } catch (e) {}
+  const first = String(l.customerName || '').trim().split(/\s+/)[0] || 'there';
+  const map = { customer: first, species: String(l.species || 'wood').toLowerCase(), eta: etaText(l), driver: me.name || 'our driver', driverPhone: me.phone || '', company: co, loadId: l.loadId || '' };
+  return textSettings().template.replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : m)).replace(/\s+([.,])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+}
+function smsLink(phone, text) {
+  let n = String(phone || '').replace(/[^\d+]/g, ''); if (/^\d{10}$/.test(n)) n = '+1' + n; else if (/^1\d{10}$/.test(n)) n = '+' + n;
+  return 'sms:' + n + '?body=' + encodeURIComponent(text);
+}
+function offerText(manual) {
+  if (!current) return;
+  const t = textSettings();
+  if (!t.texts && !manual) return;
+  if (!current.phone) { if (manual) alert('This customer has no phone number on the load.'); return; }
+  const me = driverInfo();
+  document.getElementById('textBox').innerHTML = `<h3 style="margin:0 0 6px;">Text ${escHtml(current.customerName || 'the customer')}?</h3>
+    <div class="small">To ${escHtml(current.phone)}, from this phone's messaging app.</div>
+    ${me.name && me.phone ? '' : `<div class="small" style="color:var(--amber);margin-top:6px;">Add the driver's name and phone so the customer knows who is coming:</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><input id="txN" placeholder="Driver name" value="${escHtml(me.name)}"><input id="txP" type="tel" placeholder="Driver phone" value="${escHtml(me.phone)}"></div>`}
+    <label for="txBody" style="margin-top:8px;">Message</label><textarea id="txBody" style="min-height:140px;">${escHtml(buildText(current))}</textarea>
+    <div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-outline" style="flex:1" id="txNo">Not now</button><a class="btn" style="flex:2" id="txGo" href="#">Send text</a></div>`;
+  document.getElementById('textOv').classList.add('show');
+  const upd = () => {
+    const n = document.getElementById('txN'), p = document.getElementById('txP');
+    if (n || p) { localStorage.setItem('kfDispatchDriver', JSON.stringify({ name: (n ? n.value : me.name).trim(), phone: (p ? p.value : me.phone).trim() })); }
+    document.getElementById('txGo').href = smsLink(current.phone, document.getElementById('txBody').value);
+  };
+  ['txN', 'txP'].forEach(id => { const e = document.getElementById(id); if (e) e.oninput = () => { upd(); document.getElementById('txBody').value = buildText(current); upd(); }; });
+  document.getElementById('txBody').oninput = upd; upd();
+  document.getElementById('txNo').onclick = closeText;
+  document.getElementById('txGo').addEventListener('click', () => { upd(); setTimeout(closeText, 400); });
+}
+function closeText() { document.getElementById('textOv').classList.remove('show'); }
+// phone back button (nav.js)
+window.kfBack = function () {
+  if (document.getElementById('textOv').classList.contains('show')) { closeText(); return true; }
+  const np = document.getElementById('notesPopup');
+  if (np && np.style.display !== 'none') { np.style.display = 'none'; return true; }
+  if (!document.getElementById('detailView').classList.contains('hidden') || !document.getElementById('settingsView').classList.contains('hidden')) { showList(); return true; }
+  return false;
+};
+function showList() {
+  document.getElementById('settingsView').classList.add('hidden');
+  document.getElementById('detailView').classList.add('hidden');
+  document.getElementById('listView').classList.remove('hidden');
+  loadLoads();
+}
+
+// Scale tickets: weights are KG on the ticket; the load gets tonnes (kg / 1000, 2 decimals).
+let ticketCache = null;
+async function getTickets() {
+  if (!TICKET_URL) throw new Error('nolink');
+  const res = await fetch(TICKET_URL + (TICKET_URL.includes('?') ? '&' : '?') + 't=' + Date.now()); const data = await res.json();
+  ticketCache = data.rows || data.tickets || []; return ticketCache;
+}
+const usedBy = num => loads.concat(doneLoads).find(l => l !== current && String(l.loadId || '') === String(num));
+// tap a ticket instead of typing it: the newest tickets that are not on any load yet
+async function showTicketPick(isDone) {
+  const box = document.getElementById('ticketPick'); box.innerHTML = '';
+  if (isDone || !current || current.loadId) return;
+  box.textContent = 'Finding today\'s tickets…';
+  try {
+    const list = (await getTickets()).filter(t => t && t[0] && !usedBy(t[0])).slice(-8).reverse();
+    if (!list.length) { box.textContent = 'No unused tickets. Weigh the truck on Tickets first.'; return; }
+    box.innerHTML = 'Tap the ticket for this load:<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">' + list.map(t => `<button type="button" class="btn btn-outline btn-sm" style="width:auto;flex:0 0 auto" data-tk="${escHtml(t[0])}">${escHtml(t[0])} · ${escHtml(t[1] || '')} · ${kfKgToT(t[6])} t</button>`).join('') + '</div>';
+    box.querySelectorAll('[data-tk]').forEach(b => b.onclick = () => { document.getElementById('ticketInput').value = b.dataset.tk; checkTicket(); });
+  } catch (e) { box.textContent = ''; }
+}
+async function checkTicket() {
+  const num = document.getElementById('ticketInput').value.trim(), out = document.getElementById('ticketResult');
+  if (!num) return;
+  if (!TICKET_URL) { out.textContent = 'This device is not signed in yet. Open Quote to sign in.'; return; }
+  const other = usedBy(num);
+  if (other) { out.innerHTML = '<span style="color:var(--bad);">Ticket ' + escHtml(num) + ' is already on the load for ' + escHtml(other.customerName || '') + '. One ticket can only be on one load.</span>'; return; }
+  try {
+    const tickets = await getTickets();
+    const found = tickets.find(t => String(t[0] || t.ticket || '') === num);
+    if (found) {
+      const net = kfKgToT(found[6] || found.net || 0);
+      if (!net) { out.innerHTML = '<span style="color:var(--bad);">Ticket ' + escHtml(num) + ' has no net weight yet. Finish it on Tickets first.</span>'; return; }
+      const c = String(current.product || '') === 'Split' ? '' : kfCords(net, kfFactor(current.location, current.species));
+      current.loadId = num;
+      current.netTonnes = net;
+      if (c !== '') current.cords = c;
+      current.status = 'Started';
+      openLoad(loads.indexOf(current));
+      document.getElementById('ticketInput').value = num;
+      document.getElementById('ticketResult').innerHTML = '<span style="color:var(--link);">Ticket found. Net: ' + net + ' t' + (c !== '' ? ' · ~' + c + ' cords' : '') + '</span>';
+      document.getElementById('deliveredBtn').disabled = false;
+      await updateStatus('Started', num, net);
+      offerText(false);
+    } else {
+      out.innerHTML = '<span style="color:var(--bad);">Ticket ' + escHtml(num) + ' not found. Check the number, or save it on Tickets first.</span>';
+    }
+  } catch(e) {
+    out.textContent = 'Could not check tickets (no signal?). Try again.';
+  }
+}
+
+async function markDelivered() {
+  if (!current) return;
+  await updateStatus('Delivered', current.loadId, current.netTonnes);
+  kfToast('Marked delivered. It is now ready to invoice in Billing.');
+  showList();
+}
+
+// A status change is remembered on this phone until the sheet confirms it, then forgotten
+// (so the next refresh shows what the sheet says, including changes made on other devices).
+function statusBody(l, status, loadId, net) {
+  return { action: 'updateStatus', customerName: l.customerName, timestamp: l.timestamp, location: l.location, species: l.species, truck: l.truck, loadId, status, netTonnes: net };
+}
+async function postStatus(body) {
+  const r = await fetch(QUOTE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  const j = await r.json(); if (j.status !== 'ok' && j.status !== 'notfound') throw new Error(j.message || j.status); return j;
+}
+async function updateStatus(status, loadId, net) {
+  if (!current) return;
+  const key = loadKey(current), body = statusBody(current, status, loadId, net);
+  setLocalState(key, { status, loadId, netTonnes: net, pending: true, body });
+  if (!QUOTE_URL) return;
+  try { await postStatus(body); const s = getLocalState(); delete s[key]; localStorage.setItem('kfDispatch', JSON.stringify(s)); } catch (e) {}
+}
+async function sendPending() {
+  if (!QUOTE_URL || navigator.onLine === false) return;
+  const s = getLocalState();
+  for (const k of Object.keys(s)) {
+    if (!s[k] || !s[k].pending) { delete s[k]; continue; }     // old remembered values: the sheet is the truth now
+    if (!s[k].body) continue;
+    try { await postStatus(s[k].body); delete s[k]; } catch (e) { break; }
+  }
+  localStorage.setItem('kfDispatch', JSON.stringify(s));
+}
+
+/* ======================= v14: Edit load + Assign (office) ======================= */
+let unitsCache = null, driverNames = null;
+function unitLabel(id) { if (!id) return ''; const u = (unitsCache || []).find(x => String(x.id) === String(id)); return u ? (u.unitNo ? u.unitNo + ' · ' : '') + u.name : id; }
+async function loadUnits() {
+  if (unitsCache) return unitsCache;
+  try { const r = await kfCo.post('trucks', { action: 'listUnits' }); if (r.status === 'ok') unitsCache = r.units || []; } catch (e) {}
+  if (!unitsCache) unitsCache = (companySettings().units || []).map(u => ({ id: u.name, name: u.name, status: 'In service' }));
+  return unitsCache;
+}
+async function loadDriverNames() {
+  if (driverNames) return driverNames;
+  try { const j = await (await fetch(kfCo.url('drivers', false) + '&action=drivers&t=' + Date.now())).json(); driverNames = j.drivers || []; } catch (e) { driverNames = []; }
+  return driverNames;
+}
+function findOf(l) { return { bookingId: l.bookingId || '', loadId: l.loadId || '', customerName: l.customerName, timestamp: l.timestamp, location: l.location, species: l.species, truck: l.truck }; }
+// Sends an office change. A device that is not an admin is asked for the company password (never stored).
+async function officePost(body) {
+  let r = await fetch(QUOTE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(kfAuth(body)), redirect: 'follow' }).then(x => x.json());
+  if (r.status === 'noadmin') kfLostAdmin();
+  if (r.status === 'badpassword' || r.status === 'noadmin') {
+    const pw = await kfAskPassword('Company password:'); if (!pw) return { status: 'cancelled' };
+    r = await fetch(QUOTE_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(kfAuth(Object.assign({}, body, { password: pw }))), redirect: 'follow' }).then(x => x.json());
+  }
+  return r;
+}
+const EDIT_FIELDS = [['customerName', 'Customer'], ['phone', 'Phone'], ['address', 'Address'], ['location', 'Source location'], ['species', 'Species'], ['product', 'Product', 'select', ['Logs', 'Split']],
+  ['truck', 'Truck config (unit)'], ['tonnes', 'Tonnes', 'n'], ['cords', 'Cords', 'n'], ['km', 'One-way km', 'n'], ['duration', 'Trip time'], ['driveHours', 'Drive hours', 'n'],
+  ['totalHours', 'Total hours', 'n'], ['billedHours', 'Billed hours (price adjustment)', 'n'], ['fuelLitres', 'Fuel litres', 'n'], ['total', 'Total (incl GST)', 'n'],
+  ['priceAdj', 'Price adjustment ($, before GST)', 'n'], ['adjReason', 'Adjustment reason (office only)'], ['status', 'Status', 'select', ['Pending', 'Started', 'Delivered', 'Paid']],
+  ['requestedDate', 'Requested date', 'date'], ['netTonnes', 'Net tonnes (ticket)', 'n'], ['notes', 'Notes', 'area']];
+function openEdit() {
+  if (!current) return;
+  const box = document.getElementById('dEdit'), l = current;
+  box.innerHTML = `<h3 style="margin:10px 0 6px;">Edit load</h3><div class="small">Every field can be changed by hand. Nothing is recalculated by itself: what you type is saved.</div>` +
+    EDIT_FIELDS.map(f => {
+      const v = l[f[0]] == null ? '' : l[f[0]], id = 'ed_' + f[0];
+      if (f[2] === 'select') return `<label for="${id}">${f[1]}</label><select id="${id}">${f[3].map(o => `<option value="${o}" ${String(v || (f[0] === 'product' ? 'Logs' : 'Pending')) === o ? 'selected' : ''}>${f[0] === 'status' ? SHOW_STATUS(o) : o}</option>`).join('')}</select>`;
+      if (f[2] === 'area') return `<label for="${id}">${f[1]}</label><textarea id="${id}">${escHtml(v)}</textarea>`;
+      return `<label for="${id}">${f[1]}</label><input id="${id}" ${f[2] === 'n' ? 'type="number" step="any" inputmode="decimal"' : f[2] === 'date' ? 'type="date"' : ''} value="${escHtml(v)}">`;
+    }).join('') + `<div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-outline" type="button" onclick="closeEdit()">Cancel</button><button class="btn" type="button" onclick="saveEdit()">Save</button></div><div id="edMsg" class="small" style="font-weight:700;margin-top:6px;"></div>`;
+  box.classList.remove('hidden'); document.getElementById('dInfo').classList.add('hidden'); document.getElementById('dOffice').classList.add('hidden');
+  box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+function closeEdit() { document.getElementById('dEdit').classList.add('hidden'); document.getElementById('dInfo').classList.remove('hidden'); document.getElementById('dOffice').classList.remove('hidden'); }
+async function saveEdit() {
+  const l = current, ch = {};
+  EDIT_FIELDS.forEach(f => { const e = document.getElementById('ed_' + f[0]); if (!e) return; const v = e.value.trim(), old = l[f[0]] == null ? '' : String(l[f[0]]); if (v !== old && !(f[0] === 'product' && !old && v === 'Logs') && !(f[0] === 'status' && !old && v === 'Pending')) ch[f[0]] = f[2] === 'n' && v !== '' ? +v : v; });
+  // Total hours changed on a load with a price adjustment: offer to recalculate the billed hours (ask first)
+  const adj = ch.priceAdj != null ? +ch.priceAdj : +l.priceAdj;
+  if (ch.totalHours != null && adj && ch.billedHours == null) {
+    const rate = +getRates(l).hourly || 0;
+    if (rate > 0) { const bh = Math.round((+ch.totalHours + adj / rate) * 100) / 100; if (confirm(`This load has a price adjustment. Set billed hours to ${bh} h (new total hours ${ch.totalHours} + $${adj} / $${rate}/hr)?`)) ch.billedHours = bh; }
+  }
+  const keys = Object.keys(ch); if (!keys.length) { closeEdit(); return; }
+  if (!confirm('Save these changes?\n\n' + keys.map(k => (EDIT_FIELDS.find(f => f[0] === k) || [k, k])[1] + ': ' + (l[k] == null || l[k] === '' ? '(blank)' : l[k]) + ' → ' + (ch[k] === '' ? '(blank)' : ch[k])).join('\n'))) return;
+  const msg = document.getElementById('edMsg'); msg.textContent = 'Saving…';
+  try {
+    const r = await officePost({ action: 'editLoad', find: findOf(l), changes: ch });
+    if (r.status === 'cancelled') { msg.textContent = ''; return; }
+    if (r.status !== 'ok') { msg.style.color = 'var(--bad)'; msg.textContent = r.message || ('Not saved (' + r.status + ').'); return; }
+    Object.assign(l, ch); closeEdit(); openLoad(loads.indexOf(l) >= 0 ? loads.indexOf(l) : doneLoads.indexOf(l), loads.indexOf(l) >= 0 ? 'pending' : 'done'); loadLoads();
+  } catch (e) { msg.style.color = 'var(--bad)'; msg.textContent = 'No signal: nothing was saved.'; }
+}
+async function openAssign() {
+  if (!current) return;
+  const box = document.getElementById('dEdit'), l = current;
+  box.innerHTML = '<div class="small">Loading drivers and trucks…</div>'; box.classList.remove('hidden');
+  const [units, names] = await Promise.all([loadUnits(), loadDriverNames()]);
+  const trucks = units.filter(u => (u.type || 'truck') === 'truck' && u.status !== 'Sold');
+  box.innerHTML = `<h3 style="margin:10px 0 6px;">Assign driver &amp; truck</h3>
+    <label for="asDrv">Driver</label><select id="asDrv"><option value="">— none —</option>${names.map(n => `<option ${n === l.driverName ? 'selected' : ''}>${escHtml(n)}</option>`).join('')}</select>
+    <label for="asUnit">Truck</label><select id="asUnit"><option value="">— none —</option>${trucks.map(u => `<option value="${escHtml(u.id)}" ${String(u.id) === String(l.unitId) ? 'selected' : ''} style="${u.status === 'Out of service' ? 'color:#dc2626' : ''}">${escHtml((u.unitNo ? u.unitNo + ' · ' : '') + u.name)}${u.status === 'Out of service' ? ' — OUT OF SERVICE' : ''}</option>`).join('')}</select>
+    <div id="asWarn" class="small" style="color:var(--bad);font-weight:700;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;"><button class="btn btn-outline" type="button" onclick="closeEdit()">Cancel</button><button class="btn" type="button" id="asGo">Save</button></div>`;
+  const warn = () => { const u = trucks.find(x => String(x.id) === document.getElementById('asUnit').value); document.getElementById('asWarn').textContent = u && u.status === 'Out of service' ? 'This truck is out of service' + (u.outReason ? ': ' + u.outReason : '') + '.' : ''; };
+  document.getElementById('asUnit').onchange = warn; warn();
+  document.getElementById('dInfo').classList.add('hidden'); document.getElementById('dOffice').classList.add('hidden');
+  document.getElementById('asGo').onclick = async () => {
+    const unitId = document.getElementById('asUnit').value, driverName = document.getElementById('asDrv').value, u = trucks.find(x => String(x.id) === unitId);
+    if (u && u.status === 'Out of service' && !confirm(`${u.name} is OUT OF SERVICE${u.outReason ? ' (' + u.outReason + ')' : ''}. Assign it anyway?`)) return;
+    try {
+      const r = await officePost({ action: 'assignLoad', find: findOf(l), unitId, driverName });
+      if (r.status === 'cancelled') return;
+      if (r.status !== 'ok') { alert(r.message || 'Not saved.'); return; }
+      l.unitId = unitId; l.driverName = driverName; closeEdit(); openLoad(loads.indexOf(l) >= 0 ? loads.indexOf(l) : doneLoads.indexOf(l), loads.indexOf(l) >= 0 ? 'pending' : 'done');
+    } catch (e) { alert('No signal: nothing was saved.'); }
+  };
+}
+
+loadLoads();
+if (window.kfServerV && kfServerV() >= 14) loadUnits().then(() => renderList());
+// new loads, started loads and tickets from other devices show up by themselves
+if (window.kfLive) kfLive(loadLoads, { ms: 20000, when: () => !document.getElementById('listView').classList.contains('hidden') });
+</script>
+
+<div class="ov" id="textOv"><div class="sheet" id="textBox"></div></div>
+<div id="notesPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:1000;padding:12px;">
+  <div style="background:var(--card);color:var(--text);border-radius:16px;max-width:460px;width:100%;padding:22px;border:1px solid var(--amber);box-shadow:0 20px 40px rgba(0,0,0,.3);">
+    <h3 style="margin:0 0 10px;">Special instructions</h3>
+    <div id="notesPopupText" style="font-size:1.05rem;line-height:1.4;margin-bottom:16px;word-break:break-word;"></div>
+    <button class="btn" onclick="document.getElementById('notesPopup').style.display='none'">OK</button>
+  </div>
+</div>
+<script>
+(function() {
+  const co = JSON.parse(localStorage.getItem('kfCompany') || '{}');
+  const logoEl = document.getElementById('companyLogo');
+  if (logoEl && co.logo) logoEl.src = co.logo;
+  const nameEl = document.getElementById('companyNameBanner');
+  if (nameEl && co.name) nameEl.textContent = co.name;
+})();
+</script>
+</body>
+</html>

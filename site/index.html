@@ -1,0 +1,2372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quote Tool</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KF Quotes">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<script src="kf-config.js"></script>
+<script src="nav.js"></script>
+<script src="kf-stock.js"></script>
+<script src="kf-stats.js"></script>
+<style>
+/* colors/fields/buttons/header come from theme.css; this file = Quote page layout */
+.container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+.card { background: var(--card); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); }
+h2 { margin: 0 0 14px; font-size: 1.25rem; }
+h3 { margin: 0 0 10px; }
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.form-group { flex: 1 1 150px; min-width: 0; }
+.form-group.wide { flex: 1 1 100%; }
+label { display: block; font-weight: 600; margin-bottom: 6px; font-size: .9rem; }
+input, select, textarea { width: 100%; padding: 12px; min-height: 46px; }
+textarea { min-height: 90px; }
+
+#btnCalculate { width: 100%; }
+#map { height: 340px; border-radius: 12px; margin: 12px 0; border: 1px solid var(--border); }
+.map-tools { display: flex; gap: 10px; margin: 8px 0; align-items: center; flex-wrap: wrap; }
+.map-tools span { font-size: .8rem; color: var(--muted); }
+
+.sp-filter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.sp-filter label { margin: 0; display: flex; align-items: center; gap: 6px; padding: 10px 7px; min-height: 46px; font-weight: 500; font-size: .85rem; white-space: nowrap; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+
+.location-block { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; overflow: hidden; background: var(--card); }
+.location-header { background: var(--surface-2); color: var(--text); padding: 12px 14px; font-weight: 700; font-size: 1.05rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.location-header span + span { font-weight: 500; font-size: .9rem; color: var(--muted); }
+.species-row { border-top: 1px solid var(--border); }
+.species-name { padding: 10px 14px; font-weight: 700; font-size: 1rem; background: var(--surface); color: var(--text); }
+.species-name .small { font-size: .8rem; font-weight: 500; color: var(--muted); }
+
+/* 3 chips across, always */
+.truck-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+.price-chip {
+  background: var(--chip-bg); color: var(--text);
+  border: 2px solid var(--chip-border); border-radius: 10px;
+  padding: 10px 4px; min-height: 92px; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; text-align: center; transition: border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.price-chip:hover { border-color: var(--primary-light); }
+.price-chip:active { transform: scale(.97); }
+.price-chip .truck { font-size: .78rem; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; color: var(--text); }
+.price-chip .price { font-size: 1.25rem; font-weight: 800; line-height: 1.1; color: var(--text); }
+.price-chip .sub { font-size: .7rem; font-weight: 500; line-height: 1.2; color: var(--muted); }
+.price-chip.selected { background: var(--btn-bg); border-color: var(--btn-bg); color: #fff; }
+.price-chip.selected .truck, .price-chip.selected .price, .price-chip.selected .sub { color: #fff; }
+
+.mixed-load { background: var(--mixed-bg); color: var(--mixed-text); }
+.mixed-load label { color: var(--mixed-text); margin: 0; }
+.mixed-load input { width: 64px !important; min-height: 38px; padding: 6px !important; }
+.mixed-load select { width: auto; min-height: 38px; padding: 6px 30px 6px 8px !important; }
+
+/* Book Load / Generate Quote */
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.actions .btn { width: 100%; margin: 0; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 12px; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--card); color: var(--text); border-radius: 16px; max-width: 560px; width: 100%; max-height: 90vh; overflow: auto; padding: 22px; box-shadow: 0 20px 40px rgba(0,0,0,.3); }
+.quote-preview { background: var(--surface-2); color: var(--text); border-radius: 10px; padding: 14px; margin: 14px 0; font-size: .95rem; white-space: pre-wrap; font-family: ui-monospace, monospace; }
+
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.loc-item { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.badge { background: var(--badge-bg); color: var(--badge-text); padding: 2px 8px; border-radius: 12px; font-size: .8rem; margin-right: 4px; display: inline-block; }
+.hidden { display: none !important; }
+.api-key-banner { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: .9rem; }
+.unit-add-box { background: var(--surface-2); color: var(--text); }
+.unit-add-box label { color: var(--label); }
+.species-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; margin-bottom: 8px; align-items: center; }
+.species-edit .sp-name { grid-column: 1 / -1; }
+.species-edit input { max-width: none !important; }
+.login-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: flex-start; overflow-y: auto; justify-content: center; padding: 12px; }
+.login-card { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 24px; border-radius: 12px; max-width: 360px; width: 100%; }
+.login-card h2 { margin: 0 0 16px; }
+.login-card input { margin-bottom: 12px; }
+.login-card .btn { width: 100%; }
+.login-card p { color: var(--muted); font-size: .85rem; margin: 12px 0 0; }
+
+/* ---- phones: use the full screen width ---- */
+@media (max-width: 700px) {
+  .container { padding: 0; }
+  .card { border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; padding: 12px; margin-bottom: 8px; }
+  #results { margin: 0 -12px; }
+  #results > p { margin: 8px 12px; }
+  .location-block { border-radius: 0; border-left: 0; border-right: 0; margin-bottom: 10px; }
+  .truck-options { gap: 6px; padding: 8px; }
+  #map { height: 260px; border-radius: 10px; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .actions {
+    position: sticky; bottom: 0; z-index: 50;
+    margin: 12px -12px -12px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--card); border-top: 1px solid var(--border);
+  }
+  #btnMapType { flex: 0 0 auto; }
+}
+@media (max-width: 380px) {
+  .price-chip .price { font-size: 1.1rem; }
+  .price-chip .truck { font-size: .72rem; }
+  .sp-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- v3 additions ---- */
+.hint { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+.sync-status { font-size: .9rem; margin: 6px 0 12px; min-height: 1.2em; color: var(--muted); }
+.sync-status.ok { color: var(--good); } .sync-status.bad { color: var(--bad); } .sync-status.warn { color: var(--amber); }
+.btn-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn-pair .btn { width: 100%; margin: 0; }
+details summary { cursor: pointer; font-weight: 600; color: var(--link); padding: 6px 0; }
+.unit-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.unit-row span { min-width: 0; overflow-wrap: anywhere; }
+input[readonly] { background: var(--surface-2); font-weight: 700; }
+
+.species-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; margin-bottom: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); align-items: end; }
+.species-edit .sp-name { grid-column: 1 / -1; }
+.species-edit .sp-f { margin: 0; font-size: .72rem; font-weight: 600; color: var(--label); }
+.species-edit .sp-f input { margin-top: 3px; max-width: none !important; min-height: 42px; padding: 8px; }
+.species-edit .sp-del { min-height: 42px; }
+
+.route-pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--surface); align-items: center; }
+.route-pills .small { font-size: .8rem; color: var(--muted); }
+.route-pill { font-family: inherit; font-size: .8rem; font-weight: 600; padding: 8px 10px; min-height: 38px; border-radius: 999px; cursor: pointer; background: var(--card); color: var(--text); border: 2px solid var(--border); text-align: left; }
+.route-pill.sel { background: var(--btn-bg); border-color: var(--btn-bg); color: #fff; }
+.location-block.focused { box-shadow: 0 0 0 2px var(--primary-light); }
+.location-header { cursor: pointer; }
+.no-dist { padding: 12px 14px; color: var(--bad); font-weight: 600; }
+
+.modal.wide { max-width: 680px; }
+.cost-block { margin-bottom: 18px; }
+.cost-block h4 { margin: 0 0 6px; font-size: .95rem; color: var(--heading); overflow-wrap: anywhere; }
+.cost-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.cost-table th, .cost-table td { padding: 7px 6px; text-align: right; border-bottom: 1px solid var(--border); }
+.cost-table th:first-child, .cost-table td:first-child { text-align: left; }
+.cost-table th { font-size: .7rem; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.cost-table .sub td { color: var(--muted); font-size: .8rem; }
+.cost-table .tot td { font-weight: 700; border-top: 2px solid var(--border); }
+.cost-table .net td { font-weight: 800; font-size: 1.05rem; border-bottom: 0; }
+.cost-table .pos { color: var(--good); } .cost-table .neg { color: var(--bad); }
+.cost-table .rowlabel small { display: block; color: var(--muted); font-weight: 400; }
+
+.actions { grid-template-columns: repeat(3, 1fr); }
+.sp-filter label.split-one { grid-column: 1 / -1; white-space: normal; font-weight: 700; border-style: dashed; }
+.species-row.split-row { background: rgba(124, 58, 237, .08); border-left: 4px solid #7c3aed; }
+.split-tag { display: inline-block; background: #7c3aed; color: #fff; font-size: .7rem; font-weight: 800; padding: 1px 7px; border-radius: 99px; margin-left: 4px; }
+.low-note { display: block; font-size: .72rem; color: #b45309; font-weight: 700; }
+.needs-price { color: var(--bad); font-weight: 700; }
+/* View Quote: Money / Dispatch view tabs. The dispatch card copies Dispatch -> Pending. */
+.vq-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 12px; }
+.vq-tabs button { padding: 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-weight: 700; font-size: .95rem; cursor: pointer; }
+.vq-tabs button.on { background: var(--btn-bg); color: #fff; border-color: var(--btn-bg); }
+.dp-card { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); border-left: 6px solid var(--border); }
+.dp-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.dp-card .where { font-weight: 700; margin-top: 4px; }
+.dp-card .small { font-size: .8rem; color: var(--muted); }
+.dp-pill { display: inline-block; font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--text); }
+.dp-detail { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 6px; font-size: .9rem; }
+.dp-detail p { margin: 6px 0; }
+@media (max-width: 700px) {
+  .actions .btn { padding: 10px 4px; font-size: .82rem; }
+  .btn-pair { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div id="loginOverlay" class="login-overlay hidden">
+  <div class="login-card" style="margin:auto 0;">
+    <h2>Connect this device</h2>
+    <label for="coUrl">Company Sync URL</label>
+    <input id="coUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div id="coPassWrap" class="hidden">
+      <label for="coPass">Company password</label>
+      <input id="coPass" type="password" autocomplete="current-password">
+    </div>
+    <button class="btn" id="btnConnect">Connect</button>
+    <div id="setupBox" class="hidden" style="text-align:left;">
+      <h3 style="margin:14px 0 4px;">Set up your company</h3>
+      <p class="hint" style="margin:0 0 8px;">This link is new. Enter your company details once; every device you connect later gets them.</p>
+      <label for="suName">Company name</label><input id="suName" autocomplete="organization">
+      <label for="suPw">Create company password</label><input id="suPw" type="password" autocomplete="new-password">
+      <label for="suPw2">Confirm password</label><input id="suPw2" type="password" autocomplete="new-password">
+      <label for="suPhone">Phone (optional)</label><input id="suPhone" type="tel">
+      <label for="suEmail">Office email (optional, receives driver logs and invoice packages)</label><input id="suEmail" type="email">
+      <label for="suAddr">Address (optional)</label><input id="suAddr">
+      <label for="suLogo">Logo (optional)</label><input id="suLogo" type="file" accept="image/*">
+      <button class="btn" id="btnSetup" style="margin-top:10px;">Create company</button>
+    </div>
+    <p id="coMsg"></p>
+    <p><a href="#" id="coSkip">Skip - use this device on its own</a></p>
+  </div>
+</div>
+<header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <a href="#" id="nav-settings" style="color:white;text-decoration:none;padding:10px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;cursor:pointer;z-index:101;position:relative;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a>
+      <h1 id="companyNameBanner" style="margin:0;font-size:1rem;font-weight:700;letter-spacing:1px;"></h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">
+      <a href="index.html" onclick="location.replace('index.html');return false;" id="nav-quote" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Quote</a>
+      <a href="dispatch.html" onclick="location.replace('dispatch.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Dispatch</a>
+      <a href="invoices.html" onclick="location.replace('invoices.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Billing</a>
+      <a href="scale.html" onclick="location.replace('scale.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Tickets</a>
+      <a href="drivers.html" onclick="location.replace('drivers.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Drivers</a>
+      <a href="#" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Trucks</a>
+      <a href="yards.html" onclick="location.replace('yards.html');return false;" style="color:white;text-decoration:none;padding:6px 2px;border-radius:4px;background:rgba(255,255,255,0.15);font-size:0.7rem;text-align:center;">Inventory</a>
+    </div>
+  </div>
+  <img id="companyLogo" alt="Logo" style="width:70px;height:70px;border-radius:8px;object-fit:contain;visibility:hidden;">
+</header>
+
+<div class="container">
+  <!-- QUOTE VIEW -->
+  <div id="view-quote">
+    <div class="card">
+      <h2>New Quote</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Customer Name</label>
+          <input type="text" id="customerName" placeholder="John Smith">
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="tel" id="customerPhone" placeholder="403-555-1234">
+        </div>
+        <div class="form-group wide">
+          <label>Delivery Address</label>
+          <input type="text" id="addressInput" placeholder="Start typing an address...">
+        </div>
+      </div>
+      <div class="form-group" style="margin:12px 0 16px;">
+        <label>Show species</label>
+        <div id="speciesFilter" class="sp-filter">
+          <label><input type="checkbox" class="species-cb" value="Birch" checked> Birch</label>
+          <label><input type="checkbox" class="species-cb" value="Spruce/Pine"> Spruce/Pine</label>
+          <label><input type="checkbox" class="species-cb" value="Tamarack"> Tamarack</label>
+          <label><input type="checkbox" class="species-cb" value="Sawlogs"> Sawlogs</label>
+          <label><input type="checkbox" class="species-cb" value="Poplar"> Poplar</label>
+        </div>
+      </div>
+      <button class="btn" id="btnCalculate">Calculate Distances & Prices</button>
+      <div class="map-tools">
+        <button type="button" class="btn btn-outline btn-sm" id="btnMapType">Satellite</button>
+        <span>Click map to drop pin · or paste coordinates</span>
+      </div>
+      <div id="map"></div>
+      <div id="results" class="results"></div>
+      <div id="quoteActions" class="hidden actions">
+        <button class="btn btn-outline" id="btnBookLoad">Book Load</button>
+        <button class="btn btn-outline" id="btnViewQuote">View Quote</button>
+        <button class="btn btn-accent" id="btnGenerateQuote">Generate Quote</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS VIEW -->
+  <div id="view-settings" class="hidden">
+    <div class="card" id="unitsCard">
+      <h2>Truck Units</h2>
+      <div id="unitsList"></div>
+      <div class="unit-add-box" style="margin-top:12px; padding:12px; border-radius:8px;">
+        <div class="form-row">
+          <div class="form-group"><label for="unitName">Unit Name</label><input type="text" id="unitName" placeholder="Straight truck"></div>
+          <div class="form-group"><label for="unitHourly">Hourly cost ($/hr)</label><input type="number" id="unitHourly" value="185"></div>
+          <div class="form-group"><label for="unitMargin">Margin (%)</label><input type="number" id="unitMargin" step="0.1" value="0"></div>
+          <div class="form-group"><label for="unitBilled">Billed hourly (total)</label><input type="text" id="unitBilled" readonly tabindex="-1"></div>
+          <div class="form-group"><label for="unitFuel">Fuel (L/100)</label><input type="number" id="unitFuel" value="50"></div>
+          <div class="form-group"><label for="unitPlate">Plate #</label><input type="text" id="unitPlate" placeholder="ABC123"></div>
+          <div class="form-group"><label for="unitConfig">Config</label><input type="text" id="unitConfig" placeholder="6HB"></div>
+          <div class="form-group"><label for="unitTonnes">Tonnes</label><input type="number" id="unitTonnes" value="16"></div>
+          <div class="form-group"><label for="unitHours">Load/Unload (hrs)</label><input type="number" id="unitHours" step="0.5" value="1.5"></div>
+          <div class="form-group"><label for="unitHaulsSplit">Hauls split</label><select id="unitHaulsSplit"><option value="no">No</option><option value="yes">Yes</option></select></div>
+          <div class="form-group"><label for="unitSplitCords">Split capacity (cords)</label><input type="number" id="unitSplitCords" step="0.5" placeholder="only if it hauls split"></div>
+          <div class="form-group wide"><label for="unitHomeBase">Home base (only if this truck parks somewhere else)</label><input type="text" id="unitHomeBase" placeholder="blank = company home base"></div>
+        </div>
+        <div id="unitEditNote" class="hint hidden" style="margin-bottom:8px;"></div>
+        <button class="btn btn-sm" id="btnAddUnit">Add Unit</button>
+        <button class="btn btn-sm btn-outline hidden" id="btnCancelUnit">Cancel</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">Saved on this device right away. <b>Company settings → Save to Company</b> shares them with every device.</div>
+    </div>
+
+    <div class="card">
+      <h2>Pickup Locations</h2>
+      <div id="locationsList"></div>
+      <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+        <h3 style="margin:0 0 12px; font-size:1rem;">Add / Edit Location</h3>
+        <div class="form-row">
+          <div class="form-group"><label for="locName">Name</label><input type="text" id="locName" placeholder="Sundre"></div>
+          <div class="form-group" style="flex:2"><label for="locAddress">Address</label><input type="text" id="locAddress" placeholder="Sundre, AB or 51.8, -114.5"></div>
+        </div>
+        <div class="form-group">
+          <label>Species: cost per tonne, margin %, total (the total is what gets quoted)</label>
+          <div id="speciesInputs"></div>
+          <button type="button" class="btn btn-outline btn-sm" id="btnAddSpecies">+ Add species</button>
+        </div>
+        <div style="margin-top:12px;">
+        <button class="btn" id="btnAddLocation">Add Location</button>
+        <button class="btn btn-outline hidden" id="btnUpdateLocation">Update</button>
+        <button class="btn btn-outline hidden" id="btnCancelEdit">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-outline" id="btnCoSettings" type="button" style="width:100%;margin:4px 0 14px;">Company settings ▾</button>
+    <div id="coSettingsWrap" class="hidden">
+    <div class="card" id="adminCard">
+      <h2>Admin devices</h2>
+      <div id="noPwBanner" class="api-key-banner hidden"><b>No company password: every device has full access.</b> Create one below (Company Sync → Save to Company asks for it). This device becomes an admin automatically.</div>
+      <div id="adminState" class="hint"></div>
+      <div id="adminMake" class="hidden" style="margin-top:8px;">
+        <div class="form-row">
+          <div class="form-group"><label for="admPw">Company password</label><input type="password" id="admPw" autocomplete="current-password"></div>
+          <div class="form-group"><label for="admName">Name for this device</label><input id="admName" placeholder="e.g. Owner's phone"></div>
+        </div>
+        <button class="btn" id="btnMakeAdmin">Make this device an admin</button>
+      </div>
+      <div id="adminList" style="margin-top:10px;"></div>
+      <div class="btn-pair" id="adminBtns" style="margin-top:8px;">
+        <button class="btn btn-outline btn-sm" id="btnStopAdmin">Stop being admin on this device</button>
+        <button class="btn btn-outline btn-sm" id="btnRemoveAllAdmins" style="color:var(--bad);border-color:var(--bad);">Remove admin from all devices</button>
+      </div>
+      <div id="adminMsg" class="hint" style="font-weight:700;"></div>
+    </div>
+    <div class="card" id="appCard">
+      <h2>Android app</h2>
+      <div id="appInApp" class="hint hidden">You are using the app. To give a copy to someone, share the download link below.</div>
+      <div id="appInBrowser" class="hint">Install the app on Android phones: GPS keeps logging with the screen off, and PDFs go straight to the phone's share screen. It always shows the latest version of these pages.</div>
+      <div class="btn-pair" style="margin-top:10px;">
+        <a class="btn" id="appDl" href="app.apk" download style="text-align:center;text-decoration:none;">Download the app</a>
+        <button class="btn btn-outline" id="appShare">Share download link</button>
+      </div>
+      <div class="hint" style="margin-top:8px;">The link opens a page with the download and install steps: <a href="app.html" id="appPage">app.html</a></div>
+    </div>
+    <div class="card" id="syncCard">
+      <h2>Company Sync</h2>
+      <div id="coLinkInfo" class="hint hidden" style="margin-bottom:12px;"></div>
+      <div id="coLinkBox" class="hidden" style="margin-bottom:14px;">
+        <div class="form-group"><label for="coLinkUrl">Company sheet link</label>
+          <input type="url" id="coLinkUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div class="hint" id="coLinkHint">The company's own script link (ends in /exec). Saved once on the first admin device; after that new devices sign in with just the <b>company name</b> and the <b>company password</b>.</div></div>
+        <div id="coLinkSetup" class="hidden">
+          <div class="form-group"><label for="coLinkCo">Company name (people type this to sign in)</label><input id="coLinkCo" autocomplete="organization"></div>
+          <div class="form-row"><div class="form-group"><label for="coLinkPw1">Create company password</label><input type="password" id="coLinkPw1" autocomplete="new-password"></div>
+            <div class="form-group"><label for="coLinkPw2">Confirm password</label><input type="password" id="coLinkPw2" autocomplete="new-password"></div></div>
+        </div>
+        <div id="coLinkLogin" class="hidden"><div class="form-group"><label for="coLinkPw">Company password</label><input type="password" id="coLinkPw" autocomplete="current-password"></div></div>
+        <button class="btn btn-sm" id="btnSaveLink" type="button">Save link</button>
+        <div id="coLinkMsg" class="hint" style="font-weight:700;margin-top:6px;white-space:pre-line;"></div>
+      </div>
+      <div class="form-group" id="syncUrlGroup" style="margin-bottom:12px;">
+        <label for="setSyncUrl">Company Sync URL</label>
+        <input type="url" id="setSyncUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="hint">Enter this one link on a new device and tap <b>Sync to Company</b>. It loads pricing, locations, trucks, the Maps key and every sheet link.</div>
+      </div>
+      <div id="unifiedBox" class="hidden" style="margin:-4px 0 12px;">
+        <div class="hint">This device is connected to <b id="unifiedName"></b> with the single company link. Every page uses it.</div>
+        <button class="btn btn-outline btn-sm" id="btnSwitchCo" style="margin-top:8px;">Switch company</button>
+      </div>
+      <div id="syncStatus" class="sync-status"></div>
+      <div id="dirtyBanner" class="api-key-banner hidden">This device has changes that are not saved to the company yet. Enter the company password and tap <b>Save to Company</b>, or tap <b>Sync to Company</b> to discard them.</div>
+      <div id="pwCreateBox" class="hidden">
+        <div class="form-row">
+          <div class="form-group"><label for="pwNew">Create company password</label><input type="password" id="pwNew" autocomplete="new-password"></div>
+          <div class="form-group"><label for="pwNew2">Confirm password</label><input type="password" id="pwNew2" autocomplete="new-password"></div>
+        </div>
+        <div class="hint">Only people with this password can change company settings. You are asked to create it the first time you save.</div>
+      </div>
+      <div id="pwEnterBox" class="hidden">
+        <div class="form-group"><label for="pwCurrent">Company password</label><input type="password" id="pwCurrent" autocomplete="current-password"></div>
+      </div>
+      <div class="btn-pair">
+        <button class="btn" id="btnSaveCompany">Save to Company</button>
+        <button class="btn btn-outline" id="btnSyncPull">Sync to Company</button>
+      </div>
+      <details id="pwChangeBox" class="hidden" style="margin-top:14px;">
+        <summary>Change company password</summary>
+        <div class="form-row" style="margin-top:10px;">
+          <div class="form-group"><label for="pwOld">Current password</label><input type="password" id="pwOld" autocomplete="current-password"></div>
+          <div class="form-group"><label for="pwNew3">New password</label><input type="password" id="pwNew3" autocomplete="new-password"></div>
+          <div class="form-group"><label for="pwNew3b">Confirm new password</label><input type="password" id="pwNew3b" autocomplete="new-password"></div>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btnChangePw">Change Password</button>
+      </details>
+      <details id="moveBox" class="hidden" style="margin-top:14px;">
+        <summary><b>Move to one company sheet</b> (replaces the separate scripts)</summary>
+        <div class="hint" style="margin:8px 0;">Set up <b>company-apps-script.gs</b> as a new Apps Script web app first (its own new link). This copies your loads, tickets, inventory, drivers, settings and company info into it. Your old scripts and sheets are not changed, and your other devices are asked to switch the next time they sync.</div>
+        <div class="form-group"><label for="mvUrl">New company script link</label><input type="url" id="mvUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div class="form-group"><label for="mvPw">Company password (stays the same)</label><input type="password" id="mvPw" autocomplete="current-password"></div>
+        <div class="form-group"><label for="mvDrvPw">Drivers admin password (optional: copies truck units and hours rules)</label><input type="password" id="mvDrvPw" autocomplete="off"></div>
+        <button class="btn" id="btnMove">Move my company</button>
+        <div id="mvMsg" class="hint" style="margin-top:8px;white-space:pre-line;"></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Global Settings</h2>
+      <div class="form-group" style="margin-bottom:16px;">
+        <label for="setCompanyName">Company Name (shown in top banner)</label>
+        <input type="text" id="setCompanyName" placeholder="Your company name">
+      </div>
+      <div class="form-group" style="margin-bottom:16px;">
+        <label>Theme</label>
+        <div style="display:flex; gap:12px; margin-top:6px;">
+          <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+            <input type="radio" name="theme" id="themeLight" value="light" checked> Light
+          </label>
+          <label style="font-weight:normal; display:flex; align-items:center; gap:6px;">
+            <input type="radio" name="theme" id="themeDark" value="dark"> Dark
+          </label>
+        </div>
+      </div>
+      <div class="api-key-banner" id="apiKeyBanner">
+        <strong>Google Maps API Key:</strong>
+        <input type="text" id="apiKeyInput" placeholder="Paste your Google Maps JavaScript API key" style="margin-top:8px; max-width:400px;">
+        <button class="btn btn-sm" style="margin-left:8px;" id="btnSaveKey">Save Key</button>
+        <div style="margin-top:6px; font-size:0.85rem; color:var(--warn-text);">Enable Places, Geocoding, Routes (and Distance Matrix) APIs.</div>
+      </div>
+      <div class="form-group kf-linkfield" style="margin-bottom:16px;">
+        <label for="setSheetsUrl">Load Log Sheet URL</label>
+        <input type="text" id="setSheetsUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <div class="hint">The Trip Log sheet for loads and invoices. Usually the same link as the Company Sync URL.</div>
+      </div>
+      <div class="hint kf-linkfield" style="margin:-6px 0 16px;">The Tickets, Inventory and Drivers links are now in each page's own Settings. Company Sync still shares every link with every device.</div>
+      <div class="form-group kf-linkfield" style="margin-bottom:20px;">
+        <label for="setTrucksUrl">Trucks Sheet URL</label>
+        <input type="text" id="setTrucksUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        <div class="hint">For the upcoming Trucks page. Leave blank until it is set up.</div>
+      </div>
+      <div class="settings-grid">
+        <div>
+          <div class="form-group"><label for="setSpeed">Average Speed (km/h)</label><input type="number" id="setSpeed" value="90"></div>
+          <div class="form-group"><label for="setCostFuelPrice">Fuel Cost - what we pay ($/L)</label><input type="number" id="setCostFuelPrice" step="0.01" placeholder="same as billed"></div>
+          <div class="form-group"><label for="setFuelPrice">Billed Fuel Price - what the client pays ($/L)</label><input type="number" id="setFuelPrice" step="0.01" value="0.90"></div>
+          <div class="form-group"><label for="setGst">GST Rate (%)</label><input type="number" id="setGst" step="0.1" value="5"></div>
+          <div class="form-group"><label for="setOffRoadFuel">Off-road diesel - what we pay ($/L)</label><input type="number" id="setOffRoadFuel" step="0.01" placeholder="for loaders / processors"></div>
+          <div class="form-group"><label for="setHomeBase">Home base (the yard where trucks park)</label><input type="text" id="setHomeBase" placeholder="address or 51.8, -114.5"></div>
+        </div>
+        <div>
+          <div class="form-group"><label>Quote Message Options</label>
+            <div style="display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:6px; font-weight:normal;">
+              <label><input type="checkbox" id="qCords" checked> Cords</label>
+              <label><input type="checkbox" id="qTonnes" checked> Tonnes</label>
+              <label><input type="checkbox" id="qPerCord"> $/cord</label>
+              <label><input type="checkbox" id="qPerTonne"> $/tonne</label>
+              <label><input type="checkbox" id="qTotal" checked> Total price</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <h3 style="margin:20px 0 6px;">Wages and costs (Statistics)</h3>
+      <div class="settings-grid">
+        <div>
+          <div class="form-group"><label for="setEmpCost">Employer cost on wages (%): CPP, EI, WCB, holiday pay</label><input type="number" id="setEmpCost" step="0.1" value="12"></div>
+          <div class="form-group"><label for="setOtHours">Overtime after (hours per week)</label><input type="number" id="setOtHours" step="1" value="50"></div>
+          <div class="form-group"><label for="setOtMult">Overtime pay (x hourly)</label><input type="number" id="setOtMult" step="0.1" value="1.5"></div>
+          <div class="form-group"><label for="setWeekStart">Pay week starts on</label><select id="setWeekStart"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></div>
+        </div>
+        <div><div class="form-group"><label for="setCategories">Expense categories (one per line)</label><textarea id="setCategories" rows="9"></textarea></div></div>
+      </div>
+      <button class="btn" id="btnSaveSettings" style="margin-top:16px;">Save Settings</button>
+      <div id="saveSettingsMsg" class="sync-status" style="margin-top:8px;"></div>
+      <div class="hint" style="margin-top:8px;">Saves for every device in the company (a device that is not an admin is asked for the company password).</div>
+    </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Quote Modal -->
+<div class="modal-overlay" id="quoteModal">
+  <div class="modal">
+    <h3>Quote Preview</h3>
+    <div class="quote-preview" id="quoteText"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-outline" id="btnCloseModal">Close</button>
+      <button class="btn btn-accent" id="btnCopyQuote">Copy Message</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cost vs Billed Modal -->
+<div class="modal-overlay" id="notesModal">
+  <div class="modal">
+    <h3>Notes for this load</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 10px;">Special instructions (gate codes, call ahead, stacking, etc.). Shown to dispatch when the load is opened. Optional.</p>
+    <textarea id="bookNotes" rows="4" maxlength="1000" style="width:100%;" placeholder="e.g. Call 30 min before arrival. Gate code 1234."></textarea>
+    <div id="adjBox" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+      <div class="form-row">
+        <div class="form-group"><label for="bookAdj">Price adjustment ($, before GST)</label><input type="number" id="bookAdj" step="0.01" inputmode="decimal" placeholder="+ upcharge or - deal"></div>
+        <div class="form-group"><label for="bookAdjWhy">Reason</label><select id="bookAdjWhy"><option value="">-</option><option>Upcharge</option><option>Deal</option><option>Other</option></select></div>
+      </div>
+      <input type="text" id="bookAdjNote" maxlength="150" placeholder="Short reason (office only, never on the invoice)" style="width:100%;">
+      <div id="adjPreview" style="margin-top:8px;font-weight:700;"></div>
+    </div>
+    <div id="lowStockNote" class="hidden" style="margin-top:10px;padding:8px 10px;border-radius:8px;border:1px solid #f59e0b;"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+      <button class="btn btn-outline" id="btnNotesCancel">Cancel</button>
+      <button class="btn" id="btnNotesOk">Book Load</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="costModal">
+  <div class="modal wide">
+    <h3 id="vqTitle">View Quote</h3>
+    <div class="vq-tabs"><button type="button" id="vqTabMoney" class="on">Money</button><button type="button" id="vqTabDispatch">Dispatch view</button></div>
+    <div id="costBody"></div>
+    <div id="dispatchBody" class="hidden"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:14px;">
+      <button class="btn btn-outline" id="btnCloseCost">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'knightForestrySettings_v3';
+const defaultSettings = {
+  companyName: '',
+  apiKey: '',
+  sheetsUrl: '',
+  syncUrl: '',
+  speed: 90,
+  fuelPrice: 0.90,
+  gst: 5,
+  units: [],
+  quoteShow: { cords: true, tonnes: true, perCord: false, perTonne: false, total: true },
+  locations: [],
+  yards: []
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const r2 = n => Math.round((+n || 0) * 100) / 100;
+const numOr = (v, d) => (v === '' || v == null || isNaN(+v)) ? d : +v;
+const withMargin = (cost, pct) => r2((+cost || 0) * (1 + (+pct || 0) / 100));
+
+let settings = loadSettings();
+let map, autocomplete, markers = [], selectedOptions = new Set();
+let lastCalcResults = [];
+let calcState = { origins: [], focus: -1 };
+let routeOverlays = [];
+let calcToken = 0;
+
+function loadSettings() {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    return s ? { ...defaultSettings, ...JSON.parse(s) } : structuredClone(defaultSettings);
+  } catch { return structuredClone(defaultSettings); }
+}
+function saveSettings() { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); }
+
+/* ---------- margin model ----------
+   Stored "billed" fields keep their old names (pricePerTonne, pricePerCord, unit.hourly, settings.fuelPrice)
+   because Dispatch and Billing read exactly those. New fields hold what it costs us.
+   Anything saved before margins existed is read as cost = billed, margin 0, so old data prices the same. */
+function costFuel() { const c = settings.costFuelPrice; return (c === undefined || c === null || c === '' || isNaN(+c)) ? (+settings.fuelPrice || 0) : +c; }
+function unitCostHourly(u) { return numOr(u.costHourly, +u.hourly || 0); }
+function spCostTonne(sp) { return numOr(sp.costPerTonne, +sp.pricePerTonne || 0); }
+function spCostCord(sp) { return numOr(sp.costPerCord, +sp.pricePerCord || 0); }
+
+/* ---------- unsaved-change tracking (so an automatic sync never wipes local edits) ---------- */
+const DIRTY_KEY = 'kfDirty', REV_KEY = 'kfCompanyRev';
+function isDirty() { return localStorage.getItem(DIRTY_KEY) === '1'; }
+// On an admin device every change (units, locations, settings) goes to the company by itself a moment later,
+// so other devices get it and the next sync never brings the old value back. noAuto: the caller saves right away itself.
+let shareTimer = null;
+function markDirty(noAuto) {
+  try { localStorage.setItem(DIRTY_KEY, '1'); } catch (e) {}
+  updateSyncUi();
+  if (!noAuto && kfCo.unified() && window.kfAdminToken && kfAdminToken()) { clearTimeout(shareTimer); shareTimer = setTimeout(() => shareSettings($('saveSettingsMsg')), 800); }
+}
+// Save this device's settings to the company. Admin devices need nothing; other devices are asked for the company password.
+async function shareSettings(msgEl) {
+  const say = (t, kind) => { if (msgEl) { msgEl.textContent = t; msgEl.className = 'sync-status' + (kind ? ' ' + kind : ''); } };
+  clearTimeout(shareTimer);
+  if (!(settings.syncUrl || '').trim()) { say('Saved on this device.', 'ok'); return; }
+  for (let i = 0; syncBusy && i < 60; i++) await new Promise(r => setTimeout(r, 250));     // a sync in progress finishes first
+  let asked = false;
+  if (!(window.kfAdminToken && kfAdminToken())) {
+    if (!companyMeta) await refreshMeta();
+    if (companyMeta && companyMeta.hasPassword && !$('pwCurrent').value) {
+      const pw = await kfAskPassword('Company password (saves these settings for every device):');
+      if (!pw) { say('Saved on this device only. Tap Save again and enter the company password to share it with every device.', 'warn'); return; }
+      $('pwCurrent').value = pw; asked = true;
+    }
+  }
+  say('Saving for every device…', '');
+  await saveToCompany();
+  if (asked) $('pwCurrent').value = '';
+  const st = $('syncStatus');
+  say(st.textContent, st.classList.contains('ok') ? 'ok' : st.classList.contains('bad') ? 'bad' : 'warn');
+}
+function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch (e) {} }
+
+/* ---------- truck units ---------- */
+const MONEY_DEFAULTS = { employerCostPct: 12, otWeeklyHours: 50, otMultiplier: 1.5, weekStartsOn: 0,
+  categories: ['Fuel', 'Repairs - parts', 'Repairs - shop', 'Wages - drivers', 'Wages - mechanic', 'Wood purchases', 'Insurance', 'Truck/equipment payments', 'Licences & permits', 'Tires', 'Office & phone', 'Yard costs', 'Other'] };
+function moneySettings() { return Object.assign({}, MONEY_DEFAULTS, settings.money || {}); }
+function renderUnits() {
+  const list = $('unitsList');
+  if (!list) return;
+  list.innerHTML = (settings.units || []).map(u => {
+    const cost = unitCostHourly(u), billed = +u.hourly || 0;
+    const m = cost > 0 ? Math.round((billed / cost - 1) * 1000) / 10 : 0;
+    return `
+    <div class="unit-row">
+      <span><strong>${esc(u.name)}</strong> — $${r2(billed)}/hr billed${m ? ` (cost $${r2(cost)} + ${m}%)` : ''} · ${esc(u.fuel)} L/100 · ${esc(u.tonnes)}t · ${esc(u.plate || '')} · ${esc(u.config || '')}${u.haulsSplit ? ` · hauls split ${esc(u.splitCords || '?')} cords` : ''}${(u.aliases || []).length ? `<br><span class="small">was: ${esc(u.aliases.join(', '))}</span>` : ''}</span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+        <button class="btn btn-outline btn-sm" data-edit-unit="${esc(u.id)}">Edit</button>
+        <button class="btn btn-outline btn-sm" data-real-cost="${esc(u.id)}">Use real costs</button>
+        <button class="btn btn-outline btn-sm" data-del-unit="${esc(u.id)}">Remove</button>
+      </span>
+    </div>`;
+  }).join('') || '<p style="color:var(--muted);">No units yet. Add one below.</p>';
+}
+$('unitsList').addEventListener('click', e => {
+  const b = e.target.closest('[data-del-unit]'), ed = e.target.closest('[data-edit-unit]'), rc = e.target.closest('[data-real-cost]');
+  if (b) deleteUnit(b.dataset.delUnit);
+  if (ed) editUnit(ed.dataset.editUnit);
+  if (rc && window.kfUseRealCosts) kfUseRealCosts(rc.dataset.realCost);
+});
+function deleteUnit(id) {
+  const u = (settings.units || []).find(x => String(x.id) === String(id));
+  if (!u || !confirm(`Remove the unit "${u.name}"?\n\nLoads already booked with it keep their name, but their invoices will no longer find its hourly and fuel rates.`)) return;
+  settings.units = settings.units.filter(u => String(u.id) !== String(id));
+  saveSettings(); markDirty();
+  renderUnits();
+}
+function updateUnitBilled() { $('unitBilled').value = '$' + withMargin($('unitHourly').value, $('unitMargin').value).toFixed(2) + '/hr'; }
+$('unitHourly').addEventListener('input', updateUnitBilled);
+$('unitMargin').addEventListener('input', updateUnitBilled);
+updateUnitBilled();
+let editingUnitId = null;
+function unitFormValues() {
+  const cost = +$('unitHourly').value || 0, margin = +$('unitMargin').value || 0;
+  return {
+    name: $('unitName').value.trim(), costHourly: cost, marginPct: margin, hourly: withMargin(cost, margin),
+    fuel: +$('unitFuel').value || 0, tonnes: +$('unitTonnes').value || 0, hours: +$('unitHours').value || 0,
+    plate: $('unitPlate').value || '', config: $('unitConfig').value || '',
+    haulsSplit: $('unitHaulsSplit').value === 'yes', splitCords: $('unitHaulsSplit').value === 'yes' ? (+$('unitSplitCords').value || 0) : 0,
+    homeBase: $('unitHomeBase').value.trim()
+  };
+}
+function clearUnitForm() {
+  editingUnitId = null; $('unitName').value = ''; $('unitHaulsSplit').value = 'no'; $('unitSplitCords').value = ''; $('unitHomeBase').value = '';
+  $('btnAddUnit').textContent = 'Add Unit'; $('btnCancelUnit').classList.add('hidden'); $('unitEditNote').classList.add('hidden');
+}
+function editUnit(id) {
+  const u = (settings.units || []).find(x => String(x.id) === String(id)); if (!u) return;
+  editingUnitId = u.id;
+  $('unitName').value = u.name || ''; $('unitHourly').value = unitCostHourly(u); $('unitMargin').value = u.marginPct != null ? u.marginPct : 0;
+  $('unitFuel').value = u.fuel || 0; $('unitPlate').value = u.plate || ''; $('unitConfig').value = u.config || '';
+  $('unitTonnes').value = u.tonnes || 0; $('unitHours').value = u.hours || 0;
+  $('unitHaulsSplit').value = u.haulsSplit ? 'yes' : 'no'; $('unitSplitCords').value = u.splitCords || ''; $('unitHomeBase').value = u.homeBase || '';
+  updateUnitBilled();
+  $('btnAddUnit').textContent = 'Update unit'; $('btnCancelUnit').classList.remove('hidden');
+  $('unitEditNote').textContent = 'Editing ' + u.name + '. Changing a rate changes invoices not made yet for loads already booked with this unit (that is how it works today).';
+  $('unitEditNote').classList.remove('hidden');
+  $('unitName').scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+$('btnCancelUnit').onclick = clearUnitForm;
+// How many booked loads use this unit name (needs signal; null = unknown)
+async function loadsUsingName(name) {
+  try { const u = settings.sheetsUrl; if (!u) return null; const j = await (await fetch(u + (u.includes('?') ? '&' : '?') + 't=' + Date.now())).json(); return (j.rows || []).filter(r => String(r.truck) === String(name)).length; } catch (e) { return null; }
+}
+$('btnAddUnit').onclick = async () => {
+  const v = unitFormValues();
+  if (!v.name) return alert('Enter a unit name.');
+  settings.units = settings.units || [];
+  if (editingUnitId != null) {
+    const u = settings.units.find(x => String(x.id) === String(editingUnitId)); if (!u) return clearUnitForm();
+    if (v.name !== u.name) {
+      if (settings.units.some(x => x !== u && x.name === v.name)) return alert('Another unit already has that name.');
+      const n = await loadsUsingName(u.name);
+      if (!confirm(`Rename "${u.name}" to "${v.name}"?\n\n${n == null ? 'Loads' : n + ' load(s)'} booked with the old name keep it. The old name is remembered on this unit, so their invoices still find its rates.`)) return;
+      u.aliases = [...new Set([...(u.aliases || []), u.name])].filter(a => a !== v.name);
+    }
+    const rateChanged = +u.hourly !== +v.hourly || +u.fuel !== +v.fuel;
+    if (rateChanged && !confirm('The billed rate or fuel use changed. Invoices not made yet for loads already booked with this unit will use the new numbers. Save?')) return;
+    Object.assign(u, v); if (!Array.isArray(u.aliases)) u.aliases = [];       // same unit id
+  } else {
+    settings.units.push(Object.assign({ id: Date.now(), aliases: [] }, v));
+  }
+  saveSettings(); markDirty();
+  renderUnits();
+  clearUnitForm();
+};
+
+function parseCoords(str) {
+  const m = String(str).trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+  return null;
+}
+// Unchanged formula: price the client sees = hours x BILLED hourly + litres x BILLED fuel price.
+function calcTruckCost(oneWayKm, hourly, fuelL100, loadHours) {
+  const roundKm = oneWayKm * 2;
+  const driveHours = roundKm / settings.speed;
+  const totalHours = driveHours + loadHours;
+  const fuelCost = (roundKm / 100) * fuelL100 * settings.fuelPrice;
+  return totalHours * hourly + fuelCost;
+}
+// Same trip split into what we pay vs what we bill (for View Quote).
+function tripParts(oneWayKm, truck) {
+  const roundKm = oneWayKm * 2;
+  const hrs = roundKm / settings.speed + (truck.hours || 0);
+  const litres = (roundKm / 100) * truck.fuel;
+  return {
+    hrs, litres,
+    truckBilled: hrs * truck.hourly, truckCost: hrs * (truck.costHourly != null ? truck.costHourly : truck.hourly),
+    fuelBilled: litres * settings.fuelPrice, fuelCost: litres * costFuel()
+  };
+}
+function getTruckOptions() {
+  return (settings.units || []).map(u => ({
+    key: u.id, label: u.name, tonnes: u.tonnes, hourly: u.hourly, costHourly: unitCostHourly(u), fuel: u.fuel, hours: u.hours
+  }));
+}
+// What goes in the trip log: longer of Google's time and the speed setting (unchanged).
+function logTimes(o, truck) {
+  const roundKm = o.km * 2;
+  const googleOneWay = o.durSec ? o.durSec / 3600 : 0;
+  const oneWay = Math.max(googleOneWay, o.km / settings.speed);
+  const driveHours = oneWay * 2;
+  return { driveHours, totalHours: driveHours + truck.hours, fuelLitres: (roundKm / 100) * truck.fuel };
+}
+function speciesMatches(sp, selectedSpecies) {
+  const spKey = String(sp.name || '').toLowerCase();
+  return selectedSpecies.length === 0 || selectedSpecies.some(s =>
+    spKey.includes(s) || s.includes(spKey) ||
+    (s === 'spruce/pine' && (spKey.includes('pine') || spKey.includes('spruce'))));
+}
+
+// Navigation
+$('nav-quote').onclick = (e) => { e.preventDefault(); showView('quote'); };
+$('nav-settings').onclick = (e) => { e.preventDefault(); showView('settings'); };
+// phone back button (nav.js): close a pop-up, or leave Settings for the quote screen
+window.kfBack = function () {
+  if ($('notesModal').classList.contains('show')) { $('btnNotesCancel').click(); return true; }
+  const open = document.querySelector('.modal-overlay.show');
+  if (open) { open.classList.remove('show'); return true; }
+  if (!$('view-settings').classList.contains('hidden')) { showView('quote'); return true; }
+  return false;
+};
+/* ---------- v14: Company settings fold (remembered on this device), admin devices, no link fields ---------- */
+function setCoOpen(open) {
+  $('coSettingsWrap').classList.toggle('hidden', !open);
+  $('btnCoSettings').textContent = 'Company settings ' + (open ? '▴' : '▾');
+  try { localStorage.setItem('kfSettingsOpen', open ? '1' : '0'); } catch (e) {}
+}
+$('btnCoSettings').onclick = () => setCoOpen($('coSettingsWrap').classList.contains('hidden'));
+setCoOpen(localStorage.getItem('kfSettingsOpen') === '1');
+const hasConfig = () => !!(window.kfConfigUrl && kfConfigUrl());
+function applyLinkVisibility() {
+  const cfg = hasConfig();
+  document.querySelectorAll('.kf-linkfield').forEach(el => el.classList.toggle('hidden', cfg || kfCo.unified()));
+  $('syncUrlGroup').classList.toggle('hidden', cfg || kfCo.unified());
+  const info = $('coLinkInfo');
+  if (cfg || kfCo.unified()) {
+    const name = (companyMeta && companyMeta.companyName) || localStorage.getItem('kfCompanyName') || settings.companyName || '';
+    info.innerHTML = `Company: <b>${esc(name || '(not named yet)')}</b><br><span style="word-break:break-all;font-size:.8rem;">${esc(kfCo.base() || kfConfigUrl())}</span>`;
+    info.classList.remove('hidden');
+  } else info.classList.add('hidden');
+  if (cfg) $('btnSwitchCo').classList.add('hidden');
+  // v14: the company sheet link field (new world: the site knows a company list, or this device is on a company link)
+  const box = $('coLinkBox'), show = cfg || kfCo.unified(); box.classList.toggle('hidden', !show);
+  if (show) {
+    const canEdit = !!(window.kfAdminToken && kfAdminToken()) || !kfCo.unified() || (companyMeta && companyMeta.hasPassword === false);
+    if (document.activeElement !== $('coLinkUrl')) $('coLinkUrl').value = kfCo.base() || '';
+    $('coLinkUrl').readOnly = !canEdit; $('btnSaveLink').classList.toggle('hidden', !canEdit);
+    if (!canEdit) $('coLinkMsg').textContent = 'Only an admin device can change the company link.';
+  }
+}
+// Save the company sheet link: connect this device, create (or check) the company password, then register the company
+// NAME in the company list, so every new device signs in with just the company name + password.
+$('btnSaveLink').onclick = async () => {
+  const say = (t, bad) => { $('coLinkMsg').textContent = t; $('coLinkMsg').style.color = bad ? 'var(--bad)' : ''; };
+  const url = kfCo.clean($('coLinkUrl').value);
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) return say('Paste the company script link (it starts with https://script.google.com/macros/s/ and ends in /exec).', true);
+  const b = $('btnSaveLink'); b.disabled = true; say('Checking the link…');
+  try {
+    let meta = null; try { meta = (await companyGet(url))._meta || null; } catch (e) {}
+    if (!meta || !meta.unified) return say('That link did not answer as a company script (company-apps-script.gs deployed as a web app for Anyone).', true);
+    const same = kfCo.base() === url;
+    if (!same && kfCo.unified() && kfCo.hasData() && !kfCo.sameCompany(meta)) {
+      if (!confirm(`This device holds ${settings.companyName || 'another company'}'s data. Switching to ${meta.companyName || 'this company'} removes it from this device (it stays safe in its own sheet). Continue?`)) return say('Cancelled. Nothing was changed.');
+      kfCo.wipe(); settings = structuredClone(defaultSettings);
+    }
+    const dev = localStorage.getItem('kfDeviceName') || 'First admin device';
+    if (!meta.hasPassword) {
+      // first device of a new company: name + company password
+      $('coLinkSetup').classList.remove('hidden'); $('coLinkLogin').classList.add('hidden');
+      const name = $('coLinkCo').value.trim(), p1 = $('coLinkPw1').value, p2 = $('coLinkPw2').value;
+      if (!name || p1.length < 4 || p1 !== p2) return say('New company: enter the company name and create the company password (at least 4 characters, typed twice), then tap Save link again.', true);
+      const r = await companyPost(url + '?svc=sync', { action: 'setPassword', newPassword: p1, deviceName: dev });
+      if (r.status !== 'ok' || !r.key) return say(r.message || 'Could not create the company password.', true);
+      kfCo.apply(url, r.key, r.meta); if (r.adminToken) localStorage.setItem('kfAdminToken', r.adminToken); localStorage.removeItem('kfNoPassword');
+      settings = loadSettings(); settings.companyName = name; saveSettings(); localStorage.setItem('kfCompanyName', name);
+      await companyPost(settings.syncUrl, { action: 'saveProfile', password: p1, profile: Object.assign(JSON.parse(localStorage.getItem('kfCompany') || '{}'), { name }) });
+      const sv = await companyPost(settings.syncUrl, { action: 'saveSettings', password: p1, settings: companyPayload(), force: true }); if (sv.rev != null) localStorage.setItem(REV_KEY, String(sv.rev));
+      clearDirty(); $('coLinkPw1').value = $('coLinkPw2').value = '';
+    } else if (!(same && window.kfAdminToken && kfAdminToken())) {
+      // a company that already has a password: this device proves it once and becomes an admin device
+      $('coLinkLogin').classList.remove('hidden'); $('coLinkSetup').classList.add('hidden');
+      const pw = $('coLinkPw').value; if (!pw) return say('Enter the company password, then tap Save link again.', true);
+      const r = await kfMakeAdmin(pw, dev, url); if (!r.ok) return say(r.msg || 'Wrong company password.', true);
+      $('coLinkPw').value = ''; settings = loadSettings();
+    }
+    say('Saving the company in the sign-in list…');
+    const reg = await kfRegisterCompany(url);
+    if (reg.status === 'ok') say(`Saved. New devices sign in with "${reg.name}" and the company password. Drivers type "${reg.name}", then their own name and passcode.`);
+    else if (reg.status === 'error' && /Unknown action/.test(reg.message || '')) say('Saved on this device. The sign-in list needs the updated script on the main company link, so new devices cannot find this company by name yet.', true);
+    else say('Connected, but not added to the sign-in list: ' + (reg.message || reg.status), true);
+    setTimeout(() => { refreshMeta(); if (!same) location.hash = '#settings'; }, 300);
+    if (!same) setTimeout(() => location.reload(), 2500);
+  } catch (e) { say('Could not save: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
+async function renderAdminCard() {
+  if (!$('adminCard')) return;
+  const isTok = !!(window.kfAdminToken && kfAdminToken()), v14 = (window.kfServerV ? kfServerV() : 0) >= 14 || (companyMeta && companyMeta.v >= 14);
+  const noPw = !!(companyMeta && companyMeta.hasPassword === false);
+  $('adminCard').classList.toggle('hidden', !kfCo.unified() && !hasConfig());
+  $('noPwBanner').classList.toggle('hidden', !noPw);
+  $('adminMake').classList.toggle('hidden', isTok || noPw || !v14);
+  $('adminBtns').classList.toggle('hidden', !isTok);
+  $('adminState').textContent = !v14 ? 'Admin devices need the updated company script.' : noPw ? '' : isTok ? `This device is an admin (${localStorage.getItem('kfDeviceName') || 'this device'}). Password boxes are hidden and everything is unlocked.` : 'This device is not an admin. Enter the company password once to make it one.';
+  $('pwEnterBox').classList.toggle('hidden', isTok || (companyMeta && !companyMeta.hasPassword));
+  const box = $('adminList'); box.innerHTML = '';
+  if (!isTok || !v14 || navigator.onLine === false) return;
+  try {
+    const r = await kfCo.post('sync', { action: 'listAdmins' });
+    if (r.status !== 'ok') return;
+    box.innerHTML = (r.devices || []).map(d => `<div class="unit-row"><span><b>${esc(d.name)}</b>${d.me ? ' (this device)' : ''}<br><span class="small">added ${new Date(d.at).toLocaleDateString()} · last seen ${new Date(d.seen).toLocaleString()}</span></span>${d.me ? '' : `<button class="btn btn-outline btn-sm" data-rm-admin="${esc(d.id)}">Remove</button>`}</div>`).join('') || '<div class="hint">No admin devices.</div>';
+  } catch (e) {}
+}
+$('adminList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-rm-admin]'); if (!b) return;
+  if (!confirm('Remove admin from that device? It will have to enter the company password again.')) return;
+  const r = await kfCo.post('sync', { action: 'removeAdmin', id: b.dataset.rmAdmin }); $('adminMsg').textContent = r.status === 'ok' ? 'Removed.' : (r.message || 'Could not remove.'); renderAdminCard();
+});
+$('btnMakeAdmin').onclick = async () => {
+  const pw = $('admPw').value, nm = $('admName').value.trim();
+  if (!pw || !nm) { $('adminMsg').textContent = 'Enter the company password and a name for this device.'; return; }
+  $('adminMsg').textContent = 'Checking…';
+  try { const r = await kfMakeAdmin(pw, nm); if (r.ok) { $('admPw').value = ''; location.reload(); } else $('adminMsg').textContent = r.msg || 'Could not make this device an admin.'; } catch (e) { $('adminMsg').textContent = 'No signal.'; }
+};
+$('btnStopAdmin').onclick = () => kfStopAdmin();
+$('btnRemoveAllAdmins').onclick = async () => {
+  if (!confirm('Remove admin from ALL devices, including this one? Every office device will have to enter the company password again.')) return;
+  const r = await kfCo.post('sync', { action: 'removeAllAdmins' });
+  if (r.status === 'ok') { localStorage.removeItem('kfAdminToken'); location.reload(); } else $('adminMsg').textContent = r.message || 'Could not remove.';
+};
+function showView(name) {
+  $('view-quote').classList.toggle('hidden', name !== 'quote');
+  $('view-settings').classList.toggle('hidden', name !== 'settings');
+  $('nav-quote').classList.toggle('active', name === 'quote');
+  $('nav-settings').classList.toggle('active', name === 'settings');
+  if (name === 'settings') { renderSettings(); refreshMeta(); applyLinkVisibility(); refreshYardStock(); }
+}
+
+function needsPriceBadges(loc) {
+  const yi = yardInfo[loc.name]; if (!yi) return '';
+  const have = (loc.species || []).map(s => s.name);
+  return Object.keys(yi).filter(sp => !have.includes(sp) && yi[sp].Logs && yi[sp].Logs.qty > 0).map(sp => `<span class="badge needs-price" data-np-loc="${esc(loc.id)}" data-np-sp="${esc(sp)}" data-np-cost="${esc(yi[sp].Logs.avg)}" style="cursor:pointer;">${esc(sp)}: needs a price (avg cost $${yi[sp].Logs.avg.toFixed(2)}/t) · tap to add</span>`).join('');
+}
+function renderLocations() {
+  const list = $('locationsList');
+  if (!list) return;
+  list.innerHTML = (settings.locations || []).map(loc => `
+    <div class="loc-item">
+      <div>
+        <strong>${esc(loc.name)}</strong> <span style="color:var(--muted); font-size:0.85rem;">${esc(loc.address)}</span><br>
+        ${(loc.species || []).map(s => {
+          const cost = spCostTonne(s), m = cost > 0 ? Math.round(((+s.pricePerTonne || 0) / cost - 1) * 1000) / 10 : 0;
+          return `<span class="badge">${esc(s.name)} $${esc(s.pricePerTonne)}/t${m ? ` (cost $${r2(cost)} + ${m}%)` : ''} ${+s.tonnesPerCord > 0 ? '(' + esc(s.tonnesPerCord) + ' t/cord)' : '(no t/cord set: cords not shown)'}</span>`;
+        }).join('')}${needsPriceBadges(loc)}
+      </div>
+      <div>
+        <button class="btn btn-outline btn-sm" data-edit-loc="${esc(loc.id)}">Edit</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--bad); border-color:var(--bad);" data-del-loc="${esc(loc.id)}">Delete</button>
+      </div>
+    </div>
+  `).join('') || '<p style="color:var(--muted);">No locations yet.</p>';
+}
+$('locationsList').addEventListener('click', e => {
+  const ed = e.target.closest('[data-edit-loc]'), del = e.target.closest('[data-del-loc]');
+  if (ed) editLocation(ed.dataset.editLoc);
+  if (del) deleteLocation(del.dataset.delLoc);
+  const np = e.target.closest('[data-np-loc]');
+  if (np) { editLocation(np.dataset.npLoc); addSpeciesRow({ name: np.dataset.npSp, costPerTonne: +np.dataset.npCost, marginPct: '' }); }
+});
+
+function renderSettings() {
+  $('apiKeyInput').value = settings.apiKey || '';
+  const cn = $('setCompanyName');
+  if (cn) cn.value = settings.companyName || '';
+  const banner = $('companyNameBanner');
+  if (banner && window.kfBrand) kfBrand();
+  $('setSyncUrl').value = settings.syncUrl || '';
+  $('setSheetsUrl').value = settings.sheetsUrl || '';
+  $('setTrucksUrl').value = localStorage.getItem('trucksUrl') || '';
+  $('setSpeed').value = settings.speed;
+  $('setFuelPrice').value = settings.fuelPrice;
+  $('setCostFuelPrice').value = (settings.costFuelPrice === undefined || settings.costFuelPrice === null) ? '' : settings.costFuelPrice;
+  $('setGst').value = settings.gst;
+  $('setOffRoadFuel').value = settings.offRoadFuelPrice != null ? settings.offRoadFuelPrice : '';
+  $('setHomeBase').value = settings.homeBase || '';
+  const mo = moneySettings();
+  $('setEmpCost').value = mo.employerCostPct; $('setOtHours').value = mo.otWeeklyHours; $('setOtMult').value = mo.otMultiplier;
+  $('setWeekStart').value = String(mo.weekStartsOn); $('setCategories').value = (mo.categories || []).join('\n');
+  const qs = settings.quoteShow || {};
+  $('qCords').checked = qs.cords !== false;
+  $('qTonnes').checked = qs.tonnes !== false;
+  $('qPerCord').checked = !!qs.perCord;
+  $('qPerTonne').checked = !!qs.perTonne;
+  $('qTotal').checked = qs.total !== false;
+  renderUnits();
+  renderLocations();
+  updateSyncUi();
+  renderAdminCard();
+}
+
+$('btnSaveKey').onclick = async () => {
+  settings.apiKey = $('apiKeyInput').value.trim();
+  const cnInput = $('setCompanyName');
+  if (cnInput) settings.companyName = cnInput.value.trim();
+  saveSettings(); markDirty(true);
+  const banner = $('companyNameBanner');
+  if (banner && window.kfBrand) kfBrand();
+  await shareSettings($('saveSettingsMsg'));
+  alert('API key saved. The page reloads to apply Maps.');
+  location.reload();
+};
+
+function setUrlWithStamp(lsKey, value) {
+  const cur = localStorage.getItem(lsKey) || '';
+  if (value === cur) return;
+  if (value) localStorage.setItem(lsKey, value); else localStorage.removeItem(lsKey);
+  localStorage.setItem(lsKey + 'At', String(Date.now()));
+}
+$('btnSaveSettings').onclick = async () => {
+  // Link fields only exist on old devices with separate scripts. On a company link they are hidden and hold the bare link
+  // (no company key): copying them in disconnected the device and made it sign in again.
+  if (!hasConfig() && !kfCo.unified()) {
+    settings.syncUrl = $('setSyncUrl').value.trim();
+    const newSheetsUrl = $('setSheetsUrl').value.trim();
+    if (newSheetsUrl !== (settings.sheetsUrl || '') || (newSheetsUrl && !settings.sheetsUrlAt)) settings.sheetsUrlAt = Date.now();
+    settings.sheetsUrl = newSheetsUrl;
+    setUrlWithStamp('trucksUrl', $('setTrucksUrl').value.trim());
+  }
+  const cn = $('setCompanyName');
+  if (cn) settings.companyName = cn.value.trim();
+  settings.speed = +$('setSpeed').value || 90;
+  settings.fuelPrice = numOr($('setFuelPrice').value, settings.fuelPrice);
+  if ($('setCostFuelPrice').value === '') delete settings.costFuelPrice; else settings.costFuelPrice = +$('setCostFuelPrice').value;
+  settings.gst = numOr($('setGst').value, settings.gst);
+  if ($('setOffRoadFuel').value === '') delete settings.offRoadFuelPrice; else settings.offRoadFuelPrice = +$('setOffRoadFuel').value;
+  settings.homeBase = $('setHomeBase').value.trim();
+  settings.money = {
+    employerCostPct: numOr($('setEmpCost').value, 12), otWeeklyHours: numOr($('setOtHours').value, 50), otMultiplier: numOr($('setOtMult').value, 1.5),
+    weekStartsOn: +$('setWeekStart').value || 0, categories: $('setCategories').value.split('\n').map(x => x.trim()).filter(Boolean)
+  };
+  settings.quoteShow = {
+    cords: $('qCords').checked, tonnes: $('qTonnes').checked,
+    perCord: $('qPerCord').checked, perTonne: $('qPerTonne').checked, total: $('qTotal').checked
+  };
+  saveSettings(); markDirty(true);
+  const banner = $('companyNameBanner');
+  if (banner && window.kfBrand) kfBrand();
+  const b = $('btnSaveSettings'); b.disabled = true;
+  try { await shareSettings($('saveSettingsMsg')); } finally { b.disabled = false; }
+};
+
+/* ---------- species rows: cost, margin %, total ---------- */
+function speciesRowHtml(v) {
+  v = v || {};
+  const costT = v.costPerTonne != null ? v.costPerTonne : (v.pricePerTonne != null ? v.pricePerTonne : '');
+  const costC = v.costPerCord != null ? v.costPerCord : (v.pricePerCord != null && v.pricePerCord !== 0 ? v.pricePerCord : '');
+  const margin = v.marginPct != null ? v.marginPct : '';
+  return `<div class="species-edit">
+    <input type="text" class="sp-name" placeholder="Species (e.g. Pine)" value="${esc(v.name || '')}" aria-label="Species name">
+    <label class="sp-f">Cost $/t<input type="number" class="sp-cost" step="0.01" value="${esc(costT)}"></label>
+    <label class="sp-f">Margin %<input type="number" class="sp-margin" step="0.1" placeholder="0" value="${esc(margin)}"></label>
+    <label class="sp-f">Total $/t<input type="text" class="sp-total" readonly tabindex="-1"></label>
+    <label class="sp-f">t/cord<input type="number" class="sp-conv" step="0.01" placeholder="blank = no cords" value="${esc(v.tonnesPerCord || '')}"></label>
+    <label class="sp-f">Cost $/cord<input type="number" class="sp-costcord" step="0.01" value="${esc(costC)}"></label>
+    <label class="sp-f">Total $/cord<input type="text" class="sp-totalcord" readonly tabindex="-1"></label>
+    <button type="button" class="btn btn-outline btn-sm sp-del" aria-label="Remove species">−</button>
+  </div>`;
+}
+function refreshSpeciesTotals(row) {
+  const m = row.querySelector('.sp-margin').value;
+  const c = row.querySelector('.sp-cost').value, cc = row.querySelector('.sp-costcord').value;
+  row.querySelector('.sp-total').value = c !== '' ? '$' + withMargin(c, m).toFixed(2) : '';
+  row.querySelector('.sp-totalcord').value = cc !== '' && +cc > 0 ? '$' + withMargin(cc, m).toFixed(2) : '';
+}
+function addSpeciesRow(v) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = speciesRowHtml(v);
+  const row = wrap.firstElementChild;
+  $('speciesInputs').appendChild(row);
+  refreshSpeciesTotals(row);
+}
+$('speciesInputs').addEventListener('input', e => { const row = e.target.closest('.species-edit'); if (row) refreshSpeciesTotals(row); });
+$('speciesInputs').addEventListener('click', e => { const b = e.target.closest('.sp-del'); if (b) b.closest('.species-edit').remove(); });
+$('btnAddSpecies').onclick = () => addSpeciesRow();
+
+function getSpeciesFromForm() {
+  const species = [];
+  document.querySelectorAll('#speciesInputs .species-edit').forEach(r => {
+    const name = r.querySelector('.sp-name').value.trim();
+    const margin = numOr(r.querySelector('.sp-margin').value, 0);
+    const conv = +r.querySelector('.sp-conv').value > 0 ? +r.querySelector('.sp-conv').value : 0;   // tonnes per cord: no default
+    const costCord = numOr(r.querySelector('.sp-costcord').value, 0);
+    let costT = numOr(r.querySelector('.sp-cost').value, 0);
+    if (!(costT > 0) && costCord > 0 && conv > 0) costT = r2(costCord / conv);        // price given per cord only
+    if (name && !(costT > 0) && costCord > 0 && !conv) alert(name + ': a price per cord needs the tonnes per cord too (or enter the price per tonne). It was not saved.');
+    if (name && costT > 0) species.push({
+      name, costPerTonne: costT, marginPct: margin, pricePerTonne: withMargin(costT, margin),
+      tonnesPerCord: conv || '', costPerCord: costCord, pricePerCord: costCord > 0 ? withMargin(costCord, margin) : 0
+    });
+  });
+  return species;
+}
+function clearSpeciesForm() { $('speciesInputs').innerHTML = ''; addSpeciesRow(); }
+clearSpeciesForm();
+
+let editingId = null;
+$('btnAddLocation').onclick = () => {
+  const name = $('locName').value.trim();
+  const address = $('locAddress').value.trim();
+  const species = getSpeciesFromForm();
+  if (!name || !address || !species.length) return alert('Name, address, and at least one species with a cost are required.');
+  settings.locations.push({ id: Date.now(), name, address, species });
+  saveSettings(); markDirty();
+  renderSettings();
+  $('locName').value = '';
+  $('locAddress').value = '';
+  clearSpeciesForm();
+};
+function editLocation(id) {
+  const loc = settings.locations.find(l => String(l.id) === String(id));
+  if (!loc) return;
+  editingId = loc.id;
+  $('locName').value = loc.name;
+  $('locAddress').value = loc.address;
+  $('speciesInputs').innerHTML = '';
+  (loc.species || []).forEach(s => addSpeciesRow(s));
+  if (!(loc.species || []).length) addSpeciesRow();
+  $('btnAddLocation').classList.add('hidden');
+  $('btnUpdateLocation').classList.remove('hidden');
+  $('btnCancelEdit').classList.remove('hidden');
+  $('locName').scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+$('btnUpdateLocation').onclick = () => {
+  const loc = settings.locations.find(l => l.id === editingId);
+  if (!loc) return;
+  const species = getSpeciesFromForm();
+  if (!species.length) return alert('At least one species with a cost is required.');
+  loc.name = $('locName').value.trim();
+  loc.address = $('locAddress').value.trim();
+  loc.species = species;
+  saveSettings(); markDirty();
+  cancelEdit();
+  renderSettings();
+};
+$('btnCancelEdit').onclick = cancelEdit;
+function cancelEdit() {
+  editingId = null;
+  $('locName').value = '';
+  $('locAddress').value = '';
+  clearSpeciesForm();
+  $('btnAddLocation').classList.remove('hidden');
+  $('btnUpdateLocation').classList.add('hidden');
+  $('btnCancelEdit').classList.add('hidden');
+}
+function deleteLocation(id) {
+  if (!confirm('Delete this location?')) return;
+  settings.locations = settings.locations.filter(l => String(l.id) !== String(id));
+  saveSettings(); markDirty();
+  renderSettings();
+}
+
+// Maps
+function initMap() {
+  if (!settings.apiKey) {
+    document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);">Enter a Google Maps API key in Settings to enable mapping.</div>';
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${settings.apiKey}&libraries=places&v=weekly&callback=onMapsLoaded`;
+  script.async = true;
+  script.defer = true;
+  window.onMapsLoaded = () => {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: 51.8, lng: -114.5 },
+      zoom: 8,
+      mapTypeControl: false,
+      streetViewControl: false
+    });
+    // Satellite toggle
+    let isSat = false;
+    document.getElementById('btnMapType').onclick = () => {
+      isSat = !isSat;
+      map.setMapTypeId(isSat ? 'hybrid' : 'roadmap');
+      document.getElementById('btnMapType').textContent = isSat ? 'Map' : 'Satellite';
+    };
+    // Click to drop pin and reverse geocode
+    map.addListener('click', (e) => {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ location: e.latLng }, (results, status) => {
+        const addr = (status === 'OK' && results[0]) ? results[0].formatted_address : lat.toFixed(5) + ', ' + lng.toFixed(5);
+        document.getElementById('addressInput').value = addr;
+        window._selectedPlace = { address: addr, location: e.latLng };
+        // Clear old markers and add pin
+        markers.forEach(m => m.setMap(null));
+        markers = [new google.maps.Marker({ position: e.latLng, map, title: 'Delivery' })];
+      });
+    });
+    // Works with both classic Places API and Places API (New)
+    const input = document.getElementById('addressInput');
+    if (google.maps.places.PlaceAutocompleteElement) {
+      const ac = new google.maps.places.PlaceAutocompleteElement({
+        componentRestrictions: { country: 'ca' }
+      });
+      // Style it to match
+      ac.style.width = '100%';
+      input.parentNode.insertBefore(ac, input);
+      input.style.display = 'none';
+      const onPick = async (e) => {
+        try {
+          let place = e.place;
+          if (!place && e.placePrediction) place = e.placePrediction.toPlace();
+          if (!place) return;
+          await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+          const addr = place.formattedAddress || place.displayName || '';
+          input.value = addr;
+          window._selectedPlace = { address: addr, location: place.location };
+          if (place.location) {
+            map.setCenter(place.location);
+            map.setZoom(11);
+          }
+        } catch (err) { console.log(err); }
+      };
+      ac.addEventListener('gmp-select', onPick);
+      ac.addEventListener('gmp-placeselect', onPick);
+    } else {
+      autocomplete = new google.maps.places.Autocomplete(input, {
+        componentRestrictions: { country: 'ca' },
+        fields: ['geometry', 'formatted_address']
+      });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (place.geometry) {
+          map.setCenter(place.geometry.location);
+          map.setZoom(11);
+        }
+      });
+    }
+  };
+  document.head.appendChild(script);
+}
+
+
+/* ================= Calculate ================= */
+$('btnCalculate').onclick = async () => {
+  let address = $('addressInput').value.trim();
+  const coords = parseCoords(address);
+  if (coords && window.google) {
+    window._selectedPlace = { address, location: new google.maps.LatLng(coords.lat, coords.lng) };
+  }
+  // Read from Places widget
+  const widget = document.querySelector('gmp-place-autocomplete');
+  if (!address && widget) {
+    address = (widget.value || widget.getAttribute('value') || '').trim();
+  }
+  if (!address && window._selectedPlace) address = window._selectedPlace.address || '';
+  if (!address) return alert('Enter a delivery address.');
+  if (!settings.apiKey || !window.google) return alert('Google Maps not loaded. Add your API key in Settings.');
+
+  const token = ++calcToken;
+  const resultsEl = $('results');
+  resultsEl.innerHTML = '<p>Calculating distances...</p>';
+  selectedOptions.clear();
+  lastCalcResults = [];
+  calcState = { origins: [], focus: -1 };
+  clearOverlays();
+  $('quoteActions').classList.add('hidden');
+
+  let destLocation = window._selectedPlace && window._selectedPlace.location;
+  if (!destLocation) {
+    const geocoder = new google.maps.Geocoder();
+    const result = await new Promise(res => {
+      geocoder.geocode({ address }, (r, s) => res({ results: r, status: s }));
+    });
+    if (result.status !== 'OK' || !result.results || !result.results[0]) {
+      resultsEl.innerHTML = `<p>Could not find that address (status: ${esc(result.status)}). Make sure Geocoding API is enabled in Google Cloud.</p>`;
+      return;
+    }
+    destLocation = result.results[0].geometry.location;
+  }
+
+  markers.forEach(m => m.setMap(null));
+  markers = [];
+  const bounds = new google.maps.LatLngBounds();
+  bounds.extend(destLocation);
+  markers.push(new google.maps.Marker({ position: destLocation, map, title: 'Delivery', icon: { url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png' } }));
+
+  // Merge yards from inventory so they appear in the Settings location list (unchanged behaviour)
+  try {
+    const yardUrl = localStorage.getItem('yardUrl');
+    if (yardUrl) {
+      const res = await fetch(yardUrl + (yardUrl.includes('?') ? '&' : '?') + 'all=1');
+      const data = await res.json();
+      setYardStock(data.rows || []);
+      const yards = [...new Set((data.rows || []).map(r => r.yard).filter(Boolean))];
+      yards.forEach(y => {
+        if (!settings.locations.find(l => l.name === y)) {
+          settings.locations.push({ id: Date.now() + Math.random(), name: y, address: y, species: [] });
+        }
+      });
+    }
+  } catch (e) {}
+  if (token !== calcToken) return;
+  if (!settings.locations || settings.locations.length === 0) {
+    resultsEl.innerHTML = '<p>No pickup locations added yet. Go to Settings and add at least one.</p>';
+    return;
+  }
+
+  // Only locations that actually have a species being shown need a distance.
+  const selectedSpecies = Array.from(document.querySelectorAll('.species-cb:checked')).map(cb => cb.value.toLowerCase());
+  const candidates = settings.locations.filter(l => (l.species || []).some(sp => speciesMatches(sp, selectedSpecies)));
+  if (!candidates.length) {
+    resultsEl.innerHTML = '<p>No price results. Check that locations have species with prices, and that the species filter includes one of them.</p>';
+    return;
+  }
+  resultsEl.innerHTML = '<p>Looking up pickup locations...</p>';
+  const geocoder = new google.maps.Geocoder();
+  const geos = await Promise.all(candidates.map(loc => {
+    const c = parseCoords(loc.address);
+    if (c) return Promise.resolve({ geometry: { location: new google.maps.LatLng(c.lat, c.lng) } });
+    return Promise.race([
+      new Promise(res => geocoder.geocode({ address: loc.address }, (r, s) => res(s === 'OK' ? r[0] : null))),
+      new Promise(res => setTimeout(() => res(null), 8000))
+    ]);
+  }));
+  if (token !== calcToken) return;
+  const origins = [];
+  geos.forEach((g, i) => {
+    if (!g) return;
+    origins.push({ loc: candidates[i], latLng: g.geometry.location });
+    bounds.extend(g.geometry.location);
+  });
+  if (origins.length === 0) {
+    resultsEl.innerHTML = '<p>Could not find any of your pickup locations. Check the addresses in Settings.</p>';
+    return;
+  }
+  map.fitBounds(bounds);
+
+  resultsEl.innerHTML = '<p>Calculating driving distances...</p>';
+  const body = {
+    origins: origins.map(o => ({ waypoint: { location: { latLng: { latitude: o.latLng.lat(), longitude: o.latLng.lng() } } } })),
+    destinations: [{ waypoint: { location: { latLng: { latitude: destLocation.lat(), longitude: destLocation.lng() } } } }],
+    travelMode: 'DRIVE'
+  };
+
+  let elements = [];
+  try {
+    const resp = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': settings.apiKey,
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters,duration,status'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      resultsEl.innerHTML = `<p>Routes API error (${resp.status}): ${esc(errText.slice(0, 200))}</p>`;
+      return;
+    }
+    const data = await resp.json();
+    if (Array.isArray(data)) elements = data;
+    else if (data && Array.isArray(data.elements)) elements = data.elements;
+    else if (data && data.distanceMeters !== undefined) elements = [data];
+  } catch (e) {
+    resultsEl.innerHTML = `<p>Routes API request failed: ${esc(e.message)}</p>`;
+    return;
+  }
+  if (token !== calcToken) return;
+
+  calcState = {
+    focus: -1,
+    dest: destLocation,
+    origins: origins.map((o, i) => {
+      const el = elements.find(d => d.originIndex === i) || elements[i] || {};
+      const meters = Number(el.distanceMeters) || 0;
+      const durSec = el.duration ? (parseInt(String(el.duration).replace(/[^0-9]/g, '')) || 0) : 0;
+      return {
+        loc: o.loc, latLng: o.latLng,
+        km: meters / 1000, matrixMeters: meters, durSec,
+        durText: durSec ? Math.round(durSec / 60) + ' min' : '—',
+        routes: null, routeIdx: 0, noDistance: !(meters > 0)
+      };
+    })
+  };
+  // markers: click one to show its route options on the map
+  calcState.origins.forEach((o, i) => {
+    const m = new google.maps.Marker({ position: o.latLng, map, title: o.loc.name, label: String(o.loc.name || '?')[0] });
+    if (m.addListener) m.addListener('click', () => focusLocation(i, true));
+    markers.push(m);
+  });
+
+  renderResults();
+  $('quoteActions').classList.remove('hidden');
+  loadAlternatives(token);
+  computeLegs(token);
+};
+
+function fmtKm(km) { return km > 0 ? km.toFixed(1) + ' km' : '—'; }
+function fmtDur(sec) { if (!sec) return '—'; const m = Math.round(sec / 60), h = Math.floor(m / 60); return h ? h + 'h ' + (m % 60) + 'm' : m + ' min'; }
+
+function renderResults() {
+  lastCalcResults = [];
+  const html = calcState.origins.map((o, i) => blockHtml(i)).join('');
+  $('results').innerHTML = html || '<p>No price results. Check that locations have species with prices, and that Routes API returned distances.</p>';
+  applyFocusClass();
+}
+
+function routePillsHtml(i) {
+  const o = calcState.origins[i];
+  if (o.noDistance && !(o.routes && o.routes.length)) return o.routes === null ? '<span class="small">Looking for route options…</span>' : '';
+  if (o.routes === null) return '<span class="small">Looking for route options…</span>';
+  if (!o.routes.length) return '<span class="small">Only the default route is available.</span>';
+  return o.routes.map((r, k) =>
+    `<button type="button" class="route-pill${k === o.routeIdx ? ' sel' : ''}" data-i="${i}" data-route="${k}">Route ${k + 1} · ${(r.meters / 1000).toFixed(1)} km · ${fmtDur(r.durSec)}${r.desc ? ' · via ' + esc(r.desc) : ''}</button>`
+  ).join('') + (o.routes.length > 1 ? '' : '<span class="small">Only one route found.</span>');
+}
+
+function blockHtml(i) {
+  const o = calcState.origins[i], km = o.km;
+  const selectedSpecies = Array.from(document.querySelectorAll('.species-cb:checked')).map(cb => cb.value.toLowerCase());
+  let h = `<div class="location-block" id="locblock-${i}" data-i="${i}">
+    <div class="location-header" data-focus="${i}">
+      <span>${esc(o.loc.name)}</span>
+      <span>${fmtKm(km)} • ${esc(o.durText)}</span>
+    </div>
+    <div class="route-pills" id="routes-${i}">${routePillsHtml(i)}</div>`;
+  if (o.noDistance) {
+    return h + `<div class="no-dist">No distance came back for ${esc(o.loc.name)}, so it is not priced. Check its address in Settings, then calculate again.</div></div>`;
+  }
+  let speciesCount = 0, any = false;
+  (o.loc.species || []).forEach(sp => {
+    if (!speciesMatches(sp, selectedSpecies)) return;
+    any = true; speciesCount++;
+    const yLogs = yardQty(o.loc.name, sp.name, 'Logs');
+    h += `<div class="species-row"><div class="species-name">${esc(sp.name)}${yardInfo[o.loc.name] ? ' - logs' : ''}<br><span class="small">$${esc(sp.pricePerTonne)}/t</span>${yLogs ? `<br><span class="small" style="${yLogs.qty < 0 ? 'color:var(--bad)' : ''}">${yLogs.qty.toFixed(1)} t on hand</span>` : ''}</div><div class="truck-options">`;
+    getTruckOptions().forEach(truck => {
+      const truckCost = calcTruckCost(km, truck.hourly, truck.fuel, truck.hours);
+      const woodCost = truck.tonnes * sp.pricePerTonne;
+      const subtotal = truckCost + woodCost;
+      const total = subtotal * (1 + settings.gst / 100);
+      const conv = +sp.tonnesPerCord > 0 ? +sp.tonnesPerCord : 0;          // no factor set = no cords
+      const cords = conv ? (truck.tonnes / conv).toFixed(1) : '';
+      const id = `${o.loc.id}|${sp.name}|${truck.key}`;
+      const parts = tripParts(km, truck);
+      const lt = logTimes(o, truck);
+      lastCalcResults.push({
+        id, locId: o.loc.id, location: o.loc.name, species: sp.name, truck: truck.label,
+        tonnes: truck.tonnes, cords: cords === '' ? '' : +cords, total, truckCost, woodCost,
+        km: +km.toFixed(1), duration: o.durText || '',
+        driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2),
+        fuelLitres: +lt.fuelLitres.toFixed(1),
+        hourly: truck.hourly, unitId: truck.key, costHourly: truck.costHourly, fuelL100: truck.fuel, loadHrs: truck.hours, product: 'Logs',
+        fuelCost: +parts.fuelBilled.toFixed(2),
+        cost: {
+          productCost: truck.tonnes * spCostTonne(sp), productBilled: woodCost,
+          truckCost: parts.truckCost, truckBilled: parts.truckBilled,
+          fuelCost: parts.fuelCost, fuelBilled: parts.fuelBilled,
+          hrs: parts.hrs, litres: parts.litres, gstPct: settings.gst
+        }
+      });
+      const perTonne = (total / truck.tonnes).toFixed(0);
+      const perCord = cords ? (total / cords).toFixed(0) : '';
+      h += `<div class="price-chip${selectedOptions.has(id) ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(id)}">
+        <span class="truck">${esc(truck.label)}</span>
+        <span class="price">$${total.toFixed(0)}</span>
+        <span class="sub">$${perTonne}/t</span>
+        ${perCord ? `<span class="sub">$${perCord}/cord</span>` : ''}${chipProfit(lastCalcResults[lastCalcResults.length - 1])}${yLogs && yLogs.qty < truck.tonnes ? `<span class="low-note">Low: ${Math.max(0, yLogs.qty).toFixed(1)} t on hand</span>` : ''}
+      </div>`;
+    });
+    h += `</div></div>`;
+    h += splitRowHtml(o, sp, km);
+  });
+  h += needsPriceRowsHtml(o);
+  if (speciesCount > 1 && (settings.units || []).length) {
+    const unitOptions = settings.units.map(u => `<option value="${esc(u.id)}">${esc(u.name)} (${esc(u.tonnes)}t)</option>`).join('');
+    const speciesInputs = o.loc.species.map(sp => `
+        <label style="font-size:0.8rem; display:flex; align-items:center; gap:4px;">
+          ${esc(sp.name)}
+          <input type="number" class="mix-t" data-sp="${esc(sp.name)}" data-price="${esc(sp.pricePerTonne)}" data-costprice="${esc(spCostTonne(sp))}" data-percord="${esc(sp.pricePerCord || 0)}" data-costpercord="${esc(spCostCord(sp))}" data-conv="${esc(+sp.tonnesPerCord > 0 ? sp.tonnesPerCord : '')}" placeholder="t" step="0.5" style="width:50px; padding:4px;">
+          <input type="number" class="mix-c" placeholder="${+sp.tonnesPerCord > 0 ? 'cord' : 'no t/cord'}" ${+sp.tonnesPerCord > 0 ? '' : 'disabled title="Set tonnes per cord for this species to enter cords"'} step="0.5" style="width:50px; padding:4px;">
+        </label>`).join('');
+    h += `
+        <div class="mixed-load" data-i="${i}" style="padding:12px; border-top:1px solid var(--border);">
+          <div style="font-weight:600; margin-bottom:8px;">Mixed Load</div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px;">
+            <select class="mix-unit" style="padding:6px;">${unitOptions}</select>
+            ${speciesInputs}
+            <button type="button" class="btn btn-sm mix-go">Price Mix</button>
+          </div>
+          <div class="mix-result" style="font-weight:600;"></div>
+        </div>`;
+  }
+  return h + `</div>`;
+}
+
+/* results area: one delegated click handler (no inline handlers, so names with quotes are safe) */
+$('results').addEventListener('click', e => {
+  const pill = e.target.closest('.route-pill');
+  if (pill) return selectRoute(+pill.dataset.i, +pill.dataset.route);
+  const mixBtn = e.target.closest('.mix-go');
+  if (mixBtn) return calcMixed(mixBtn.closest('.mixed-load'));
+  const chip = e.target.closest('.price-chip');
+  if (chip) return toggleSelect(chip.dataset.id, chip);
+  const head = e.target.closest('.location-header');
+  if (head) return focusLocation(+head.dataset.focus, true);
+});
+$('results').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('price-chip')) { e.preventDefault(); toggleSelect(e.target.dataset.id, e.target); }
+});
+
+/* ======================= v14: estimated profit per option, real costs, empty legs from home base ======================= */
+function chipProfit(r) {
+  const c = r && r.cost; if (!c) return '';
+  const p = (c.productBilled + c.truckBilled + c.fuelBilled) - (c.productCost + c.truckCost + c.fuelCost);
+  return `<span class="sub" style="color:${p < 0 ? 'var(--bad)' : 'var(--good)'}">~$${Math.round(p)} profit</span>`;
+}
+// "Use real costs": the unit's actual cost per hour over the last 90 days (repairs, payments, driver wages per shift hour;
+// fuel is priced separately in the quote). Billed prices are NOT changed: only the cost rate and the margin shown.
+window.kfUseRealCosts = async function (unitId) {
+  const u = (settings.units || []).find(x => String(x.id) === String(unitId)); if (!u) return;
+  if (!(window.kfServerV && kfServerV() >= 14)) return alert('Real costs need the updated company script.');
+  let r; try { r = await kfCo.post('money', { action: 'summary', from: KFS.day(Date.now() - 100 * 86400000) }); } catch (e) { return alert('Needs signal.'); }
+  if (r.status === 'badpassword' || r.status === 'noadmin') { const pw = await kfAskPassword('Company password:'); if (!pw) return; r = await kfCo.post('money', { action: 'summary', from: KFS.day(Date.now() - 100 * 86400000), password: pw }); }
+  if (r.status !== 'ok') return alert(r.message || 'Could not load the real costs.');
+  const M = KFS.prep(r, settings), x = KFS.realCostPerHour(M, u.name, 90);
+  if (!x.units) return alert(`No truck on the Trucks page is linked to "${u.name}". In Trucks → unit → Edit, set its Pricing unit to ${u.name}.`);
+  if (!(x.perH > 0)) return alert(`No shift hours on ${u.name} between ${x.from} and ${x.to}, so there is no real cost per hour yet.`);
+  if (!confirm(`${u.name}: actual cost ${x.from} to ${x.to}\n\nRepairs, payments and other unit costs $${x.costs.toFixed(2)}\nDriver wages (incl. employer cost) $${x.wages.toFixed(2)}\nShift hours ${x.hours}\n\n= $${x.perH.toFixed(2)} per hour (fuel is priced separately).\nNow: $${unitCostHourly(u).toFixed(2)} per hour.\n\nSave $${x.perH.toFixed(2)} as this unit's cost per hour? Billed prices stay the same.`)) return;
+  const billed = +u.hourly || 0; u.costHourly = x.perH; u.marginPct = x.perH > 0 ? Math.round((billed / x.perH - 1) * 1000) / 10 : 0; u.hourly = billed;
+  saveSettings(); markDirty(); renderUnits();
+  alert('Saved on this device. Company settings → Save to Company shares it.');
+};
+// Home base -> pickup (empty out), pickup -> customer (loaded), customer -> home base (empty back). Tracking only: price unchanged.
+window.kfLegs = {};
+async function computeLegs(token) {
+  window.kfLegs = {};
+  const homes = {}; (settings.units || []).forEach(u => { const hb = (u.homeBase || settings.homeBase || '').trim(); if (hb) (homes[hb] = homes[hb] || []).push(u); });
+  const hbList = Object.keys(homes); if (!hbList.length || !settings.apiKey || !calcState.origins.length) return;
+  const wp = a => { const c = parseCoords(a); return c ? { waypoint: { location: { latLng: { latitude: c.lat, longitude: c.lng } } } } : { waypoint: { address: a } }; };
+  const ll = g => ({ waypoint: { location: { latLng: { latitude: g.lat(), longitude: g.lng() } } } });
+  const matrix = async (origins, dests) => {
+    try { const r = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': settings.apiKey, 'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters' }, body: JSON.stringify({ origins, destinations: dests, travelMode: 'DRIVE' }) }); const j = await r.json(); return Array.isArray(j) ? j : []; } catch (e) { return []; }
+  };
+  const out = await matrix(hbList.map(wp), calcState.origins.map(o => ll(o.latLng))), back = calcState.dest ? await matrix([ll(calcState.dest)], hbList.map(wp)) : [];
+  if (token !== calcToken) return;
+  const km = (arr, o, d) => { const e = arr.find(x => x.originIndex === o && x.destinationIndex === d); return e && e.distanceMeters ? e.distanceMeters / 1000 : null; };
+  hbList.forEach((hb, hi) => calcState.origins.forEach((o, oi) => homes[hb].forEach(u => {
+    const outKm = km(out, hi, oi), backKm = km(back, 0, hi); if (outKm == null && backKm == null) return;
+    const sp = +settings.speed || 90, f = +u.fuel || 0;
+    window.kfLegs[o.loc.id + '|' + u.id] = { homeBase: hb, emptyOutKm: r2(outKm || 0), emptyOutH: r2((outKm || 0) / sp), loadedKm: r2(o.km), loadedH: r2(o.km / sp), emptyBackKm: r2(backKm || 0), emptyBackH: r2((backKm || 0) / sp), emptyFuelL: r2(((outKm || 0) + (backKm || 0)) / 100 * f) };
+  })));
+}
+
+/* ======================= v14: yard stock, SPLIT rows (sold per cord), low stock never blocks ======================= */
+let yardInfo = {};          // yard name -> species -> { Logs: {qty, avg}, Split: {qty, avg} }
+function setYardStock(rows) {
+  yardInfo = {}; if (!window.kfStock) return;
+  const all = kfStock.all(rows);
+  Object.keys(all).forEach(k => { const [y, sp, pr] = k.split('|'); yardInfo[y] = yardInfo[y] || {}; yardInfo[y][sp] = yardInfo[y][sp] || {}; yardInfo[y][sp][pr] = all[k]; });
+}
+const yardQty = (yard, sp, product) => yardInfo[yard] && yardInfo[yard][sp] && yardInfo[yard][sp][product] || null;
+// split choice under each species (remembered on this device)
+// One "Split" box after the species list (remembered on this device): ticked species show their SPLIT options too.
+// (Older phones stored a list of species here; any ticked species then means Split was on.)
+function splitChosen() { try { const v = JSON.parse(localStorage.getItem('kfQuoteSplit') || 'false'); return Array.isArray(v) ? v.length > 0 : !!v; } catch (e) { return false; } }
+(function addSplitBox() {
+  const l = document.createElement('label'); l.className = 'split-one';
+  l.innerHTML = `<input type="checkbox" id="splitCb" ${splitChosen() ? 'checked' : ''}> Split <span class="small" style="font-weight:400">(split options for the species ticked)</span>`;
+  document.getElementById('speciesFilter').appendChild(l);
+  document.getElementById('splitCb').addEventListener('change', e => { try { localStorage.setItem('kfQuoteSplit', JSON.stringify(e.target.checked)); } catch (er) {} });
+})();
+function splitWanted(sp) {
+  if (!document.getElementById('splitCb') || !document.getElementById('splitCb').checked) return false;
+  return speciesMatches(sp, Array.from(document.querySelectorAll('.species-cb:checked')).map(cb => cb.value.toLowerCase()));
+}
+// Row "Birch - SPLIT": $/cord, cords on hand; chips only for units that haul split (cords x $/cord + same trucking maths as logs)
+function splitRowHtml(o, sp, km) {
+  const price = +sp.splitPricePerCord || 0; if (!(price > 0) || !splitWanted(sp)) return '';
+  const units = (settings.units || []).filter(u => u.haulsSplit && +u.splitCords > 0), ys = yardQty(o.loc.name, sp.name, 'Split'), conv = +sp.tonnesPerCord > 0 ? +sp.tonnesPerCord : 0;
+  let h = `<div class="species-row split-row"><div class="species-name">${esc(sp.name)} <span class="split-tag">SPLIT</span><br><span class="small">$${price.toFixed(2)}/cord</span>${ys ? `<br><span class="small" style="${ys.qty < 0 ? 'color:var(--bad)' : ''}">${ys.qty.toFixed(1)} cords on hand</span>` : ''}</div><div class="truck-options">`;
+  if (!units.length) h += '<span class="small">No truck unit is set to haul split (Settings → Truck Units → Hauls split).</span>';
+  units.forEach(u => {
+    const truck = { key: u.id, label: u.name, tonnes: u.tonnes, hourly: u.hourly, costHourly: unitCostHourly(u), fuel: u.fuel, hours: u.hours };
+    const cords = +u.splitCords, truckCost = calcTruckCost(km, truck.hourly, truck.fuel, truck.hours), woodCost = cords * price, total = (truckCost + woodCost) * (1 + settings.gst / 100);
+    const id = `${o.loc.id}|${sp.name}|SPLIT|${u.id}`, parts = tripParts(km, truck), lt = logTimes(o, truck);
+    const costPerCord = ys && ys.avg ? ys.avg : (+sp.splitCostPerCord || 0);
+    lastCalcResults.push({ id, locId: o.loc.id, location: o.loc.name, species: sp.name, truck: u.name, tonnes: r2(cords * conv), cords, total, truckCost, woodCost,
+      km: +km.toFixed(1), duration: o.durText || '', driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2), fuelLitres: +lt.fuelLitres.toFixed(1),
+      hourly: u.hourly, unitId: u.id, costHourly: unitCostHourly(u), fuelL100: u.fuel, loadHrs: u.hours, product: 'Split', fuelCost: +parts.fuelBilled.toFixed(2),
+      cost: { productCost: cords * costPerCord, productBilled: woodCost, truckCost: parts.truckCost, truckBilled: parts.truckBilled, fuelCost: parts.fuelCost, fuelBilled: parts.fuelBilled, hrs: parts.hrs, litres: parts.litres, gstPct: settings.gst } });
+    h += `<div class="price-chip${selectedOptions.has(id) ? ' selected' : ''}" role="button" tabindex="0" data-id="${esc(id)}"><span class="truck">${esc(u.name)} <span class="split-tag">SPLIT</span></span><span class="price">$${total.toFixed(0)}</span><span class="sub">${cords} cords</span><span class="sub">$${(total / cords).toFixed(0)}/cord</span>${chipProfit(lastCalcResults[lastCalcResults.length - 1])}${ys && ys.qty < cords ? `<span class="low-note">Low: ${Math.max(0, ys.qty).toFixed(1)} cords on hand</span>` : ''}</div>`;
+  });
+  return h + '</div></div>';
+}
+// A yard with stock of a species it has no price for: shown (no price chips) so it is not forgotten
+function needsPriceRowsHtml(o) {
+  const yi = yardInfo[o.loc.name]; if (!yi) return '';
+  const have = (o.loc.species || []).map(s => s.name), sel = Array.from(document.querySelectorAll('.species-cb:checked')).map(cb => cb.value.toLowerCase());
+  return Object.keys(yi).filter(sp => !have.includes(sp) && speciesMatches({ name: sp }, sel) && ((yi[sp].Logs && yi[sp].Logs.qty) || (yi[sp].Split && yi[sp].Split.qty)))
+    .map(sp => `<div class="species-row"><div class="species-name">${esc(sp)}<br><span class="small needs-price">needs a price</span></div><div class="truck-options"><span class="small">${yi[sp].Logs ? yi[sp].Logs.qty.toFixed(1) + ' t on hand at $' + yi[sp].Logs.avg.toFixed(2) + '/t' : ''}${yi[sp].Split ? ' · ' + yi[sp].Split.qty.toFixed(1) + ' cords split' : ''}. Set its price in Settings → Pickup Locations → ${esc(o.loc.name)}.</span></div></div>`).join('');
+}
+// Low inventory never blocks booking: a note in the booking pop-up and one "Book anyway?" (OK is the default button)
+function shortages(selected) {
+  return (selected || []).map(r => { const q = yardQty(r.location, r.species, r.product === 'Split' ? 'Split' : 'Logs'); if (!q) return null; const need = r.product === 'Split' ? r.cords : r.tonnes, unit = r.product === 'Split' ? 'cords' : 't'; return q.qty < need ? `${r.species} ${r.product === 'Split' ? 'split' : 'logs'} at ${r.location}: ${Math.max(0, q.qty).toFixed(1)} ${unit} on hand, this load is ${(+need).toFixed(1)} ${unit}.` : null; }).filter(Boolean);
+}
+window.kfLowStockNote = function (selected) { const s = shortages(selected), el = $('lowStockNote'); el.classList.toggle('hidden', !s.length); el.innerHTML = s.map(esc).join('<br>'); };
+window.kfConfirmStock = async function (selected) { const s = shortages(selected); return !s.length || confirm(s.join('\n') + '\n\nBook anyway?'); };
+async function refreshYardStock() {
+  try { const yu = localStorage.getItem('yardUrl'); if (!yu) return; const j = await (await fetch(yu + (yu.includes('?') ? '&' : '?') + 'all=1&t=' + Date.now())).json(); setYardStock(j.rows || []); renderLocations(); } catch (e) {}
+}
+
+function toggleSelect(id, el) {
+  if (selectedOptions.has(id)) { selectedOptions.delete(id); if (el) el.classList.remove('selected'); }
+  else { selectedOptions.add(id); if (el) el.classList.add('selected'); }
+}
+
+/* ================= Route options ================= */
+function decodePolyline(str) {
+  const pts = []; let i = 0, lat = 0, lng = 0;
+  while (i < str.length) {
+    let b, shift = 0, result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    pts.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return pts;
+}
+async function fetchRoutes(o, dest) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const resp = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST', signal: ctrl.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': settings.apiKey,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.description'
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: o.latLng.lat(), longitude: o.latLng.lng() } } },
+        destination: { location: { latLng: { latitude: dest.lat(), longitude: dest.lng() } } },
+        travelMode: 'DRIVE', computeAlternativeRoutes: true
+      })
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const out = [];
+    (data.routes || []).forEach(r => {
+      const meters = Number(r.distanceMeters) || 0;
+      if (!(meters > 0)) return;
+      const durSec = r.duration ? (parseInt(String(r.duration).replace(/[^0-9]/g, '')) || 0) : 0;
+      if (out.some(x => Math.abs(x.meters - meters) < 50 && x.durSec === durSec)) return;
+      out.push({ meters, durSec, desc: r.description || '', path: r.polyline && r.polyline.encodedPolyline ? decodePolyline(r.polyline.encodedPolyline) : [] });
+    });
+    return out;
+  } catch (e) { return []; } finally { clearTimeout(to); }
+}
+async function loadAlternatives(token) {
+  const dest = calcState.dest;
+  await Promise.all(calcState.origins.map(async (o, i) => {
+    const routes = await fetchRoutes(o, dest);
+    if (token !== calcToken) return;
+    o.routes = routes;
+    if (routes.length && o.matrixMeters > 0) {
+      // keep the price the person already sees: default to the route closest to the matrix distance
+      let best = 0;
+      routes.forEach((r, k) => { if (Math.abs(r.meters - o.matrixMeters) < Math.abs(routes[best].meters - o.matrixMeters)) best = k; });
+      o.routeIdx = best;
+    } else if (routes.length && o.noDistance) {
+      o.routeIdx = 0; applyRoute(o, 0);                    // matrix had nothing; a route can fill the gap
+    }
+    const pills = $('routes-' + i);
+    if (o.noDistance && routes.length) { const el = $('locblock-' + i); if (el) { rerenderBlock(i); } }
+    else if (pills) pills.innerHTML = routePillsHtml(i);
+  }));
+  if (token !== calcToken) return;
+  // show the nearest location's route options first
+  let nearest = -1;
+  calcState.origins.forEach((o, i) => { if (o.km > 0 && (nearest < 0 || o.km < calcState.origins[nearest].km)) nearest = i; });
+  if (nearest >= 0) focusLocation(nearest, false);
+}
+function applyRoute(o, k) {
+  const r = o.routes[k];
+  o.routeIdx = k; o.km = r.meters / 1000; o.durSec = r.durSec; o.durText = r.durSec ? Math.round(r.durSec / 60) + ' min' : '—'; o.noDistance = false;
+}
+function rerenderBlock(i) {
+  const o = calcState.origins[i];
+  lastCalcResults = lastCalcResults.filter(r => r.locId !== o.loc.id);
+  [...selectedOptions].forEach(id => { if (String(id).startsWith('mix|' + o.loc.id + '|')) selectedOptions.delete(id); });
+  const el = $('locblock-' + i);
+  if (el) el.outerHTML = blockHtml(i);
+  applyFocusClass();
+}
+function selectRoute(i, k) {
+  const o = calcState.origins[i];
+  if (!o || !o.routes || !o.routes[k]) return;
+  applyRoute(o, k);
+  rerenderBlock(i);                                          // distance, chip prices and pills all update
+  focusLocation(i, false);
+}
+function clearOverlays() { routeOverlays.forEach(p => { try { p.setMap(null); } catch (e) {} }); routeOverlays = []; }
+function applyFocusClass() {
+  document.querySelectorAll('.location-block').forEach(el => el.classList.toggle('focused', +el.dataset.i === calcState.focus));
+}
+function focusLocation(i, fit) {
+  const o = calcState.origins[i];
+  calcState.focus = i; clearOverlays(); applyFocusClass();
+  if (!o || !o.routes || !o.routes.length || !map || !window.google) return;
+  o.routes.forEach((r, k) => {
+    if (!r.path.length) return;
+    const sel = k === o.routeIdx;
+    const pl = new google.maps.Polyline({ path: r.path, strokeColor: sel ? '#2e75b6' : '#94a3b8', strokeOpacity: sel ? 0.95 : 0.85, strokeWeight: sel ? 6 : 4, zIndex: sel ? 2 : 1, clickable: true, map });
+    if (pl.addListener) pl.addListener('click', () => selectRoute(i, k));
+    routeOverlays.push(pl);
+  });
+  const selRoute = o.routes[o.routeIdx];
+  if (selRoute && selRoute.path.length) { const b = new google.maps.LatLngBounds(); selRoute.path.forEach(p => b.extend(p)); map.fitBounds(b); }
+}
+
+/* ================= Mixed load ================= */
+function calcMixed(box) {
+  if (!box) return;
+  const o = calcState.origins[+box.dataset.i];
+  const unitId = box.querySelector('.mix-unit').value;
+  const unit = (settings.units || []).find(u => String(u.id) === String(unitId));
+  if (!o || !unit) return;
+  const truck = { hourly: unit.hourly, costHourly: unitCostHourly(unit), fuel: unit.fuel, hours: unit.hours };
+  let totalTonnes = 0, cordEq = 0, woodBilled = 0, woodCost = 0; const mixParts = [];
+  box.querySelectorAll('.mix-t').forEach(inp => {
+    const t = +inp.value || 0;
+    const c = +inp.parentElement.querySelector('.mix-c')?.value || 0;
+    const price = +inp.dataset.price, costPrice = +inp.dataset.costprice;
+    const perCord = +inp.dataset.percord, costPerCord = +inp.dataset.costpercord;
+    const conv = +inp.dataset.conv || 0;                       // no factor set = cords cannot be used for this species
+    if (t > 0) {
+      totalTonnes += t; if (conv) cordEq += t / conv;
+      woodBilled += t * price; woodCost += t * costPrice;
+      mixParts.push(`${inp.dataset.sp} ${t}t`);
+    }
+    if (c > 0 && conv) {
+      totalTonnes += c * conv; cordEq += c;
+      woodBilled += perCord > 0 ? c * perCord : (c * conv * price);
+      woodCost += costPerCord > 0 ? c * costPerCord : (c * conv * costPrice);
+      mixParts.push(`${inp.dataset.sp} ${c} cord`);
+    }
+  });
+  const out = box.querySelector('.mix-result');
+  if (totalTonnes === 0) { out.textContent = 'Enter tonnes for at least one species.'; return; }
+  const km = o.km;
+  const truckCost = calcTruckCost(km, unit.hourly, unit.fuel, unit.hours);
+  const subtotal = truckCost + woodBilled;
+  const total = subtotal * (1 + settings.gst / 100);
+  const avgPerT = (total / totalTonnes).toFixed(0);
+  out.innerHTML = `
+    <div>${esc(unit.name)}: ${esc(mixParts.join(' + '))} = ${r2(totalTonnes)}t</div>
+    <div style="font-size:1.1rem;">$${total.toFixed(0)} total · $${avgPerT}/t incl. GST · added to quote</div>`;
+  const id = `mix|${o.loc.id}|${unit.id}`;               // one entry per location+truck: pricing again replaces it
+  lastCalcResults = lastCalcResults.filter(r => r.id !== id);
+  const parts = tripParts(km, truck), lt = logTimes(o, truck);
+  lastCalcResults.push({
+    id, locId: o.loc.id, location: o.loc.name, species: mixParts.join('+'), truck: unit.name,
+    tonnes: r2(totalTonnes), cords: cordEq ? +cordEq.toFixed(1) : '', total, truckCost, woodCost: woodBilled,
+    km: +km.toFixed(1), duration: o.durText || '',
+    driveHours: +lt.driveHours.toFixed(2), totalHours: +lt.totalHours.toFixed(2), fuelLitres: +lt.fuelLitres.toFixed(1),
+    hourly: unit.hourly, unitId: unit.id, costHourly: unitCostHourly(unit), fuelL100: unit.fuel, loadHrs: unit.hours, product: 'Logs', fuelCost: +parts.fuelBilled.toFixed(2),
+    cost: {
+      productCost: woodCost, productBilled: woodBilled,
+      truckCost: parts.truckCost, truckBilled: parts.truckBilled,
+      fuelCost: parts.fuelCost, fuelBilled: parts.fuelBilled,
+      hrs: parts.hrs, litres: parts.litres, gstPct: settings.gst
+    }
+  });
+  selectedOptions.add(id);
+}
+
+/* ================= Quote text, View Quote, Book Load ================= */
+$('btnGenerateQuote').onclick = () => {
+  if (!selectedOptions.size) return alert('Select at least one option.');
+  const selected = lastCalcResults.filter(r => selectedOptions.has(r.id));
+  const qs = settings.quoteShow || { cords: true, tonnes: true, total: true };
+  const lines = selected.map(r => {
+    const parts = [r.truck, r.species.toLowerCase()];
+    if (qs.tonnes) parts.push(`${r.tonnes} tonne`);
+    if (qs.cords && r.cords) parts.push(`~${r.cords} cord`);
+    if (qs.perTonne) parts.push(`$${(r.total / r.tonnes).toFixed(0)}/t`);
+    if (qs.perCord && r.cords) parts.push(`$${(r.total / r.cords).toFixed(0)}/cord`);
+    if (qs.total) parts.push(`$${r.total.toFixed(2)}`);
+    return parts.join(', ');
+  }).join('\n');
+  $('quoteText').textContent = `Here are our rates including delivery and gst
+
+${lines}`;
+  $('quoteModal').classList.add('show');
+};
+$('btnCloseModal').onclick = () => $('quoteModal').classList.remove('show');
+$('btnCopyQuote').onclick = () => {
+  navigator.clipboard.writeText($('quoteText').textContent);
+  alert('Quote copied to clipboard.');
+};
+
+const money = n => (n < 0 ? '-$' : '$') + Math.abs(+n || 0).toFixed(2);
+function costBlockHtml(r) {
+  const c = r.cost;
+  if (!c) return '';
+  const rows = [
+    [`Product<small>${r2(r.tonnes)} t</small>`, c.productCost, c.productBilled],
+    [`Truck operating<small>${r2(c.hrs)} h trip</small>`, c.truckCost, c.truckBilled],
+    [`Fuel<small>${r2(c.litres)} L</small>`, c.fuelCost, c.fuelBilled]
+  ];
+  const cost = rows.reduce((s, x) => s + x[1], 0), billed = rows.reduce((s, x) => s + x[2], 0);
+  const net = billed - cost, margin = billed > 0 ? net / billed * 100 : 0;
+  const gst = billed * (c.gstPct || 0) / 100;
+  const cls = v => v >= 0 ? 'pos' : 'neg';
+  return `<div class="cost-block">
+    <h4>${esc(r.truck)} · ${esc(r.species)} · ${esc(r.location)} · ${r2(r.tonnes)} t · ${r2(r.km)} km</h4>
+    <table class="cost-table">
+      <tr><th></th><th>Our cost</th><th>Billed</th><th>Net</th></tr>
+      ${rows.map(x => `<tr><td class="rowlabel">${x[0]}</td><td>${money(x[1])}</td><td>${money(x[2])}</td><td class="${cls(x[2] - x[1])}">${money(x[2] - x[1])}</td></tr>`).join('')}
+      <tr class="tot"><td>Total before GST</td><td>${money(cost)}</td><td>${money(billed)}</td><td class="${cls(net)}">${money(net)}</td></tr>
+      <tr class="sub"><td>GST ${r2(c.gstPct)}% (collected for CRA)</td><td></td><td>${money(gst)}</td><td></td></tr>
+      <tr class="sub"><td>Quote total incl. GST</td><td></td><td>${money(r.total)}</td><td></td></tr>
+      <tr class="net"><td>TOTAL NET</td><td></td><td>${margin.toFixed(1)}% margin</td><td class="${cls(net)}">${money(net)}</td></tr>
+    </table></div>`;
+}
+// Dispatch view: each selected option as it will look in Dispatch -> Pending once booked (the card, then the details screen).
+function fmtHrs(h) { h = +h || 0; if (!h) return ''; const hrs = Math.floor(h), mins = Math.round((h - hrs) * 60); return hrs ? hrs + 'h ' + mins + 'm' : mins + 'm'; }
+function quoteCustomer() {
+  const name = (($('customerName') || {}).value || '').trim(), phone = (($('customerPhone') || {}).value || '').trim();
+  let address = (($('addressInput') || {}).value || '').trim();
+  if (!address && window._selectedPlace) address = window._selectedPlace.address || '';
+  const widget = document.querySelector('gmp-place-autocomplete'); if (!address && widget && widget.value) address = widget.value;
+  return { name, phone, address };
+}
+function dispatchPreviewHtml(r) {
+  const c = quoteCustomer();
+  const cycle = +r.totalHours ? (Math.round(r.totalHours * 10) / 10) + ' hrs cycle' : (r.duration || '');
+  return `<div class="dp-card">
+    <div class="top"><strong>${esc(c.name || 'No name')}</strong><span class="dp-pill">Waiting</span></div>
+    <div class="where">${esc(c.address || 'No address')}</div>
+    <div>${esc(r.species || '')}${r.tonnes ? ' · ' + esc(r.tonnes) + ' t' : ''} · from ${esc(r.location || '—')}${r.truck ? ' · ' + esc(r.truck) : ''}</div>
+    <div class="small">${esc(cycle)}${r.km ? ' · ' + esc(r.km) + ' km one way' : ''} · 0 days since quoted</div>
+    <div class="dp-detail">
+      <p><strong>Phone:</strong> ${esc(c.phone || '—')}</p>
+      <p><strong>Address:</strong> ${esc(c.address || '—')}</p>
+      <p><strong>Source:</strong> ${esc(r.location || '—')}</p>
+      <p><strong>Species:</strong> ${esc(r.species || '—')}${r.product === 'Split' ? ' (split)' : ''}</p>
+      <p><strong>Truck:</strong> ${esc(r.truck || '—')}</p>
+      <p><strong>Tonnes:</strong> ${esc(r.tonnes || '—')}${r.cords ? ' · <strong>Cords:</strong> ~' + esc(r.cords) : ''}</p>
+      <p><strong>Trip:</strong> ${+r.totalHours ? fmtHrs(r.totalHours) + ' cycle' : esc(r.duration || '—')} · ${esc(r.km || '—')} km</p>
+      <p><strong>Total:</strong> $${(+r.total || 0).toFixed(2)}</p>
+      <p><strong>Status:</strong> Pending</p>
+    </div>
+  </div>`;
+}
+function vqTab(t) {
+  $('vqTabMoney').classList.toggle('on', t === 'money'); $('vqTabDispatch').classList.toggle('on', t === 'dispatch');
+  $('costBody').classList.toggle('hidden', t !== 'money'); $('dispatchBody').classList.toggle('hidden', t !== 'dispatch');
+  $('vqTitle').textContent = t === 'money' ? 'Quote breakdown: our cost vs billed' : 'As it will show in Dispatch → Pending';
+}
+$('vqTabMoney').onclick = () => vqTab('money');
+$('vqTabDispatch').onclick = () => vqTab('dispatch');
+$('btnViewQuote').onclick = () => {
+  if (!selectedOptions.size) return alert('Select at least one option.');
+  const selected = lastCalcResults.filter(r => selectedOptions.has(r.id));
+  $('costBody').innerHTML = selected.map(costBlockHtml).join('') || '<p>No cost detail for the selected options.</p>';
+  $('dispatchBody').innerHTML = '<div class="hint" style="margin-bottom:10px;">Not booked yet. Tap <b>Book Load</b> to send it to Dispatch.</div>' + selected.map(dispatchPreviewHtml).join('');
+  vqTab('money');
+  $('costModal').classList.add('show');
+};
+$('btnCloseCost').onclick = () => $('costModal').classList.remove('show');
+
+/* ---------- price adjustment (v14) ----------
+   The adjustment is folded into the trucking line by changing the billed hours: billed hours = quoted hours + adj / billed hourly
+   (2 decimals), so hours x rate multiplies out exactly. The adjusted total uses those rounded hours (a cent or two of rounding
+   is absorbed into the total, never shown as its own line). The reason is internal only. */
+function adjFor(r, adj) {
+  const gst = (+settings.gst || 0) / 100, hrs = +r.totalHours || 0, rate = +r.hourly || 0;
+  adj = +adj || 0;
+  if (!adj) return { adj: 0, billedHours: '', total: r.total, quoted: r.total, fold: true };
+  if (!(rate > 0)) return { adj, billedHours: '', total: r2(r.total + adj * (1 + gst)), quoted: r.total, fold: false };
+  const bh = r2(hrs + adj / rate), deltaSub = r2((bh - hrs) * rate);
+  return { adj, billedHours: bh, total: r2(r.total + deltaSub * (1 + gst)), quoted: r.total, fold: true, negative: bh < 0 };
+}
+let bookingAdj = { adj: 0, reason: '' };
+function askBookingNotes(selected) {
+  return new Promise(resolve => {
+    const m = $('notesModal'), ta = $('bookNotes');
+    const preview = () => {
+      const adj = +$('bookAdj').value || 0;
+      $('adjPreview').innerHTML = (selected || []).map(r => {
+        const a = adjFor(r, adj);
+        return `<div>${esc(r.truck)} · ${esc(r.species)}: quoted $${(+r.total).toFixed(2)}${adj ? ` → <span style="color:${adj < 0 ? 'var(--bad)' : 'var(--good)'}">adjusted $${a.total.toFixed(2)}</span> incl. GST${a.billedHours !== '' ? ` <span class="small">(${a.billedHours} h billed)</span>` : ''}` : ' incl. GST'}${a.negative ? '<br><span style="color:var(--bad)">The deal is bigger than the trucking: billed hours would be below 0.</span>' : ''}${adj && !a.fold ? '<br><span class="small">This truck has no billed hourly rate, so the adjustment cannot be folded into trucking hours.</span>' : ''}</div>`;
+      }).join('');
+    };
+    const done = v => {
+      if (v !== null) {
+        const adj = +$('bookAdj').value || 0, why = [$('bookAdjWhy').value, $('bookAdjNote').value.trim()].filter(Boolean).join(': ');
+        if (adj && (selected || []).some(r => adjFor(r, adj).negative) && !confirm('The adjustment is bigger than the trucking amount (billed hours would go below 0). Book anyway?')) return;
+        if (adj && !why && !confirm('No reason entered for the price adjustment. Book anyway?')) return;
+        bookingAdj = { adj, reason: why };
+      }
+      m.classList.remove('show'); $('btnNotesOk').onclick = $('btnNotesCancel').onclick = null; $('bookAdj').oninput = null; const ln = $('legsNote'); if (ln) ln.remove(); resolve(v);
+    };
+    $('btnNotesOk').onclick = () => done(ta.value.trim());
+    $('btnNotesCancel').onclick = () => done(null);
+    ta.value = ''; $('bookAdj').value = ''; $('bookAdjWhy').value = ''; $('bookAdjNote').value = '';
+    $('bookAdj').oninput = preview; preview();
+    const legs = (selected || []).map(r => { const g = window.kfLegs && kfLegs[r.locId + '|' + r.unitId]; return g ? `${esc(r.truck)}: empty driving ${(g.emptyOutH + g.emptyBackH).toFixed(1)} h, ${Math.round(g.emptyOutKm + g.emptyBackKm)} km (from ${esc(g.homeBase)} to the pickup and back from the customer), not billed` : ''; }).filter(Boolean);
+    $('adjPreview').insertAdjacentHTML('afterend', legs.length ? `<div id="legsNote" class="small" style="margin-top:6px;">${legs.join('<br>')}</div>` : '');
+    if (window.kfLowStockNote) kfLowStockNote(selected); else $('lowStockNote').classList.add('hidden');
+    m.classList.add('show');
+    setTimeout(() => { try { ta.focus(); } catch (e) {} }, 50);
+  });
+}
+let bookingBusy = false, lastBookedSig = '', pendingBooking = null;   // pendingBooking: {sig, id} while a booking's result is unknown
+function newBookingId() { return 'B' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function bookingData(r) {
+  const c = r.cost || {}, estCost = (c.productCost || 0) + (c.truckCost || 0) + (c.fuelCost || 0), estBilled = (c.productBilled || 0) + (c.truckBilled || 0) + (c.fuelBilled || 0);
+  return { v: 14, costHourly: r2(r.costHourly), hourly: r2(r.hourly), fuelL100: r.fuelL100, fuelPrice: +settings.fuelPrice || 0, costFuelPrice: costFuel(), gst: +settings.gst || 0,
+    loadHrs: r.loadHrs, spCostTonne: r.tonnes ? r2((c.productCost || 0) / r.tonnes) : 0, ppt: r.tonnes ? r2((c.productBilled || 0) / r.tonnes) : 0,
+    estCost: r2(estCost), estBilled: r2(estBilled), estProfit: r2(estBilled - estCost), speed: +settings.speed || 0, unitId: r.unitId };
+}
+$('btnBookLoad').onclick = async () => {
+  if (bookingBusy || $('notesModal').classList.contains('show')) return;
+  const name = ($('customerName') || {}).value || '';
+  const phone = ($('customerPhone') || {}).value || '';
+  let address = ($('addressInput') || {}).value || '';
+  if (!address.trim() && window._selectedPlace) address = window._selectedPlace.address || '';
+  const widget = document.querySelector('gmp-place-autocomplete');
+  if (!address.trim() && widget && widget.value) address = widget.value;
+  if (!name.trim() || !address.trim()) { alert('Name and delivery address are required.'); return; }
+  if (!selectedOptions.size) { alert('Select at least one option first.'); return; }
+  if (!settings.sheetsUrl) { alert('This device is not signed in to the company yet. Open Settings and sign in first.'); return; }
+  const selected = lastCalcResults.filter(r => selectedOptions.has(r.id));
+  const sig = JSON.stringify([name.trim(), address.trim(), selected.map(r => r.id).sort()]);
+  if (sig === lastBookedSig && !confirm('This exact selection was already booked from this screen. Book it again?')) return;
+  const notes = await askBookingNotes(selected);
+  if (notes === null) return;   // cancelled: nothing is booked
+  if (window.kfConfirmStock && !(await kfConfirmStock(selected))) return;
+  // the same booking sent again (no answer last time) keeps its id, so the sheet never gets it twice
+  const bookingId = pendingBooking && pendingBooking.sig === sig ? pendingBooking.id : newBookingId();
+  pendingBooking = { sig, id: bookingId };
+  const legsFor = r => (window.kfLegs && kfLegs[r.locId + '|' + r.unitId]) || null;
+  const payload = {
+    notes: notes, bookingId,
+    timestamp: new Date().toISOString(),
+    customerName: name, phone: phone, address: address,
+    options: selected.map(r => {
+      const a = adjFor(r, bookingAdj.adj);
+      return {
+        location: r.location, species: r.species, truck: r.truck,
+        tonnes: r.tonnes, cords: r.cords, total: a.total, km: r.km,
+        duration: r.duration, driveHours: r.driveHours, totalHours: r.totalHours, fuelLitres: r.fuelLitres,
+        pricePerTonne: r.woodCost && r.tonnes ? +(r.woodCost / r.tonnes).toFixed(2) : 0,
+        hourly: r.hourly || 0, fuelCost: r.fuelCost || 0,
+        quotedTotal: r2(r.total), priceAdj: a.adj || '', adjReason: a.adj ? bookingAdj.reason : '', billedHours: a.billedHours,
+        product: r.product || 'Logs', bookingData: bookingData(r), legs: legsFor(r)
+      };
+    })
+  };
+  const btn = $('btnBookLoad'), label = btn.textContent;
+  bookingBusy = true; btn.disabled = true; btn.textContent = 'Booking…';
+  try {
+    const res = await fetch(settings.sheetsUrl, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload), redirect: 'follow'
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    lastBookedSig = sig;
+    if (data && data.status === 'ok') pendingBooking = null;
+    if (data && data.status === 'ok' && data.duplicate) { alert('This booking had already reached the sheet. It was not added again.'); return; }
+    if (data && data.status === 'ok') { if (notes && !data.notesSaved) alert('Booked, but your notes were NOT saved (the company script is an old version).'); else kfToast('Booked. It is on Dispatch now.'); }
+    else if (data && data.status === 'busy') { lastBookedSig = ''; alert('The office sheet was busy, so this was NOT booked yet. Tap Book again (it can never be booked twice).'); }
+    else if (data && data.status === 'error') { lastBookedSig = ''; pendingBooking = null; alert('The sheet reported an error: ' + (data.message || 'unknown')); }
+    else alert('Sent, but no confirmation came back. Check Dispatch before booking again.');
+  } catch (e) {
+    lastBookedSig = sig;
+    alert('Could not confirm the booking (' + e.message + '). It may or may not have saved. Check Dispatch before booking again.');
+  } finally { bookingBusy = false; btn.disabled = false; btn.textContent = label; }
+};
+
+function applyTheme(theme) {
+  document.body.classList.toggle('dark', theme === 'dark');
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  localStorage.setItem('kf_theme', theme);
+}
+$('themeLight').onchange = () => applyTheme('light');
+$('themeDark').onchange = () => applyTheme('dark');
+const savedTheme = localStorage.getItem('kf_theme') || 'light';
+$(savedTheme === 'dark' ? 'themeDark' : 'themeLight').checked = true;
+applyTheme(savedTheme);
+
+initMap();
+
+/* ================= Company sync =================
+   One link (the Apps Script web app URL) boots any device. Reading is open; changing the company
+   copy needs the company password, which the server checks (only a salted hash is stored there). */
+let companyMeta = null;               // { v, rev, hasPassword } from the last read; null = unknown / old script
+let syncBusy = false;
+
+function isScriptUrl(u) { return /^https:\/\/script\.google(usercontent)?\.com\//.test(String(u || '').trim()); }
+function setStatus(msg, kind) { const el = $('syncStatus'); if (!el) return; el.textContent = msg || ''; el.className = 'sync-status' + (kind ? ' ' + kind : ''); }
+async function companyGet(url) {
+  const u = url + (url.includes('?') ? '&' : '?') + 'settings=1&t=' + Date.now();
+  const res = await fetch(u);
+  return res.json();
+}
+async function companyPost(url, payload) {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(window.kfAuth ? kfAuth(payload) : payload), redirect: 'follow' });
+  const j = await res.json();
+  if (j && j.status === 'noadmin' && window.kfLostAdmin) kfLostAdmin();
+  return j;
+}
+function readSyncUrlField() {
+  if (kfCo.unified()) return (settings.syncUrl || '').trim();
+  const f = $('setSyncUrl');
+  if (f && f.value.trim() !== (settings.syncUrl || '')) { settings.syncUrl = f.value.trim(); saveSettings(); }
+  return (settings.syncUrl || '').trim();
+}
+
+function updateSyncUi() {
+  if (!$('syncCard')) return;
+  const uni = kfCo.unified();
+  $('unifiedBox').classList.toggle('hidden', !uni);
+  $('moveBox').classList.toggle('hidden', uni || !(settings.syncUrl || '').trim());
+  if (uni) { $('unifiedName').textContent = (companyMeta && companyMeta.companyName) || localStorage.getItem('kfCompanyName') || 'your company'; $('setSyncUrl').value = kfCo.base(); $('setSyncUrl').readOnly = true; }
+  const hasUrl = !!(settings.syncUrl || '').trim();
+  const known = !!companyMeta;
+  $('pwCreateBox').classList.toggle('hidden', !(known && !companyMeta.hasPassword));
+  $('pwEnterBox').classList.toggle('hidden', (known && !companyMeta.hasPassword) || !!(window.kfAdminToken && kfAdminToken()));   // admin devices never type the password
+  $('pwChangeBox').classList.toggle('hidden', !(known && companyMeta.hasPassword));
+  $('dirtyBanner').classList.toggle('hidden', !isDirty());
+  if (hasUrl && !known && !syncBusy && !$('syncStatus').textContent) setStatus('Not checked yet. Tap Sync to Company.', '');
+}
+async function refreshMeta() {
+  const url = (settings.syncUrl || '').trim();
+  if (!isScriptUrl(url)) { updateSyncUi(); return; }
+  try {
+    const data = await companyGet(url);
+    companyMeta = data._meta || null;
+    if (companyMeta) { localStorage.setItem('kfServerV', String(companyMeta.v || 0)); if (companyMeta.hasPassword === false) localStorage.setItem('kfNoPassword', '1'); else localStorage.removeItem('kfNoPassword'); }
+    if (kfCo.unified() && data.status === 'nokey') { setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); lostKey(); return; }
+    if (!companyMeta) setStatus('The company script is the old version: password protection is OFF. Update it with quote-apps-script-v3.gs.', 'warn');
+    else if (!$('syncStatus').textContent || $('syncStatus').classList.contains('warn')) setStatus(`Linked. Company revision ${companyMeta.rev}${companyMeta.hasPassword ? '' : '. No password yet: you will create one on first save.'}`, 'ok');
+  } catch (e) { /* offline: leave UI as is */ }
+  updateSyncUi(); applyLinkVisibility(); renderAdminCard();
+}
+
+// Adopt a URL from the company copy unless this device edited it more recently.
+function adoptUrl(serverVal, serverAt, force, getLocal, getLocalAt, setLocal) {
+  if (!serverVal) return;
+  if (force || (+serverAt || 0) >= (+getLocalAt() || 0) || !getLocal()) setLocal(serverVal, +serverAt || 0);
+}
+function applyCompanyData(data, force) {
+  let keyChanged = false;
+  if (data.movedTo && !kfCo.unified()) { setTimeout(() => offerMove(data.movedTo), 50); }
+  if (data.profile && typeof data.profile === 'object') {
+    const pr = data.profile;
+    localStorage.setItem('kfCompany', JSON.stringify({ name: pr.name || '', gst: pr.gst || '', wcb: pr.wcb || '', email: pr.email || '', phone: pr.phone || '', addr: pr.addr || '', mail: pr.mail || '', etNote: pr.etNote || '', logo: pr.logo || '' }));
+  }
+  if (Array.isArray(data.locations) && data.locations.length) settings.locations = data.locations;
+  if (Array.isArray(data.units) && data.units.length) settings.units = data.units;
+  if (data.companyName) settings.companyName = data.companyName;
+  if (data.speed != null && data.speed !== '' && +data.speed > 0) settings.speed = +data.speed;
+  if (data.fuelPrice != null && data.fuelPrice !== '') settings.fuelPrice = +data.fuelPrice;
+  if (data.costFuelPrice != null && data.costFuelPrice !== '') settings.costFuelPrice = +data.costFuelPrice; else delete settings.costFuelPrice;
+  if (data.gst != null && data.gst !== '') settings.gst = +data.gst;
+  if (data.quoteShow && typeof data.quoteShow === 'object') settings.quoteShow = data.quoteShow;
+  if (data.dispatch && typeof data.dispatch === 'object') settings.dispatch = data.dispatch;
+  if (data.apiKey && data.apiKey !== settings.apiKey) { settings.apiKey = data.apiKey; keyChanged = true; }
+  if (data.money && typeof data.money === 'object') settings.money = data.money;                 // v14
+  if (data.homeBase != null) settings.homeBase = data.homeBase;
+  if (data.offRoadFuelPrice != null && data.offRoadFuelPrice !== '') settings.offRoadFuelPrice = +data.offRoadFuelPrice; else delete settings.offRoadFuelPrice;
+  delete settings.yardPassword;
+  if (kfCo.unified()) { saveSettings(); return { keyChanged }; }     // one company link: page links are fixed, not synced
+  adoptUrl(data.sheetsUrl, data.sheetsUrlAt, force, () => settings.sheetsUrl, () => settings.sheetsUrlAt,
+    (v, at) => { settings.sheetsUrl = v; settings.sheetsUrlAt = at; });
+  adoptUrl(data.scriptUrl, data.scriptUrlAt, force, () => localStorage.getItem('scriptUrl'), () => localStorage.getItem('scriptUrlAt'),
+    (v, at) => { localStorage.setItem('scriptUrl', v); localStorage.setItem('scriptUrlAt', String(at)); });
+  adoptUrl(data.yardUrl, data.yardUrlAt, force, () => localStorage.getItem('yardUrl'), () => localStorage.getItem('yardUrlAt'),
+    (v, at) => { localStorage.setItem('yardUrl', v); localStorage.setItem('yardUrlAt', String(at)); });
+  ['driversUrl', 'trucksUrl'].forEach(k => adoptUrl(data[k], data[k + 'At'], force, () => localStorage.getItem(k), () => localStorage.getItem(k + 'At'),
+    (v, at) => { localStorage.setItem(k, v); localStorage.setItem(k + 'At', String(at)); }));
+  saveSettings();
+  return { keyChanged };
+}
+function afterApply(res, rev) {
+  clearDirty();
+  if (rev != null) localStorage.setItem(REV_KEY, String(rev));
+  const banner = $('companyNameBanner');
+  if (banner && window.kfBrand) kfBrand();
+  renderSettings();
+  if (res.keyChanged && !window.google && !sessionStorage.getItem('kfMapsReload')) {
+    sessionStorage.setItem('kfMapsReload', '1');
+    location.reload();
+  }
+}
+
+// manual = true: the person tapped Sync to Company (replace everything on this device).
+async function pullCompany(manual) {
+  const url = readSyncUrlField();
+  if (!url) { if (manual) setStatus('Enter the Company Sync URL first.', 'bad'); return { ok: false }; }
+  if (!isScriptUrl(url)) { if (manual) setStatus('That does not look like a Google Apps Script link (it should start with https://script.google.com/).', 'bad'); return { ok: false }; }
+  if (syncBusy) return { ok: false };
+  syncBusy = true;
+  if (manual) setStatus('Syncing…', '');
+  try {
+    const data = await companyGet(url);
+    companyMeta = data._meta || null;
+    if (kfCo.unified() && data.status === 'nokey') { setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); lostKey(); return { ok: false }; }
+    if (companyMeta && companyMeta.unified && !kfCo.unified()) { askConnect(url); return { ok: false }; }
+    const rev = companyMeta ? companyMeta.rev : null;
+    if (!(Array.isArray(data.locations) || Array.isArray(data.units))) {
+      if (manual) setStatus('Nothing is saved at the company yet. Set this device up, then tap Save to Company.', 'warn');
+      updateSyncUi(); return { ok: true, empty: true };
+    }
+    if (!manual) {
+      if (isDirty()) { updateSyncUi(); return { ok: true, skipped: 'dirty' }; }
+      if (rev != null && String(rev) === localStorage.getItem(REV_KEY)) { updateSyncUi(); return { ok: true, skipped: 'same' }; }
+    } else if (isDirty() && !confirm('This device has changes that are not saved to the company. Syncing replaces them with the company copy. Continue?')) {
+      setStatus('Sync cancelled. Your changes are still on this device.', 'warn');
+      return { ok: false, cancelled: true };
+    }
+    const res = applyCompanyData(data, !!manual);
+    afterApply(res, rev);
+    if (manual) setStatus(`Synced. This device now matches the company${rev != null ? ' (revision ' + rev + ')' : ''}.`, 'ok');
+    return { ok: true, applied: true };
+  } catch (e) {
+    if (manual) setStatus('Could not reach the company sheet: ' + e.message, 'bad');
+    return { ok: false };
+  } finally { syncBusy = false; updateSyncUi(); }
+}
+$('btnSyncPull').onclick = async () => { const b = $('btnSyncPull'); b.disabled = true; try { await pullCompany(true); } finally { b.disabled = false; } };
+
+function companyPayload() {
+  const o = {
+    locations: settings.locations, units: settings.units, companyName: settings.companyName,
+    speed: settings.speed, fuelPrice: settings.fuelPrice, gst: settings.gst, quoteShow: settings.quoteShow,
+    apiKey: settings.apiKey || '',
+    scriptUrl: localStorage.getItem('scriptUrl') || '', scriptUrlAt: +localStorage.getItem('scriptUrlAt') || 0,
+    yardUrl: localStorage.getItem('yardUrl') || '', yardUrlAt: +localStorage.getItem('yardUrlAt') || 0,
+    driversUrl: localStorage.getItem('driversUrl') || '', driversUrlAt: +localStorage.getItem('driversUrlAt') || 0,
+    trucksUrl: localStorage.getItem('trucksUrl') || '', trucksUrlAt: +localStorage.getItem('trucksUrlAt') || 0,
+    sheetsUrl: settings.sheetsUrl || '', sheetsUrlAt: settings.sheetsUrlAt || 0
+  };
+  if (settings.costFuelPrice !== undefined && settings.costFuelPrice !== null && settings.costFuelPrice !== '') o.costFuelPrice = settings.costFuelPrice;
+  o.money = moneySettings(); o.homeBase = settings.homeBase || '';                       // v14
+  if (settings.offRoadFuelPrice != null && settings.offRoadFuelPrice !== '') o.offRoadFuelPrice = settings.offRoadFuelPrice;
+  return o;
+}
+const SAVE_MSG = {
+  badpassword: 'Wrong company password. Nothing was saved.',
+  locked: 'Too many wrong passwords. Password checks are paused for about 10 minutes.',
+};
+async function saveToCompany(retried) {
+  let retry = false;
+  const url = readSyncUrlField();
+  if (!url) return setStatus('Enter the Company Sync URL first.', 'bad');
+  if (!isScriptUrl(url)) return setStatus('That does not look like a Google Apps Script link (it should start with https://script.google.com/).', 'bad');
+  if (syncBusy) return;
+  syncBusy = true; $('btnSaveCompany').disabled = true; setStatus('Saving…', '');
+  try {
+    saveSettings();
+    let remote;
+    try { remote = await companyGet(url); } catch (e) { return setStatus('Could not reach the company sheet: ' + e.message, 'bad'); }
+    companyMeta = remote._meta || null;
+    if (companyMeta && companyMeta.unified && !kfCo.unified()) { askConnect(url); return setStatus('That is a company link: connect to it first.', 'warn'); }
+    if (kfCo.unified()) {
+      if (remote.status === 'nokey' && !retried && localStorage.getItem('kfAdminToken') && window.kfRecoverKey && await kfRecoverKey()) { settings = loadSettings(); retry = true; return; }
+      if (remote.status === 'nokey') { lostKey(); return setStatus('This device is no longer connected (the company password was changed). Connect again.', 'bad'); }
+      if (companyMeta && localStorage.getItem('kfCompanyId') && companyMeta.companyId !== localStorage.getItem('kfCompanyId')) return setStatus('This device belongs to a different company than this link. Nothing was saved.', 'bad');
+    }
+    const remoteHasLocations = Array.isArray(remote.locations) && remote.locations.length > 0;
+    if (!settings.locations.length && remoteHasLocations) return setStatus('This device has no pickup locations, so saving would erase the company ones. Tap Sync to Company first.', 'bad');
+
+    let password = '';
+    if (!companyMeta) {
+      if (!confirm('The company script is the old version, so this will save WITHOUT password protection. Update it with quote-apps-script-v3.gs to turn protection on. Save anyway?')) return setStatus('Save cancelled.', 'warn');
+    } else if (!companyMeta.hasPassword) {
+      const p1 = $('pwNew').value, p2 = $('pwNew2').value;
+      if (p1.length < 4) return setStatus('Create a company password (at least 4 characters) and confirm it, then tap Save to Company.', 'bad');
+      if (p1 !== p2) return setStatus('The two passwords do not match.', 'bad');
+      const r = await companyPost(url, { action: 'setPassword', newPassword: p1, deviceName: localStorage.getItem('kfDeviceName') || 'Device that created the password' });
+      if (r.status !== 'ok') return setStatus(SAVE_MSG[r.status] || r.message || 'Could not create the password.', 'bad');
+      password = p1; companyMeta.hasPassword = true;
+      if (r.adminToken) { localStorage.setItem('kfAdminToken', r.adminToken); localStorage.removeItem('kfNoPassword'); }   // creating it makes THIS device an admin
+      if (r.key && kfCo.unified()) kfCo.apply(kfCo.base(), r.key, r.meta);
+    } else if (!(window.kfAdminToken && kfAdminToken())) {
+      password = $('pwCurrent').value;
+      if (!password) return setStatus('Enter the company password, then tap Save to Company.', 'bad');
+    }
+
+    const payload = companyPayload();
+    ['driversUrl', 'trucksUrl'].forEach(k => { if (!payload[k] && remote[k]) { payload[k] = remote[k]; payload[k + 'At'] = remote[k + 'At'] || 0; } });
+    const send = (force) => companyPost(url, {
+      action: 'saveSettings', password, settings: payload,
+      baseRev: companyMeta ? Number(localStorage.getItem(REV_KEY) || 0) : undefined, force: !!force
+    });
+    let r = await send(false);
+    if (r.status === 'conflict') {
+      const first = !localStorage.getItem(REV_KEY);
+      if (!confirm(first
+        ? 'This device has never synced with the company, and the company already has saved settings. Saving now REPLACES them with this device\'s settings.\n\nPress Cancel and tap Sync to Company first unless you are sure.'
+        : 'Another device saved newer company settings since this one last synced. Saving now REPLACES them with this device\'s settings.\n\nPress Cancel and tap Sync to Company to load theirs instead.')) {
+        return setStatus('Save cancelled. Nothing at the company was changed.', 'warn');
+      }
+      r = await send(true);
+    }
+    if (r.status === 'saved') {
+      if (r.rev != null) localStorage.setItem(REV_KEY, String(r.rev));
+      clearDirty();
+      $('pwNew').value = $('pwNew2').value = $('pwCurrent').value = '';
+      await refreshMeta();
+      return setStatus(`Saved to company${r.rev != null ? ' (revision ' + r.rev + ')' : ''}. Other devices get it when they tap Sync to Company or next open the app.`, 'ok');
+    }
+    if (r.status === 'ok') {                                   // old script answered a different way
+      clearDirty(); return setStatus('Saved to company (old script, no password protection).', 'warn');
+    }
+    setStatus(SAVE_MSG[r.status] || r.message || ('The company sheet did not accept the save (' + (r.status || 'no answer') + ').'), 'bad');
+  } catch (e) {
+    setStatus('Could not save: ' + e.message + '. Nothing was confirmed saved.', 'bad');
+  } finally { syncBusy = false; $('btnSaveCompany').disabled = false; updateSyncUi(); }
+  if (retry) return saveToCompany(true);              // reconnected with the admin token: save again
+}
+$('btnSaveCompany').onclick = () => saveToCompany();
+
+$('btnChangePw').onclick = async () => {
+  const url = readSyncUrlField();
+  const oldP = $('pwOld').value, n1 = $('pwNew3').value, n2 = $('pwNew3b').value;
+  if (!url || !isScriptUrl(url)) return setStatus('Enter the Company Sync URL first.', 'bad');
+  if (!oldP) return setStatus('Enter the current company password.', 'bad');
+  if (n1.length < 4) return setStatus('The new password needs at least 4 characters.', 'bad');
+  if (n1 !== n2) return setStatus('The new passwords do not match.', 'bad');
+  try {
+    const r = await companyPost(url, { action: 'setPassword', password: oldP, newPassword: n1, deviceName: localStorage.getItem('kfDeviceName') || 'Device that changed the password' });
+    if (r.status === 'ok') {
+      if (r.adminToken) localStorage.setItem('kfAdminToken', r.adminToken); else localStorage.removeItem('kfAdminToken');
+      $('pwOld').value = $('pwNew3').value = $('pwNew3b').value = '';
+      if (kfCo.unified() && r.key) { kfCo.apply(kfCo.base(), r.key, r.meta); settings = loadSettings(); setStatus('Company password changed. Other devices must connect again with the new password.', 'ok'); }
+      else setStatus('Company password changed. Everyone uses the new one from now on.', 'ok');
+    }
+    else setStatus(SAVE_MSG[r.status] || r.message || 'Could not change the password.', 'bad');
+  } catch (e) { setStatus('Could not change the password: ' + e.message, 'bad'); }
+};
+
+/* ---- connect screen for a brand-new device ---- */
+function showConnect() { $('loginOverlay').classList.remove('hidden'); }
+function hideConnect() { $('loginOverlay').classList.add('hidden'); }
+$('coSkip').onclick = (e) => { e.preventDefault(); localStorage.setItem('kfSkipConnect', '1'); hideConnect(); };
+$('btnConnect').onclick = async () => {
+  const msg = $('coMsg'), url = $('coUrl').value.trim();
+  const say = (t, bad) => { msg.textContent = t; msg.style.color = bad ? 'var(--bad)' : 'var(--muted)'; };
+  if (!isScriptUrl(url)) return say('Paste the Company Sync URL (it starts with https://script.google.com/).', true);
+  const b = $('btnConnect'); b.disabled = true; say('Connecting…');
+  try {
+    const data = await companyGet(kfCo.clean(url));
+    const meta = data._meta || null;
+    if (meta && meta.unified) return await connectUnified(kfCo.clean(url), meta, say);
+    if (meta && meta.hasPassword) {
+      $('coPassWrap').classList.remove('hidden');
+      const pw = $('coPass').value;
+      if (!pw) return say('Enter the company password.', true);
+      const c = await companyPost(url, { action: 'checkPassword', password: pw });
+      if (c.status !== 'ok') return say(SAVE_MSG[c.status] || 'Wrong password.', true);
+    }
+    settings.syncUrl = url; saveSettings();
+    companyMeta = meta;
+    if (Array.isArray(data.locations) || Array.isArray(data.units)) {
+      const res = applyCompanyData(data, true);
+      afterApply(res, meta ? meta.rev : null);
+    }
+    localStorage.setItem('coLoggedIn', '1');
+    hideConnect();
+    if ($('setSyncUrl')) $('setSyncUrl').value = url;
+  } catch (e) { say('Could not connect: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
+
+/* ---------- single company link: connect, set up, switch, move ---------- */
+let trustedMove = false;      // connecting because this company moved: same company, keep the data
+// a company link typed into the old Company Sync field: connect properly (with the company-mixing guard)
+function askConnect(url) { $('coUrl').value = kfCo.clean(url); $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'This is a company link. Enter its company password and tap Connect.'; showConnect(); }
+// The company no longer accepts this device's key. An admin device first tries to get it back with its admin token
+// (it lost the key to the old Save Settings bug); only when that fails is the company password asked again.
+let recovering = false;
+async function lostKey() {
+  if (recovering) return;
+  if (window.kfRecoverKey && localStorage.getItem('kfAdminToken')) {
+    recovering = true; const ok = await kfRecoverKey(); recovering = false;
+    if (ok) { settings = loadSettings(); setStatus('Reconnected. Tap Save again.', 'warn'); return; }
+  }
+  lostKeyAsk();
+}
+function lostKeyAsk() { localStorage.removeItem('kfKey'); $('coUrl').value = localStorage.getItem('kfCompanyUrl') || ''; $('coPassWrap').classList.remove('hidden'); $('coMsg').textContent = 'The company password was changed. Enter the new password to connect again.'; showConnect(); }
+async function connectUnified(base, meta, say) {
+  if (!trustedMove && kfCo.hasData() && !kfCo.sameCompany(meta)) {
+    const was = settings.companyName || (JSON.parse(localStorage.getItem('kfCompany') || '{}').name) || 'another company';
+    if (!confirm(`This device still holds data for ${was}.\n\nConnecting to ${meta.companyName || 'this company'} removes it from this device. It stays safe in ${was}'s own sheet.\n\nContinue?`)) return say('Cancelled. Nothing was changed.', true);
+    kfCo.wipe(); settings = structuredClone(defaultSettings);
+  }
+  if (!meta.hasPassword) { $('setupBox').classList.remove('hidden'); $('btnConnect').classList.add('hidden'); $('coPassWrap').classList.add('hidden'); $('setupBox').dataset.base = base; return say(''); }
+  $('coPassWrap').classList.remove('hidden');
+  const pw = $('coPass').value;
+  if (!pw) return say('Enter the company password.', true);
+  const c = await companyPost(base + '?svc=sync', { action: 'checkPassword', password: pw });
+  if (c.status !== 'ok' || !c.key) return say(SAVE_MSG[c.status] || c.message || 'Wrong password.', true);
+  kfCo.apply(base, c.key, c.meta || meta); settings = loadSettings();
+  const full = await companyGet(settings.syncUrl);
+  if (Array.isArray(full.locations) || full.profile) { const res = applyCompanyData(full, true); afterApply(res, full._meta ? full._meta.rev : null); }
+  trustedMove = false;
+  say('Connected.'); setTimeout(() => location.reload(), 300);
+}
+$('btnSetup').onclick = async () => {
+  const base = $('setupBox').dataset.base, msg = $('coMsg');
+  const say = (t, bad) => { msg.textContent = t; msg.style.color = bad ? 'var(--bad)' : 'var(--muted)'; };
+  const name = $('suName').value.trim(), p1 = $('suPw').value, p2 = $('suPw2').value;
+  if (!name) return say('Enter the company name.', true);
+  if (p1.length < 4) return say('The company password needs at least 4 characters.', true);
+  if (p1 !== p2) return say('The two passwords do not match.', true);
+  const b = $('btnSetup'); b.disabled = true; say('Creating your company…');
+  try {
+    let logo = '';
+    if ($('suLogo').files[0]) { try { logo = await kfShrinkImage($('suLogo').files[0], 256); } catch (e) {} }
+    const r = await companyPost(base + '?svc=sync', { action: 'setPassword', newPassword: p1, deviceName: 'Device that set up the company' });
+    if (r.status !== 'ok' || !r.key) return say(r.message || 'Could not create the company.', true);
+    kfCo.apply(base, r.key, r.meta); settings = loadSettings(); settings.companyName = name;
+    if (r.adminToken) localStorage.setItem('kfAdminToken', r.adminToken);
+    const profile = { name, phone: $('suPhone').value.trim(), email: $('suEmail').value.trim(), addr: $('suAddr').value.trim(), logo };
+    await companyPost(settings.syncUrl, { action: 'saveProfile', password: p1, profile });
+    localStorage.setItem('kfCompany', JSON.stringify(profile));
+    const sv = await companyPost(settings.syncUrl, { action: 'saveSettings', password: p1, settings: companyPayload(), force: true });
+    if (sv.rev != null) localStorage.setItem(REV_KEY, String(sv.rev));
+    clearDirty(); saveSettings(); localStorage.setItem('kfCompanyName', name);
+    say('Company created. Next: add pickup locations and trucks in Settings, then tap Save to Company.');
+    setTimeout(() => { location.hash = '#settings'; location.reload(); }, 900);
+  } catch (e) { say('Could not create the company: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
+$('btnSwitchCo').onclick = () => {
+  if (isDirty() && !confirm('This device has changes that are not saved to the company. Switching removes them. Continue?')) return;
+  if (!confirm('Disconnect this device from ' + ($('unifiedName').textContent || 'this company') + '? Its data stays safe in the company sheet. You can then connect to another company.')) return;
+  kfCo.wipe(); location.reload();
+};
+function offerMove(newUrl) {
+  if (kfCo.unified() || sessionStorage.getItem('kfMoveOffered')) return;
+  sessionStorage.setItem('kfMoveOffered', '1');
+  trustedMove = true;
+  $('coUrl').value = newUrl; $('coPassWrap').classList.remove('hidden');
+  $('coMsg').textContent = 'Your company moved to one company sheet. Enter the company password and tap Connect to switch this device.';
+  showConnect();
+}
+$('btnMove').onclick = async () => {
+  const out = $('mvMsg'), say = (t, bad) => { out.textContent = t; out.style.color = bad ? 'var(--bad)' : ''; };
+  const base = kfCo.clean($('mvUrl').value), pw = $('mvPw').value;
+  if (!isScriptUrl(base)) return say('Paste the new company script link.', true);
+  if (!pw) return say('Enter the company password.', true);
+  if (isDirty()) return say('This device has unsaved company changes. Tap Save to Company first.', true);
+  const b = $('btnMove'); b.disabled = true;
+  try {
+    say('Checking the new link…');
+    const m = await companyGet(base); const meta = m._meta;
+    if (!meta || !meta.unified) return say('That link is not the company script (company-apps-script.gs).', true);
+    let key;
+    if (!meta.hasPassword) { const r = await companyPost(base + '?svc=sync', { action: 'setPassword', newPassword: pw }); if (r.status !== 'ok') return say(r.message || 'Could not set the password.', true); key = r.key; }
+    else { const c = await companyPost(base + '?svc=sync', { action: 'checkPassword', password: pw }); if (c.status !== 'ok') return say('The new link already has a different password.', true); key = c.key; }
+    say('Copying loads, tickets, inventory, drivers and settings… (this can take a minute)');
+    let drvUrl = localStorage.getItem('driversUrl') || ''; try { drvUrl = drvUrl || JSON.parse(localStorage.getItem('kfDrvUrl') || '""'); } catch (e) {}
+    const imp = await companyPost(base + '?svc=sync', { action: 'importOld', password: pw, oldSyncUrl: (settings.syncUrl || '').trim(), loadsUrl: settings.sheetsUrl || '', ticketsUrl: localStorage.getItem('scriptUrl') || '', yardsUrl: localStorage.getItem('yardUrl') || '', oldDriversUrl: drvUrl, oldDriversPassword: $('mvDrvPw').value });
+    if (imp.status !== 'ok') return say(SAVE_MSG[imp.status] || imp.message || 'The copy failed.', true);
+    say('Saving company info…');
+    const co = JSON.parse(localStorage.getItem('kfCompany') || '{}');
+    let logo = co.logo || '';
+    if (!logo) { try { const bl = await (await fetch('logo.jpg')).blob(); logo = await kfShrinkImage(bl, 256); } catch (e) {} }
+    await companyPost(base + '?svc=sync', { action: 'saveProfile', password: pw, profile: Object.assign({}, co, { name: co.name || settings.companyName || '', logo }) });
+    // tell the other devices (they read the old Company Sync) where the company went
+    let told = false;
+    try { const o = await companyPost(settings.syncUrl, { action: 'saveSettings', password: pw, settings: Object.assign(companyPayload(), { movedTo: base }), force: true }); told = o.status === 'saved'; } catch (e) {}
+    kfCo.apply(base, key, meta); settings = loadSettings();
+    const full = await companyGet(settings.syncUrl);
+    if (Array.isArray(full.locations)) { const res = applyCompanyData(full, true); afterApply(res, full._meta ? full._meta.rev : null); }
+    say(`Done. Copied: ${imp.loads} loads, ${imp.tickets} tickets, ${imp.yards} inventory entries, ${imp.drivers} drivers, ${imp.shifts} driver shifts${imp.settings ? ', company settings' : ''}${imp.driverConfig ? ', driver units and rules' : ''}.` +
+      (imp.notes && imp.notes.length ? '\nNotes: ' + imp.notes.join(' ') : '') + (told ? '\nYour other devices will be asked to switch the next time they open the app.' : '\nCould not update the old Company Sync: connect your other devices with the new link by hand.'));
+  } catch (e) { say('Could not move: ' + e.message, true); }
+  finally { b.disabled = false; }
+};
+
+if (location.hash === '#setup' && hasConfig()) {            // nav.js sign-in found a company with no password yet: set it up here
+  $('coUrl').value = localStorage.getItem('kfSetupUrl') || kfConfigUrl(); showConnect(); setTimeout(() => $('btnConnect').click(), 50);
+} else if (!hasConfig() && !settings.syncUrl && localStorage.getItem('coLoggedIn') !== '1' && !localStorage.getItem('kfSkipConnect')) {
+  showConnect();
+} else if (settings.syncUrl) {
+  setTimeout(() => pullCompany(false), 500);
+}
+renderSettings();
+/* ---------- Android app card ---------- */
+(function () {
+  const pageUrl = new URL('app.html', location.href).href;
+  if (window.kfNative) { $('appInApp').classList.remove('hidden'); $('appInBrowser').classList.add('hidden'); $('appDl').classList.add('hidden'); }
+  $('appShare').onclick = async () => {
+    const text = 'Install our Android app: ' + pageUrl;
+    const SH = window.kfPlugin && kfPlugin('Share');
+    try {
+      if (SH) await SH.share({ title: 'Get the app', text, url: pageUrl });
+      else if (navigator.share) await navigator.share({ title: 'Get the app', text, url: pageUrl });
+      else { await navigator.clipboard.writeText(pageUrl); alert('Link copied: ' + pageUrl); }
+    } catch (e) { if (e && e.name !== 'AbortError' && !/cancel/i.test(String(e.message || e))) prompt('Copy this link:', pageUrl); }
+  };
+})();
+// this page applies company settings itself (with its Save to Company / unsaved-change handling)
+window.kfOwnSync = true;
+if (window.kfLive) kfLive(() => pullCompany(false), { ms: 60000, when: () => !!(settings.syncUrl || '').trim() });
+if (location.hash === '#company') { showView('settings'); setCoOpen(true); setTimeout(() => { $('coLinkBox').classList.remove('hidden'); $('coLinkUrl').readOnly = false; $('btnSaveLink').classList.remove('hidden'); $('coLinkMsg').textContent = 'Paste your company script link and tap Save link.'; $('coLinkUrl').scrollIntoView({ block: 'center' }); }, 200); try { history.replaceState(history.state, '', location.pathname); } catch (e) {} }
+if (location.hash === '#settings') { showView('settings'); try { history.replaceState(history.state, '', location.pathname); } catch (e) {} }
+
+</script>
+
+<script>
+(function() {
+  const co = JSON.parse(localStorage.getItem('kfCompany') || '{}');
+  const logoEl = document.getElementById('companyLogo');
+  if (logoEl && co.logo) logoEl.src = co.logo;
+  const nameEl = document.getElementById('companyNameBanner');
+  if (nameEl && co.name) nameEl.textContent = co.name;
+})();
+</script>
+</body>
+</html>
