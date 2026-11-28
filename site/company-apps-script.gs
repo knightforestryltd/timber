@@ -23,7 +23,8 @@
 //        5-minute position + speed ping (no GPS trail) · Dispatch gets recent loads only · Log trimmed nightly · GST from settings
 // v14.4: tabs grow past row 1000 (rows are added at the bottom; nothing moves) · much faster menu badges, driver log in,
 //        Drivers admin and Statistics (the Shifts log + signature columns are only read where shown) · settings size checked
-//        before saving · editor test sets up PM templates · bad ticket rows answered cleanly
+//        before saving · editor test sets up PM templates · bad ticket rows answered cleanly · the rolling backup never
+//        trashes the dated v14 backups
 var SCRIPT_VERSION = 14;     // pages check v >= 14 for the Trucks / Statistics / admin-token features
 var APP = 'company';
 var SHEET_NAME = 'Company Data';
@@ -1609,8 +1610,8 @@ function nightly() {
   } finally { try { lock.releaseLock(); } catch (e) {} LOCKED_ = false; }
 }
 // v14.3 ROLLING BACKUP: one copy only, "BACKUP of Company Data · yyyy-MM-dd (not live)", in the "Company Data backups" folder.
-// Skipped when the sheet has not changed since the last backup. Every OLDER file in that folder is trashed
-// (Drive keeps trash 30 days). Files anywhere else are never touched: keep your own renamed copies outside that folder.
+// Skipped when the sheet has not changed since the last backup. The previous "BACKUP of" copy is trashed
+// (Drive keeps trash 30 days). v14.4: only earlier "BACKUP of ..." copies are replaced; v14's dated backups and anything else stay.
 function backupNow(force) {
   var file = DriveApp.getFileById(ss_().getId()), it = DriveApp.getFoldersByName(SHEET_NAME + ' backups');
   var folder = it.hasNext() ? it.next() : DriveApp.createFolder(SHEET_NAME + ' backups');
@@ -1619,7 +1620,9 @@ function backupNow(force) {
   if (!force && lastAt && file.getLastUpdated().getTime() <= lastAt && existing.length) return 'unchanged';
   var copy = file.makeCopy('BACKUP of ' + SHEET_NAME + ' · ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + ' (not live)', folder);
   props_().setProperty('backupAt', String(Date.now()));
-  existing.forEach(function (x) { if (x.getId() !== copy.getId() && x.getId() !== file.getId()) x.setTrashed(true); });
+  // v14.4: only this rolling backup's OWN older copies are replaced. Backups made by v14 ("Company Data backup yyyy-MM-dd")
+  // and anything else in the folder are never touched (delete them yourself once you no longer want them).
+  existing.forEach(function (x) { if (x.getId() !== copy.getId() && x.getId() !== file.getId() && x.getName().indexOf('BACKUP of ' + SHEET_NAME) === 0) x.setTrashed(true); });
   return 'saved';
 }
 function trimLog_() {

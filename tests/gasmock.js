@@ -118,6 +118,7 @@ function createRuntime(opts = {}) {
       getId() { return this._id; }, getName() { return this._name; }, getMimeType() { return this._mime; },
       getUrl() { return 'https://drive.google.com/file/d/' + this._id + '/view'; },
       setSharing(a, p) { this._sharing = [a, p]; return this; }, setTrashed(t) { this._trashed = !!t; return this; }, isTrashed() { return this._trashed; },
+      getDateCreated() { return new CtxDate(this._created || (this._created = now())); },
       getLastUpdated() { const ss = state.spreadsheets[this._id]; return new CtxDate(ss ? ss._updated : this._updated); },
       makeCopy(n, folder) { const ss = state.spreadsheets[this._id]; let copy;
         if (ss) { copy = new Spreadsheet(n); copy._sheets = ss._sheets.map(s => { const c = new Sheet(copy, s._name); c._cells = JSON.parse(JSON.stringify(s._cells)); return c; }); }
@@ -229,8 +230,7 @@ function createRuntime(opts = {}) {
   const src = fs.readFileSync(opts.script, 'utf8');
   vm.runInContext(src, ctx, { filename: 'company-apps-script.gs' });
   // Script-level globals reset per request in real GAS (each request is a fresh execution).
-  const initialGlobals = vm.runInContext('({ DEV_: DEV_, LOCKED_: LOCKED_ })', ctx);
-  function freshExecution() { vm.runInContext('ss__ = null; tabs__ = {}; DEV_ = "anon"; LOCKED_ = false; if (typeof settings__ !== "undefined") settings__ = null;', ctx); }
+  function freshExecution() { vm.runInContext('ss__ = null; tabs__ = {}; if (typeof DEV_ !== "undefined") DEV_ = "anon"; if (typeof LOCKED_ !== "undefined") LOCKED_ = false; if (typeof settings__ !== "undefined") settings__ = null;', ctx); }
 
   function parseOut(out) { if (!out || typeof out.getContent !== 'function') throw new Error('handler did not return a TextOutput'); try { return JSON.parse(out.getContent()); } catch (e) { throw new Error('non-JSON output: ' + out.getContent().slice(0, 200)); } }
   const api = {
@@ -247,7 +247,7 @@ function createRuntime(opts = {}) {
   api.twin = function (otherScript) {
     const c2 = {}; ['SpreadsheetApp', 'DriveApp', 'Utilities', 'Session', 'ContentService', 'MailApp', 'UrlFetchApp', 'Maps', 'ScriptApp', 'Logger', 'PropertiesService', 'CacheService', 'LockService', 'console', 'Date', 'JSON', 'Math'].forEach(k => c2[k] = ctx[k]);
     vm.createContext(c2); vm.runInContext(fs.readFileSync(otherScript, 'utf8'), c2, { filename: 'twin.gs' });
-    const fresh2 = () => vm.runInContext('ss__ = null; tabs__ = {}; DEV_ = "anon"; LOCKED_ = false; if (typeof settings__ !== "undefined") settings__ = null;', c2);
+    const fresh2 = () => vm.runInContext('ss__ = null; tabs__ = {}; if (typeof DEV_ !== "undefined") DEV_ = "anon"; if (typeof LOCKED_ !== "undefined") LOCKED_ = false; if (typeof settings__ !== "undefined") settings__ = null;', c2);
     return { get: (q) => { fresh2(); return parseOut(c2.doGet({ parameter: q || {} })); }, post: (q, b) => { fresh2(); return parseOut(c2.doPost({ parameter: q || {}, postData: { contents: typeof b === 'string' ? b : JSON.stringify(b) } })); }, call: (f, ...a) => { fresh2(); return c2[f](...a); } };
   };
   return api;

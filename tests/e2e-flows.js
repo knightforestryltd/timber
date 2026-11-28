@@ -11,7 +11,7 @@ const loads = rt => rt.get({ svc: 'loads', k: rt.key }).rows;
 
 (async () => {
   const srv = await serve(SITE, 8143);
-  const seed = seedCompany(path.join(SITE, 'company-apps-script.gs')); seed.rt.key = seed.key;
+  const seed = seedCompany(process.env.BACKEND || path.join(SITE, 'company-apps-script.gs')); seed.rt.key = seed.key;
   const E = await setup({ rt: seed.rt });
   const office = await E.newContext(), page = await office.newPage(); E.watch(page, 'office');
   const errsAt = () => E.log.pageErrors.length + E.log.consoleErrors.length;
