@@ -742,6 +742,6 @@ group('27. Upgrade from a v14 sheet (new v14.3 columns added on the right, nothi
   eq(Number(rt.drvAdmin({ action: 'adminGetConfig' }).drivers[0].lastKph), 50, 'speed column added to Drivers and filled by the ping');
 });
 
-const out = summary('BACKEND (company-apps-script.gs v14.3)');
+const out = summary('BACKEND (company-apps-script.gs)');
 console.log(out.text);
 require('fs').writeFileSync(path.join(__dirname, 'backend-results.json'), JSON.stringify(out.results, null, 1));

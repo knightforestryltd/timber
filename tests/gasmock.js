@@ -74,7 +74,7 @@ function createRuntime(opts = {}) {
   };
   Range.prototype = {
     getRow() { return this._r; }, getColumn() { return this._c; }, getNumRows() { return this._nr; }, getNumColumns() { return this._nc; },
-    getValues() { state.calls.getValues++; const out = []; for (let i = 0; i < this._nr; i++) { const row = []; for (let j = 0; j < this._nc; j++) { const v = cellGet(this._sh, this._r + i, this._c + j); row.push(isDate(v) ? new CtxDate(v.getTime()) : v); } out.push(row); } return out; },
+    getValues() { state.calls.getValues++; state.calls.cells = (state.calls.cells || 0) + this._nr * this._nc; let b = 0; for (let i = 0; i < this._nr; i++) { const row = this._sh._cells[this._r + i - 1]; if (row) for (let j = 0; j < this._nc; j++) { const v = row[this._c + j - 1]; if (typeof v === 'string') b += v.length; } } state.calls.bytes = (state.calls.bytes || 0) + b; const out = []; for (let i = 0; i < this._nr; i++) { const row = []; for (let j = 0; j < this._nc; j++) { const v = cellGet(this._sh, this._r + i, this._c + j); row.push(isDate(v) ? new CtxDate(v.getTime()) : v); } out.push(row); } return out; },
     getDisplayValues() { return this.getValues().map(r => r.map(v => isDate(v) ? v.toISOString() : String(v))); },
     getValue() { return this.getValues()[0][0]; },
     setValues(vals) {
@@ -147,7 +147,7 @@ function createRuntime(opts = {}) {
 
   // ---------------- Properties / Cache / Lock ----------------
   const Properties = {
-    getProperty(k) { return Object.prototype.hasOwnProperty.call(state.props, k) ? state.props[k] : null; },
+    getProperty(k) { state.calls.props = (state.calls.props || 0) + 1; return Object.prototype.hasOwnProperty.call(state.props, k) ? state.props[k] : null; },
     setProperty(k, v) { v = String(v); if (Buffer.byteLength(v) > 9 * 1024) throw new Error('Exception: Argument too large: value (property ' + k + ' = ' + Buffer.byteLength(v) + ' bytes)'); state.props[k] = v; checkTotal(); return Properties; },
     setProperties(o, del) { const save = Object.assign({}, state.props); try { if (del) state.props = {}; Object.keys(o).forEach(k => Properties.setProperty(k, o[k])); } catch (e) { state.props = save; throw e; } return Properties; },   // treated as all-or-nothing
     deleteProperty(k) { delete state.props[k]; return Properties; },
@@ -230,7 +230,7 @@ function createRuntime(opts = {}) {
   vm.runInContext(src, ctx, { filename: 'company-apps-script.gs' });
   // Script-level globals reset per request in real GAS (each request is a fresh execution).
   const initialGlobals = vm.runInContext('({ DEV_: DEV_, LOCKED_: LOCKED_ })', ctx);
-  function freshExecution() { vm.runInContext('ss__ = null; tabs__ = {}; DEV_ = "anon"; LOCKED_ = false;', ctx); }
+  function freshExecution() { vm.runInContext('ss__ = null; tabs__ = {}; DEV_ = "anon"; LOCKED_ = false; if (typeof settings__ !== "undefined") settings__ = null;', ctx); }
 
   function parseOut(out) { if (!out || typeof out.getContent !== 'function') throw new Error('handler did not return a TextOutput'); try { return JSON.parse(out.getContent()); } catch (e) { throw new Error('non-JSON output: ' + out.getContent().slice(0, 200)); } }
   const api = {
@@ -242,6 +242,13 @@ function createRuntime(opts = {}) {
     setClock(ms) { state.clock = ms; }, advance(ms) { state.clock = now() + ms; },
     sheet(name) { const id = state.props.ssId; const ss = id && state.spreadsheets[id]; return ss ? ss.getSheetByName(name) : null; },
     ss() { return state.spreadsheets[state.props.ssId]; },
+  };
+  // a second copy of the script (e.g. the older version) working on this same sheet, properties and cache
+  api.twin = function (otherScript) {
+    const c2 = {}; ['SpreadsheetApp', 'DriveApp', 'Utilities', 'Session', 'ContentService', 'MailApp', 'UrlFetchApp', 'Maps', 'ScriptApp', 'Logger', 'PropertiesService', 'CacheService', 'LockService', 'console', 'Date', 'JSON', 'Math'].forEach(k => c2[k] = ctx[k]);
+    vm.createContext(c2); vm.runInContext(fs.readFileSync(otherScript, 'utf8'), c2, { filename: 'twin.gs' });
+    const fresh2 = () => vm.runInContext('ss__ = null; tabs__ = {}; DEV_ = "anon"; LOCKED_ = false; if (typeof settings__ !== "undefined") settings__ = null;', c2);
+    return { get: (q) => { fresh2(); return parseOut(c2.doGet({ parameter: q || {} })); }, post: (q, b) => { fresh2(); return parseOut(c2.doPost({ parameter: q || {}, postData: { contents: typeof b === 'string' ? b : JSON.stringify(b) } })); }, call: (f, ...a) => { fresh2(); return c2[f](...a); } };
   };
   return api;
 }

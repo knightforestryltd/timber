@@ -154,7 +154,9 @@ function sendMail_(opts) {
 }
 
 /* =============================== company settings blob (Quote page "Company Sync") =============================== */
-function readSettings_() {
+var settings__ = null;   // v14.4: settings are read once per request (a save replaces the copy)
+function readSettings_() { if (!settings__) settings__ = readSettingsRaw_(); return JSON.parse(JSON.stringify(settings__)); }
+function readSettingsRaw_() {
   var p = props_(), n = parseInt(p.getProperty('companySettings_n') || '0', 10), raw = '';
   for (var i = 0; i < n; i++) raw += (p.getProperty('companySettings_' + i) || '');
   return raw ? (parse_(raw) || {}) : {};
@@ -167,7 +169,7 @@ function writeSettings_(obj) {
   for (var i = 0; i < raw.length; i += CHUNK) parts.push(raw.substr(i, CHUNK));
   parts.forEach(function (s, j) { batch['companySettings_' + j] = s; });
   batch.companySettings_n = String(parts.length);
-  p.setProperties(batch, false);
+  p.setProperties(batch, false); settings__ = null;
   for (var k = parts.length; k < oldN; k++) p.deleteProperty('companySettings_' + k);
 }
 function rev_() { return parseInt(props_().getProperty('companyRev') || '0', 10) || 0; }
@@ -1356,7 +1358,7 @@ function moneyPost_(p, d) {
 function summary_(d) {
   var from = String(d.from || '2000-01-01'), to = String(d.to || '9999-12-31'), fromMs = ms_(from + 'T00:00:00') - 8 * 86400000, toMs = ms_(to + 'T23:59:59') + 86400000;
   var inRange = function (v) { var t = ms_(v); return !t || (t >= fromMs && t <= toMs); };
-  var shifts = rows_('Shifts').filter(function (s) { return inRange(s.startedAt); }).map(function (s) {
+  var shifts = shiftFill_(shiftLite_().filter(function (s) { return inRange(s.startedAt); })).map(function (s) {   // v14.4: no signatures read
     var j = parse_(s.json) || {};
     return { id: s.shiftId, driverId: s.driverId, driverName: s.driverName, type: s.shiftType || j.type || 'driving', unit: s.unit, unitId: s.unitId || j.unitId || '', startedAt: iso_(s.startedAt), closedAt: j.closedAt || iso_(s.submittedAt), status: s.status,
       startOdo: s.startOdo, endOdo: s.endOdo, startHours: s.startHours !== '' ? s.startHours : j.startHours, endHours: s.endHours !== '' ? s.endHours : j.endHours, drivingHrs: s.drivingHrs, onDutyHrs: s.onDutyHrs, yard: j.yard || '',
@@ -1495,7 +1497,7 @@ function deliveryOut_(sheet, row) {
     var w = Math.min(sheet.getLastColumn(), LOAD_ALL.length), v = sheet.getRange(row, 1, 1, w).getValues()[0];
     var yard = String(v[4] || ''), status = String(v[15] || ''), key = String(v[16] || v[24] || ''), product = String(v[25] || '') === 'Split' ? 'Split' : 'Logs';
     if (!yard || !key) return;
-    var rows = yardRowsAll_(); if (yardNames_().indexOf(yard) < 0) return;          // only yards (not ordinary pickup locations)
+    var rows = yardRowsAll_(); if (!rows.some(function (r) { return r.yard === yard; })) return;   // v14.4: one read (was two)          // only yards (not ordinary pickup locations)
     var mine = rows.filter(function (r) { return r.type === 'Out' && String(r.loadId) === key && r.status !== 'Void'; });
     if (status === 'Delivered' || status === 'Paid') {
       if (mine.length) return;
@@ -1549,7 +1551,7 @@ function alerts_(p, d) {
   }
   if (w.office) {
     // ---- Drivers (office view) ----
-    rows_('Shifts').forEach(function (s) {
+    shiftLite_().forEach(function (s) {                                      // v14.4: without the log + signature columns
       if (s.status === 'Open' && now - ms_(s.startedAt) > DAY) add('drivers', 'amber', s.driverName + ': ' + (s.shiftType === 'yard' ? 'yard shift' : 'shift') + ' of ' + day_(s.date) + ' not submitted yet', 'drivers.html#admin');
     });
     wos.forEach(function (x) { if ((x.source === 'pretrip' || x.source === 'inspection') && !x.seenAt) add('drivers', 'red', 'New defect (' + x.source + '): ' + x.unitName + ' · ' + x.defect + (x.driverName ? ' · ' + x.driverName : ''), 'drivers.html#seen=' + encodeURIComponent(x.id)); });
@@ -1561,7 +1563,8 @@ function alerts_(p, d) {
     });
     // ---- Billing: delivered and not invoiced after 2 days; invoiced and unpaid after 30 days ----
     var deliveredAt = {}, gl = ms_(goLive_());
-    logTail_(3000).forEach(function (x) { if (x.svc === 'loads' && /^status Delivered/.test(String(x.action))) deliveredAt[String(x.ref)] = ms_(x.at); });
+    if (loads.some(function (l) { return String(l.status).toLowerCase() === 'delivered' && !ms_(l.deliveredAt); }))     // v14.4: the Log is only read for loads delivered before v14.3
+      logTail_(3000).forEach(function (x) { if (x.svc === 'loads' && /^status Delivered/.test(String(x.action))) deliveredAt[String(x.ref)] = ms_(x.at); });
     var pays = {}; rows_('Payments').forEach(function (x) { var k = String(x.loadId || x.invoiceNo); pays[k] = (pays[k] || 0) + num_(x.amount); });
     loads.forEach(function (l) {
       var st = String(l.status).toLowerCase();
@@ -1795,7 +1798,7 @@ function drvAdminView_(d) { var o = drvPublic_(d); o.roles = rolesOf_(d); o.hasP
 function drvFullShift_(row, pretrips) {
   var sh = parse_(row.json) || {};
   if (!sh.pretrip || !sh.pretrip.items) {
-    var pt = (pretrips || rows_('Pretrips')).filter(function (p) { return String(p.shiftId) === String(row.shiftId); })[0];
+    var pt = pretrips ? pretrips.filter(function (p) { return String(p.shiftId) === String(row.shiftId); })[0] : pretripOf_(row.shiftId);   // v14.4: one row, not the whole tab
     if (pt) { var pd = parse_(pt.json); if (pd) { sh.pretrip = pd; if (!sh.pretrip.signature) sh.pretrip.signature = pt.signature; } }
   }
   if (!sh.signature && row.signature) sh.signature = row.signature;
@@ -1904,9 +1907,9 @@ function drvPost_(p, d) {
         return json_({ status: 'ok', drivers: rows_('Drivers').map(drvAdminView_) });
       }
       if (a === 'adminListShifts') {
-        var all = rows_('Shifts').reverse();
+        var all = shiftLite_().reverse();                                     // v14.4: only the listed shifts' logs are read
         if (d.driverId) all = all.filter(function (s) { return String(s.driverId) === String(d.driverId); });
-        return json_({ status: 'ok', shifts: all.slice(0, Math.min(Number(d.limit) || 80, 300)).map(function (s) {
+        return json_({ status: 'ok', shifts: shiftFill_(all.slice(0, Math.min(Number(d.limit) || 80, 300))).map(function (s) {
           var j = parse_(s.json) || {};
           var paid = ((ms_(j.closedAt) || (s.status === 'Open' ? Date.now() : ms_(s.submittedAt))) - ms_(j.startedAt || s.startedAt)) / 3600000;
           return { shiftId: s.shiftId, driverId: s.driverId, driverName: s.driverName, date: j.date || day_(s.date), unit: s.unit, status: s.status, startedAt: iso_(s.startedAt), submittedAt: iso_(s.submittedAt), startOdo: s.startOdo, endOdo: s.endOdo, onDutyHrs: s.onDutyHrs, drivingHrs: s.drivingHrs, edited: !!s.editedAt,
@@ -1915,14 +1918,14 @@ function drvPost_(p, d) {
         }) });
       }
       if (a === 'adminGetShift') {
-        var f = rows_('Shifts').filter(function (s) { return String(s.shiftId) === String(d.shiftId); })[0];
+        var f = shiftLite_().filter(function (s) { return String(s.shiftId) === String(d.shiftId); })[0]; if (f) f = shiftRow_(f._row);
         if (!f) return json_({ status: 'error', message: 'Shift not found.' });
         var fs = drvFullShift_(f);
         fs._workOrders = rows_('WorkOrders').filter(function (x) { return String(x.shiftId) === String(f.shiftId); }).map(function (x) { return { id: x.id, defect: x.defect, severity: x.severity, status: x.status }; });
         return json_({ status: 'ok', shift: fs, row: { status: f.status, submittedAt: iso_(f.submittedAt), signature: f.signature, editedAt: iso_(f.editedAt) }, pretrip: fs.pretrip ? { data: fs.pretrip, signature: fs.pretrip.signature, at: fs.pretrip.at } : null });
       }
       if (a === 'adminSaveShift') {
-        var ns = d.shift || {}, row = rows_('Shifts').filter(function (s) { return String(s.shiftId) === String(ns.id); })[0];
+        var ns = d.shift || {}, row = shiftLite_().filter(function (s) { return String(s.shiftId) === String(ns.id); })[0]; if (row) row = shiftRow_(row._row);
         if (!row) return json_({ status: 'error', message: 'Shift not found (it may have been deleted).' });
         var st = d.status === 'Open' || d.status === 'Submitted' ? d.status : row.status;
         ns.adminEditAt = new Date().toISOString(); delete ns._status; delete ns._submittedAt;
@@ -1945,9 +1948,8 @@ function drvPost_(p, d) {
         if (!drv0) return json_({ status: 'error', message: 'Driver not found.' });
         var pts = rows_('Positions').filter(function (pp) { var tt = ms_(pp.at); return tt >= from && tt < to && (String(pp.driverId) === String(drv0.id) || (!pp.driverId && String(pp.driverName) === String(drv0.name))); })
           .map(function (pp) { return { at: iso_(pp.at), lat: Number(pp.lat), lon: Number(pp.lon), place: pp.place, status: pp.status, unit: pp.unit, kph: pp.kph === '' ? null : Number(pp.kph), shiftId: pp.shiftId }; });
-        var pret = rows_('Pretrips');
-        var shifts = rows_('Shifts').filter(function (s) { if (String(s.driverId) !== String(drv0.id)) return false; var a0 = ms_(s.startedAt) - 2 * 86400000, b0 = s.status === 'Open' ? Date.now() : (ms_(s.submittedAt) || Date.now()); return a0 < to && b0 >= from; })
-          .map(function (s) { return drvFullShift_(s, pret); });
+        var shifts = shiftFill_(shiftLite_().filter(function (s) { if (String(s.driverId) !== String(drv0.id)) return false; var a0 = ms_(s.startedAt) - 2 * 86400000, b0 = s.status === 'Open' ? Date.now() : (ms_(s.submittedAt) || Date.now()); return a0 < to && b0 >= from; }), true)
+          .map(function (s) { return drvFullShift_(s); });
         return json_({ status: 'ok', driver: drvAdminView_(drv0), points: pts, shifts: shifts });
       }
       return json_({ status: 'error', message: 'Unknown action: ' + a });
@@ -1967,7 +1969,12 @@ function drvPost_(p, d) {
       var au = personAuth_(d); if (!au.ok) return drvAuthFail_(au);
       var drv = au.driver, cfg = a === 'driverLogin' || a === 'submitShift' ? drvConfig_() : null;   // v14.3: the heavy settings read only at log in + submit
       if (a === 'driverLogin') {
-        var mine = rows_('Shifts').filter(function (s) { return String(s.driverId) === String(drv.id); });
+        // v14.4 SPEED: every shift without its log; the log is read only for this driver's last ~6 weeks (and open shifts)
+        var lite = shiftLite_(), recent = Date.now() - 41 * 86400000, wrote = function (s) { return Math.max(ms_(s.submittedAt), ms_(s.editedAt), ms_(s.startedAt)); };
+        var mine = lite.filter(function (s) { return String(s.driverId) === String(drv.id); });
+        shiftFill_(mine.filter(function (s) { return s.status === 'Open' || wrote(s) >= recent; }), true);
+        if (mine.some(function (s) { return s.json === undefined && s.status === 'Submitted' && s.shiftType !== 'yard'; }) && !mine.some(function (s) { return s.json !== undefined && s.status === 'Submitted' && s.shiftType !== 'yard' && ms_((parse_(s.json) || {}).closedAt) >= recent; }))
+          shiftFill_(mine.filter(function (s) { return s.json === undefined; }), true);   // nothing closed in 6 weeks: the last closing time can only be found in older logs
         var isYard = function (s) { return s.shiftType === 'yard'; };
         var open = mine.filter(function (s) { return s.status === 'Open' && !isYard(s); }).pop(), openYard = mine.filter(function (s) { return s.status === 'Open' && isYard(s); }).pop(), cutoff = Date.now() - 16 * 86400000, days = {}, lastClose = '';
         mine.forEach(function (s) {
@@ -1976,14 +1983,14 @@ function drvPost_(p, d) {
           if (sj && sj.days) sj.days.forEach(function (x) { if (new Date(x.date + 'T12:00:00').getTime() >= cutoff) { days[x.date] = days[x.date] || { onDuty: 0, driving: 0 }; days[x.date].onDuty += Number(x.onDuty) || 0; days[x.date].driving += Number(x.driving) || 0; } });
         });
         var allOdo = {}, odoAt = {};
-        rows_('Shifts').forEach(function (s) { if (s.status !== 'Submitted' || !s.unit || s.endOdo === '' || s.shiftType === 'yard') return; var tt = ms_(s.submittedAt); if (!odoAt[s.unit] || tt >= odoAt[s.unit]) { allOdo[s.unit] = s.endOdo; odoAt[s.unit] = tt; } });
+        lite.forEach(function (s) { if (s.status !== 'Submitted' || !s.unit || s.endOdo === '' || s.shiftType === 'yard') return; var tt = ms_(s.submittedAt); if (!odoAt[s.unit] || tt >= odoAt[s.unit]) { allOdo[s.unit] = s.endOdo; odoAt[s.unit] = tt; } });
         var ob = drvOnBlocks_(mine.filter(function (s) { return !isYard(s); }), Date.now() - 40 * 86400000);
         return json_({ status: 'ok', v: 3, sv: SCRIPT_VERSION, token: personToken_(drv), roles: rolesOf_(drv), driver: drvPublic_(drv), company: cfg.company, units: cfg.units, rules: cfg.rules, history: days, unitOdo: allOdo, lastClose: lastClose, openShift: open ? drvFullShift_(open) : null, openYardShift: openYard ? drvFullShift_(openYard) : null, onBlocks: ob.blocks, knownSince: ob.knownSince,
           allUnits: cfg.allUnits || [], yards: yardNames_(), base: (function () { try { return geoOf_(readSettings_().homeBase); } catch (e) { return null; } })() });
       }
       if (a === 'driverHistory') {
-        var since = Date.now() - Math.min(Number(d.days) || 15, 31) * 86400000, pret2 = rows_('Pretrips');
-        return json_({ status: 'ok', v: 3, shifts: rows_('Shifts').filter(function (s) { return String(s.driverId) === String(drv.id) && s.shiftType !== 'yard' && (s.status === 'Open' || (ms_(s.submittedAt) || ms_(s.startedAt)) >= since); }).map(function (s) { return drvFullShift_(s, pret2); }) });
+        var since = Date.now() - Math.min(Number(d.days) || 15, 31) * 86400000;
+        return json_({ status: 'ok', v: 3, shifts: shiftFill_(shiftLite_().filter(function (s) { return String(s.driverId) === String(drv.id) && s.shiftType !== 'yard' && (s.status === 'Open' || (ms_(s.submittedAt) || ms_(s.startedAt)) >= since); }), true).map(function (s) { return drvFullShift_(s); }) });
       }
       var sh = d.shift || {}, sid = cap_(sh.id, 80);
       if (!sid) return json_({ status: 'error', message: 'Missing shift id.' });
@@ -2028,6 +2035,23 @@ function shiftRow_(row) {
   var cols = TABS.Shifts, v = tab_('Shifts').getRange(row, 1, 1, cols.length).getValues()[0], o = { _row: row };
   cols.forEach(function (c, j) { o[c] = v[j]; }); return o;
 }
+// v14.4 SPEED: Shifts rows WITHOUT the two big columns (14 json = the whole log, 15 signature). Two small reads.
+// Same objects as rows_('Shifts') (same values, same _row) except json / signature are not filled in.
+function shiftLite_() {
+  var t = tab_('Shifts'), last = t.getLastRow(), cols = TABS.Shifts; if (last < 2) return [];
+  var a = t.getRange(2, 1, last - 1, 13).getValues(), b = t.getRange(2, 16, last - 1, cols.length - 15).getValues();
+  return a.map(function (v, i) { var o = { _row: i + 2 }; for (var j = 0; j < 13; j++) o[cols[j]] = v[j]; for (var k = 15; k < cols.length; k++) o[cols[k]] = b[i][k - 15]; return o; });
+}
+// fill in json (and the signature when asked) for some lite rows: ONE read of the block from the first to the last of them
+function shiftFill_(list, withSig) {
+  if (!list.length) return list;
+  var lo = Infinity, hi = 0; list.forEach(function (s) { if (s._row < lo) lo = s._row; if (s._row > hi) hi = s._row; });
+  var v = tab_('Shifts').getRange(lo, 14, hi - lo + 1, withSig ? 2 : 1).getValues();
+  list.forEach(function (s) { var r = v[s._row - lo]; s.json = r[0]; if (withSig) s.signature = r[1]; });
+  return list;
+}
+// the Pretrips row of one shift (read only when a shift's own log has no pre-trip detail)
+function pretripOf_(shiftId) { var r = findInCol1_('Pretrips', shiftId); if (r < 2) return null; var v = tab_('Pretrips').getRange(r, 1, 1, TABS.Pretrips.length).getValues()[0], o = { _row: r }; TABS.Pretrips.forEach(function (c, j) { o[c] = v[j]; }); return o; }
 // row of the first cell in column A equal to key (header row skipped), or -1. Reads one column only.
 function findInCol1_(name, key) {
   var t = tab_(name), last = t.getLastRow(); if (last < 2) return -1;
