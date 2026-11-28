@@ -209,7 +209,7 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
   function company() { try { return JSON.parse(localStorage.getItem('kfCompany') || '{}'); } catch (e) { return {}; } }
   window.kfBrand = function () {
     var co = company(), s = readSettings(), name = co.name || s.companyName || LS.get('kfCompanyName') || '';
-    var logo = co.logo || (!kfCo.unified() && kfCo.hasData() ? 'logo.jpg' : '');   // bundled logo only for a device on the original separate scripts
+    var logo = co.logo || '';   // v14.4: the logo saved in Billing → Settings (the website has no logo file of its own)
     var n = document.getElementById('companyNameBanner'); if (n) n.textContent = name || 'Set up your company';
     var img = document.getElementById('companyLogo');
     if (img) { if (logo) { if (img.getAttribute('src') !== logo) img.src = logo; img.style.visibility = 'visible'; } else { img.removeAttribute('src'); img.style.visibility = 'hidden'; } }
@@ -389,6 +389,12 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
     document.body.appendChild(ov);
     var pickCo = function () { if (many) { LS.set('kfCompanyPick', document.getElementById('kfsCo').value); LS.del('kfCompanyUrl'); LS.del('driversUrl'); var b = window.kfConfigUrl(); LS.set('kfCompanyUrl', b); LS.set('driversUrl', b + '?svc=drivers'); } };
     if (many && LS.get('kfCompanyPick')) document.getElementById('kfsCo').value = LS.get('kfCompanyPick');
+    // v14.4: an empty company-name box is filled in with this website's own company (people can still type another name)
+    if (!many && !document.getElementById('kfsCoName').value && window.kfConfigUrl()) {
+      fetch(window.kfConfigUrl() + '?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (m) {
+        var f = document.getElementById('kfsCoName'); if (f && !f.value && m && m.companyName) f.value = m.companyName;
+      }).catch(function () {});
+    }
     document.getElementById('kfsNew').onclick = function () { try { sessionStorage.setItem('kfNewCompany', '1'); } catch (e) {} location.replace('index.html?new=' + Date.now() + '#company'); };
     var msgEl = document.getElementById('kfsMsg'), bad = function (t) { msgEl.style.color = 'var(--bad,#dc2626)'; msgEl.textContent = t; };
     // the company: picked from the list, or looked up by its name in the company directory

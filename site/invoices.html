@@ -20,6 +20,7 @@ textarea { min-height: 90px; }
 .row > * { flex: 1; }
 @media (max-width: 700px) { .container { padding: 8px; } }
 </style>
+<link rel="icon" type="image/png" href="icon-192.png">
 </head>
 <body>
 <header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
@@ -216,7 +217,7 @@ textarea { min-height: 90px; }
       <label>Logo</label>
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;"><img id="coLogoPrev" alt="" style="width:64px;height:64px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--border);"><div id="coLogoWarn" class="hidden" style="color:var(--bad);font-weight:600;font-size:.9rem;">This logo was not saved completely (only the top shows). Choose it again or use the website logo, then Save.</div></div>
       <input type="file" id="coLogo" accept="image/*">
-      <button class="btn btn-outline btn-sm" id="coLogoSite" type="button" style="margin:0 0 10px;">Use the logo from this website</button>
+
       <div id="coPwWrap" class="hidden"><label>Company password (to save for every device)</label><input type="password" id="coPw" autocomplete="current-password"></div>
       <button class="btn" onclick="saveCo()">Save</button>
     </div>
@@ -287,7 +288,6 @@ window.kfOnProfile = () => { if (!$('settingsView').classList.contains('hidden')
 let pendingLogo = null;
 function previewLogo(l) { pendingLogo = l; $('coLogoPrev').src = l; $('coLogoPrev').style.visibility = 'visible'; $('coLogoWarn').classList.add('hidden'); }
 $('coLogo').addEventListener('change', async () => { const f = $('coLogo').files[0]; if (f) { try { previewLogo(await kfShrinkImage(f, 256)); } catch (e) { alert('Could not read that picture.'); } } });
-$('coLogoSite').onclick = async () => { try { previewLogo(await kfShrinkImage(await (await fetch('logo.jpg')).blob(), 256)); } catch (e) { alert('This website has no logo.jpg.'); } };
 async function saveCo() {
   const old = getCo();
   const co = {
@@ -866,7 +866,7 @@ async function completeLoad() {
   const ctx = pendingCtx(); if (!ctx) return;
   if (!ctx.ticket) { alert('This load has no Load/Ticket ID, so the sheet row cannot be matched.'); return; }
   if (!confirm('Mark ' + ctx.ticket + ' as invoiced? (Payments are recorded separately under Owing.)')) return;
-  busy('Marking paid…');
+  busy('Marking invoiced…');
   try {
     const r = await markPaid(ctx, { loadId: ctx.ticket, customerName: current.customerName, timestamp: current.timestamp, location: current.location, species: current.species, truck: current.truck });
     busy(false);
@@ -884,7 +884,7 @@ async function completeNew() {
   const id = ctx.tripId || ctx.ticket;
   if (!id) { alert('Enter the Weight Ticket # or Trip ID so the sheet row can be found.'); return; }
   if (!confirm('Mark ' + id + ' as invoiced in the sheet?')) return;
-  busy('Marking paid…');
+  busy('Marking invoiced…');
   try {
     const load = await fetchLoad(ctx.tripId, ctx.ticket);
     const r = await markPaid(ctx, { loadId: (load && load.loadId) || id, customerName: ctx.model.customer });

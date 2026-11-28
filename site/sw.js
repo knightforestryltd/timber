@@ -1,6 +1,6 @@
 const CACHE = 'kf-quotes-v14.4';
 // Pages and files kept on the phone so the app still opens without signal (Drivers especially).
-const FILES = ['/', '/index.html', '/drivers.html', '/dispatch.html', '/invoices.html', '/scale.html', '/yards.html', '/trucks.html', '/statistics.html', '/kf-config.js', '/kf-stock.js', '/kf-stats.js', '/theme.css', '/theme.js', '/nav.js', '/logo.jpg', '/html2pdf.bundle.min.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const FILES = ['/', '/index.html', '/drivers.html', '/dispatch.html', '/invoices.html', '/scale.html', '/yards.html', '/trucks.html', '/statistics.html', '/kf-config.js', '/kf-stock.js', '/kf-stats.js', '/theme.css', '/theme.js', '/nav.js', '/html2pdf.bundle.min.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(FILES.map(f => c.add(f).catch(() => null)))).then(() => self.skipWaiting()));

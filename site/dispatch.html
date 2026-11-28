@@ -35,6 +35,7 @@ input { width: 100%; padding: 12px; min-height: 46px; margin-bottom: 12px; }
 @media (max-width: 700px) { .container { padding: 8px; } }
 </style>
 
+<link rel="icon" type="image/png" href="icon-192.png">
 </head>
 <body>
 <header style="background:#0f172a;color:white;padding:8px 10px;position:sticky;top:0;z-index:100;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;">
@@ -215,16 +216,17 @@ function cardHtml(l, i, list) {
     <div class="where">${escHtml(l.place || l.address || 'No address')}</div>
     <div>${escHtml(l.species || '')}${t ? ' · ' + escHtml(t) + ' t' : ''} · from ${escHtml(l.location || '—')}${l.truck ? ' · ' + escHtml(l.truck) : ''}</div>
     ${l.driverName || l.unitId || l.requestedDate ? `<div class="small">${l.requestedDate ? 'For ' + escHtml(l.requestedDate) + ' · ' : ''}${l.driverName || l.unitId ? escHtml(l.driverName || 'no driver') + ' · ' + escHtml(unitLabel(l.unitId) || 'no truck') : '<b>not assigned</b>'}</div>` : ''}
-    <div class="small">${escHtml(cycleText(l))}${l.km ? ' · ' + escHtml(l.km) + ' km one way' : ''} · ${escHtml(daysSince(l.timestamp))}${l._pending ? ' · <b>not sent yet</b>' : ''}</div>
+    <div class="small">${escHtml(cycleText(l))}${l.km ? ' · ' + escHtml(l.km) + ' km one way' : ''} · ${escHtml(daysSince(l.timestamp))}</div>${l._pending ? '<div class="small" style="margin-top:4px"><span style="background:#f59e0b;color:#111;border-radius:999px;padding:2px 8px;font-weight:700">⏳ Waiting for signal · not in the sheet yet</span></div>' : ''}
   </div>`;
 }
 function renderList() {
   const el = document.getElementById('loadList');
   const c = { waiting: 0, started: 0, delivered: 0 }; loads.forEach(l => c[statusOf(l)]++);
   document.getElementById('listCounts').innerHTML = `<b>${c.waiting}</b> waiting · <b style="color:#16a34a">${c.started}</b> started · <b style="color:#d97706">${c.delivered}</b> delivered, pending billing · <b style="color:#2563eb">${doneLoads.length}</b> paid`;
-  if (listTab === 'done') { el.innerHTML = doneLoads.length ? doneLoads.map((l, i) => cardHtml(l, i, 'done')).join('') : '<p style="color:var(--muted);">No paid loads yet.</p>'; return; }
+  if (listTab === 'done') { el.innerHTML = doneLoads.length ? doneLoads.map((l, i) => cardHtml(l, i, 'done')).join('') : '<p style="color:var(--muted);">No invoiced loads yet.</p>'; return; }
   if (!loads.length) { el.innerHTML = '<p style="color:var(--muted);">No pending loads.</p>'; return; }
-  el.innerHTML = loads.map((l, i) => cardHtml(l, i, 'pending')).join('');
+  const waitN = loads.filter(l => l._pending).length;     // v14.4: changes this phone could not send yet
+  el.innerHTML = (waitN ? `<div class="card" style="border-color:#f59e0b;font-weight:700">⏳ ${waitN} change${waitN === 1 ? '' : 's'} waiting for signal. They are sent by themselves; keep this page open or come back to it.</div>` : '') + loads.map((l, i) => cardHtml(l, i, 'pending')).join('');
 }
 
 // cords only when a tonnes-per-cord factor is set for this species at this location (no default). Split is always cords.
@@ -473,17 +475,20 @@ async function updateStatus(status, loadId, net) {
   const key = loadKey(current), body = statusBody(current, status, loadId, net);
   setLocalState(key, { status, loadId, netTonnes: net, pending: true, body });
   if (!QUOTE_URL) return;
-  try { await postStatus(body); const s = getLocalState(); delete s[key]; localStorage.setItem('kfDispatch', JSON.stringify(s)); } catch (e) {}
+  try { const j = await postStatus(body); const s = getLocalState(); delete s[key]; localStorage.setItem('kfDispatch', JSON.stringify(s)); if (j.status === 'notfound') lostLoads([current.customerName]); } catch (e) {}
 }
+// v14.4: the sheet no longer has the load (the office deleted it): say so instead of dropping the change quietly
+function lostLoads(names) { if (names.length) alert('Not saved: ' + names.join(', ') + (names.length === 1 ? ' is' : ' are') + ' no longer in the sheet (the office may have deleted the load). Tap ↻ to refresh Dispatch.'); }
 async function sendPending() {
   if (!QUOTE_URL || navigator.onLine === false) return;
-  const s = getLocalState();
+  const s = getLocalState(), lost = [];
   for (const k of Object.keys(s)) {
     if (!s[k] || !s[k].pending) { delete s[k]; continue; }     // old remembered values: the sheet is the truth now
     if (!s[k].body) continue;
-    try { await postStatus(s[k].body); delete s[k]; } catch (e) { break; }
+    try { const j = await postStatus(s[k].body); if (j.status === 'notfound') lost.push(s[k].body.customerName || 'a load'); delete s[k]; } catch (e) { break; }
   }
   localStorage.setItem('kfDispatch', JSON.stringify(s));
+  lostLoads(lost);
 }
 
 /* ======================= v14: Edit load + Assign (office) ======================= */

@@ -34,7 +34,8 @@ async function setup(opts) {
     await ctx.route(/^https:\/\/script\.google(usercontent)?\.com\//, async (route) => {
       const req = route.request(), u = new URL(req.url()), params = Object.fromEntries(u.searchParams.entries());
       let out, body = req.postData();
-      try { out = req.method() === 'POST' ? rt.post(params, body || '') : rt.get(params); }
+      const sid = (/\/macros\/s\/([^/]+)\/exec/.exec(u.pathname) || [])[1], target = (opts.byId && opts.byId[sid]) || rt;   // each script link can be its own company
+      try { out = req.method() === 'POST' ? target.post(params, body || '') : target.get(params); }
       catch (e) { out = { status: 'mock-crash', message: String(e && e.stack || e) }; }
       log.requests.push({ method: req.method(), svc: params.svc || '', action: (() => { try { return JSON.parse(body || '{}').action; } catch (e) { return '?'; } })() || params.action || '', status: out && out.status, page: (route.request().frame() && route.request().frame().url().split('/').pop()) || '' });
       await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(out) });

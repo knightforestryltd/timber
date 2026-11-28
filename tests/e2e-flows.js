@@ -33,11 +33,16 @@ const loads = rt => rt.get({ svc: 'loads', k: rt.key }).rows;
 
   await agroup('E2. Quote -> Book load (with notes and a deal)', async () => {
     await page.goto(BASE + 'index.html'); await page.waitForTimeout(1500);
+    const boxes = await page.$$eval('.species-cb', a => a.map(c => [c.value, c.checked]));
+    eq(boxes, [['Birch', false], ['Spruce', false]], 'species boxes come from Settings, all unticked');
+    eq(await page.isChecked('#splitCb'), false, 'Split starts unticked');
     await page.fill('#customerName', 'Jane Doe'); await page.fill('#customerPhone', '780-555-0101'); await page.fill('#addressInput', '53.40, -113.30');
+    await page.check('.species-cb[value="Birch"]');
     await page.click('#btnCalculate'); await page.waitForSelector('text=$1642', { timeout: 8000 });
+    check(!/North Block/.test(await page.evaluate(() => document.getElementById('results').innerText)), 'ticking Birch shows only Birch (no North Block spruce)');
     const priceText = await page.evaluate(() => document.getElementById('results').innerText);
     check(/Home Yard/.test(priceText) && /\$1642/.test(priceText) && /40\.0 t on hand/.test(priceText), 'Home Yard priced at $1642 and stock 40 t shown');
-    await page.click('text=$1642'); await page.click('#btnBookLoad'); await page.waitForSelector('#notesModal.show');
+    await page.click('text=$1642'); await page.click('#btnBookLoad'); await page.waitForSelector('#notesModal.show'); await page.waitForTimeout(300);
     await page.fill('#bookNotes', 'Gate code 4321 <b>bold</b>'); await page.fill('#bookAdj', '-42'); await page.selectOption('#bookAdjWhy', 'Deal'); await page.fill('#bookAdjNote', 'repeat customer');
     await page.click('#btnNotesOk'); await page.waitForTimeout(1500);
     const rows = loads(seed.rt);
@@ -57,15 +62,21 @@ const loads = rt => rt.get({ svc: 'loads', k: rt.key }).rows;
 
   await agroup('E3. Booking while the sheet is busy, then again', async () => {
     await page.goto(BASE + 'index.html'); await page.waitForTimeout(1200);
-    await page.fill('#customerName', 'Busy Bob'); await page.fill('#addressInput', '53.41, -113.31');
+    await page.fill('#customerName', 'Busy Bob'); await page.fill('#addressInput', '53.41, -113.31'); await page.check('.species-cb[value="Birch"]');
     await page.click('#btnCalculate'); await page.waitForSelector('text=$1642', { timeout: 8000 }); await page.click('text=$1642');
-    seed.rt.state.lockBusy = true;
-    await page.click('#btnBookLoad'); await page.waitForSelector('#notesModal.show'); await page.click('#btnNotesOk'); await page.waitForTimeout(1200);
-    check(E.log.dialogs.some(x => /busy, so this was NOT booked yet/.test(x)), 'busy -> clear "NOT booked yet, tap Book again" message');
+    seed.rt.state.lockBusy = true; const d0 = E.log.dialogs.length;
+    await page.click('#btnBookLoad'); await page.waitForSelector('#notesModal.show'); await page.waitForTimeout(300); await page.click('#btnNotesOk'); await page.waitForTimeout(1200);
+    eq(await page.textContent('#btnBookLoad'), 'Sheet busy, trying again…', 'busy sheet: the page tries again by itself');
     eq(loads(seed.rt).filter(r => r.customerName === 'Busy Bob').length, 0, 'nothing booked while busy');
-    seed.rt.state.lockBusy = false;
-    await page.click('#btnBookLoad'); await page.waitForSelector('#notesModal.show'); await page.click('#btnNotesOk'); await page.waitForTimeout(1200);
-    eq(loads(seed.rt).filter(r => r.customerName === 'Busy Bob').length, 1, 'tap Book again -> booked exactly once');
+    seed.rt.state.lockBusy = false; await page.waitForTimeout(6000);
+    eq(loads(seed.rt).filter(r => r.customerName === 'Busy Bob').length, 1, 'sheet free again -> booked exactly once, nobody had to tap again');
+    eq(E.log.dialogs.length, d0, 'no "not booked" message when the retry worked');
+    await page.fill('#customerName', 'Stuck Sam'); seed.rt.state.lockBusy = true;
+    page.__dialog = d => d.accept();
+    await page.click('#btnBookLoad'); await page.waitForSelector('#notesModal.show'); await page.waitForTimeout(300); await page.click('#btnNotesOk'); await page.waitForTimeout(17000);
+    check(E.log.dialogs.some(x => /stayed busy, so this was NOT booked yet/.test(x)), 'sheet busy the whole time -> clear "NOT booked yet" message');
+    seed.rt.state.lockBusy = false; page.__dialog = null;
+    eq(loads(seed.rt).filter(r => r.customerName === 'Stuck Sam').length, 0, 'and nothing was booked');
   });
 
   await agroup('E4. Dispatch: scale ticket in kg -> Started in tonnes -> Delivered', async () => {
@@ -96,6 +107,27 @@ const loads = rt => rt.get({ svc: 'loads', k: rt.key }).rows;
     if (await page.isVisible('#notesPopup')) await page.click('#notesPopup >> text=OK');
     await page.fill('#ticketInput', 'T500'); await page.click('text=Check Ticket'); await page.waitForTimeout(800);
     check(/already on the load for Jane Doe/.test(await page.textContent('#ticketResult')), 'same ticket on a second load is refused');
+    // a change made while the sheet is busy waits on the phone, clearly marked
+    seed.S('tickets', { action: 'save', row: ['T501', 'Birch', 'Busy Bob', 'Home Yard', 14000, 34000, 20000, '', '', new Date().toISOString(), ''] });
+    seed.rt.state.lockBusy = true;
+    try {
+      await page.fill('#ticketInput', 'T501'); await page.click('text=Check Ticket'); await page.waitForTimeout(1200);
+      if (await page.isVisible('#notesPopup')) await page.click('#notesPopup >> text=OK');
+      await page.goto(BASE + 'dispatch.html'); await page.waitForTimeout(1500);
+    } finally { seed.rt.state.lockBusy = false; }
+    const listTxt = await page.evaluate(() => document.getElementById('loadList').innerText);
+    check(/1 change waiting for signal/.test(listTxt) && /Waiting for signal · not in the sheet yet/.test(listTxt), 'unsent change: count above the list + amber label on the card');
+    await page.evaluate(() => sendPending()); await page.waitForTimeout(800);
+    eq([loads(seed.rt).find(r => r.customerName === 'Busy Bob').status, loads(seed.rt).find(r => r.customerName === 'Busy Bob').loadId], ['Started', 'T501'], 'the waiting change is sent once the sheet is free');
+    // the office deleted a load while this phone had it open
+    seed.S('loads', { timestamp: new Date().toISOString(), customerName: 'Gone Gary', address: '53.4, -113.3', bookingId: 'GONE', options: [{ location: 'North Block', species: 'Spruce', tonnes: 5, total: 300 }] });
+    await page.click('text=↻'); await page.waitForTimeout(1200);
+    seed.S('tickets', { action: 'save', row: ['T502', 'Spruce', 'Gone Gary', 'North Block', 4000, 9000, 5000, '', '', new Date().toISOString(), ''] });
+    await page.click('.card.ld:has-text("Gone Gary")'); await page.waitForTimeout(500);
+    seed.S('loads', { action: 'deleteLoad', find: { bookingId: 'GONE-1' } });
+    const dl = E.log.dialogs.length; page.__dialog = d => d.accept();
+    await page.fill('#ticketInput', 'T502'); await page.click('text=Check Ticket'); await page.waitForTimeout(1200); page.__dialog = null;
+    check(E.log.dialogs.slice(dl).some(x => /Gone Gary is no longer in the sheet/.test(x)), 'deleted load: the phone says the change was not saved');
   });
 
   await agroup('E5. Billing: invoice the delivered load', async () => {
@@ -103,7 +135,7 @@ const loads = rt => rt.get({ svc: 'loads', k: rt.key }).rows;
     await page.click('text=Pending Invoices'); await page.waitForTimeout(1200);
     const pend = await page.evaluate(() => document.body.innerText);
     check(/T500 - Jane Doe/.test(pend) && /30\.36 t/.test(pend), 'delivered load waiting in Pending Invoices with 30.36 t');
-    await page.click('[onclick^="openInvoice"]'); await page.waitForTimeout(1200);
+    await page.click('[onclick^="openInvoice"]:has-text("Jane Doe")'); await page.waitForTimeout(1200);
     eq(await page.inputValue('#invAmount'), '30.36', 'invoice amount pre-filled in tonnes');
     eq(await page.evaluate(() => typeof window.html2pdf), 'undefined', 'Billing opens without loading the 900 KB PDF tool');
     const pdf = await page.evaluate(async () => { const el = document.createElement('div'); el.innerHTML = '<div style="width:600px;padding:20px">Invoice test</div>'; await kfPdfLib(); const b = await html2pdf().from(el.firstChild).outputPdf('blob'); return { size: b.size, head: await b.slice(0, 5).text() }; });
@@ -113,7 +145,7 @@ const loads = rt => rt.get({ svc: 'loads', k: rt.key }).rows;
     check(/Test Forestry/.test(prev) && /Jane Doe/.test(prev) && /GST/.test(prev), 'invoice preview has company, customer and GST');
     await page.screenshot({ path: path.join(SHOTS, 'flow-invoice-preview.png'), fullPage: true });
     await page.goto(BASE + 'invoices.html'); await page.waitForTimeout(1200); await page.click('text=Pending Invoices'); await page.waitForTimeout(800);
-    await page.click('[onclick^="openInvoice"]'); await page.waitForTimeout(1000);
+    await page.click('[onclick^="openInvoice"]:has-text("Jane Doe")'); await page.waitForTimeout(1000);
     await page.click('text=Complete Load'); await page.waitForTimeout(1500);
     const l = loads(seed.rt).find(r => r.customerName === 'Jane Doe');
     eq(l.status, 'Paid', 'load marked invoiced (status Paid) in the sheet');

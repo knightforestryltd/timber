@@ -176,6 +176,7 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
   .btn-pair { grid-template-columns: 1fr; }
 }
 </style>
+<link rel="icon" type="image/png" href="icon-192.png">
 </head>
 <body>
 <div id="loginOverlay" class="login-overlay hidden">
@@ -245,11 +246,6 @@ input[readonly] { background: var(--surface-2); font-weight: 700; }
       <div class="form-group" style="margin:12px 0 16px;">
         <label>Show species</label>
         <div id="speciesFilter" class="sp-filter">
-          <label><input type="checkbox" class="species-cb" value="Birch" checked> Birch</label>
-          <label><input type="checkbox" class="species-cb" value="Spruce/Pine"> Spruce/Pine</label>
-          <label><input type="checkbox" class="species-cb" value="Tamarack"> Tamarack</label>
-          <label><input type="checkbox" class="species-cb" value="Sawlogs"> Sawlogs</label>
-          <label><input type="checkbox" class="species-cb" value="Poplar"> Poplar</label>
         </div>
       </div>
       <button class="btn" id="btnCalculate">Calculate Distances & Prices</button>
@@ -879,7 +875,19 @@ function needsPriceBadges(loc) {
   const have = (loc.species || []).map(s => s.name);
   return Object.keys(yi).filter(sp => !have.includes(sp) && yi[sp].Logs && yi[sp].Logs.qty > 0).map(sp => `<span class="badge needs-price" data-np-loc="${esc(loc.id)}" data-np-sp="${esc(sp)}" data-np-cost="${esc(yi[sp].Logs.avg)}" style="cursor:pointer;">${esc(sp)}: needs a price (avg cost $${yi[sp].Logs.avg.toFixed(2)}/t) · tap to add</span>`).join('');
 }
+// v14.4: one box per species in Settings → Pickup Locations, all unticked on a new quote. Tick what the customer asks for
+// (nothing ticked = every species is shown, as before).
+function renderSpeciesBoxes() {
+  const box = $('speciesFilter'); if (!box) return;
+  const ticked = new Set(Array.from(box.querySelectorAll('.species-cb:checked')).map(cb => cb.value));
+  const names = [...new Set((settings.locations || []).flatMap(l => (l.species || []).map(sp => String(sp.name || '').trim())).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  box.querySelectorAll('label.sp-one, .sp-none').forEach(e => e.remove());
+  const split = box.querySelector('.split-one'), add = el => box.insertBefore(el, split || null);
+  if (!names.length) { const n = document.createElement('div'); n.className = 'sp-none small'; n.textContent = 'No species yet: add them under Settings → Pickup Locations.'; add(n); return; }
+  names.forEach(nm => { const l = document.createElement('label'); l.className = 'sp-one'; l.innerHTML = `<input type="checkbox" class="species-cb" value="${esc(nm)}"${ticked.has(nm) ? ' checked' : ''}> ${esc(nm)}`; add(l); });
+}
 function renderLocations() {
+  try { renderSpeciesBoxes(); } catch (e) {}
   const list = $('locationsList');
   if (!list) return;
   list.innerHTML = (settings.locations || []).map(loc => `
@@ -1504,11 +1512,12 @@ const yardQty = (yard, sp, product) => yardInfo[yard] && yardInfo[yard][sp] && y
 // One "Split" box after the species list (remembered on this device): ticked species show their SPLIT options too.
 // (Older phones stored a list of species here; any ticked species then means Split was on.)
 function splitChosen() { try { const v = JSON.parse(localStorage.getItem('kfQuoteSplit') || 'false'); return Array.isArray(v) ? v.length > 0 : !!v; } catch (e) { return false; } }
-(function addSplitBox() {
+(function addSplitBox() {   // v14.4: starts unticked (no longer remembered)
   const l = document.createElement('label'); l.className = 'split-one';
-  l.innerHTML = `<input type="checkbox" id="splitCb" ${splitChosen() ? 'checked' : ''}> Split <span class="small" style="font-weight:400">(split options for the species ticked)</span>`;
+  l.innerHTML = `<input type="checkbox" id="splitCb"> Split <span class="small" style="font-weight:400">(split options for the species ticked)</span>`;
   document.getElementById('speciesFilter').appendChild(l);
   document.getElementById('splitCb').addEventListener('change', e => { try { localStorage.setItem('kfQuoteSplit', JSON.stringify(e.target.checked)); } catch (er) {} });
+  try { renderSpeciesBoxes(); } catch (e) {}
 })();
 function splitWanted(sp) {
   if (!document.getElementById('splitCb') || !document.getElementById('splitCb').checked) return false;
@@ -1905,17 +1914,24 @@ $('btnBookLoad').onclick = async () => {
   const btn = $('btnBookLoad'), label = btn.textContent;
   bookingBusy = true; btn.disabled = true; btn.textContent = 'Booking…';
   try {
-    const res = await fetch(settings.sheetsUrl, {
-      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload), redirect: 'follow'
-    });
+    // v14.4: a busy sheet is tried again by itself (3 more times, a few seconds apart). The booking id stays the same,
+    // so the sheet can never get it twice.
     let data = null;
-    try { data = await res.json(); } catch (e) {}
+    for (let tryNo = 0; tryNo < 4; tryNo++) {
+      if (tryNo) { btn.textContent = 'Sheet busy, trying again…'; await new Promise(r => setTimeout(r, 2500 * tryNo)); }
+      const res = await fetch(settings.sheetsUrl, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload), redirect: 'follow'
+      });
+      data = null;
+      try { data = await res.json(); } catch (e) {}
+      if (!data || data.status !== 'busy') break;
+    }
     lastBookedSig = sig;
     if (data && data.status === 'ok') pendingBooking = null;
     if (data && data.status === 'ok' && data.duplicate) { alert('This booking had already reached the sheet. It was not added again.'); return; }
     if (data && data.status === 'ok') { if (notes && !data.notesSaved) alert('Booked, but your notes were NOT saved (the company script is an old version).'); else kfToast('Booked. It is on Dispatch now.'); }
-    else if (data && data.status === 'busy') { lastBookedSig = ''; alert('The office sheet was busy, so this was NOT booked yet. Tap Book again (it can never be booked twice).'); }
+    else if (data && data.status === 'busy') { lastBookedSig = ''; alert('The office sheet stayed busy, so this was NOT booked yet. Tap Book again in a minute (it can never be booked twice).'); }
     else if (data && data.status === 'error') { lastBookedSig = ''; pendingBooking = null; alert('The sheet reported an error: ' + (data.message || 'unknown')); }
     else alert('Sent, but no confirmation came back. Check Dispatch before booking again.');
   } catch (e) {
@@ -2315,7 +2331,6 @@ $('btnMove').onclick = async () => {
     say('Saving company info…');
     const co = JSON.parse(localStorage.getItem('kfCompany') || '{}');
     let logo = co.logo || '';
-    if (!logo) { try { const bl = await (await fetch('logo.jpg')).blob(); logo = await kfShrinkImage(bl, 256); } catch (e) {} }
     await companyPost(base + '?svc=sync', { action: 'saveProfile', password: pw, profile: Object.assign({}, co, { name: co.name || settings.companyName || '', logo }) });
     // tell the other devices (they read the old Company Sync) where the company went
     let told = false;
