@@ -161,6 +161,9 @@ function readSettings_() {
 }
 function writeSettings_(obj) {
   var p = props_(), raw = JSON.stringify(obj), oldN = parseInt(p.getProperty('companySettings_n') || '0', 10), batch = {}, parts = [];
+  // v14.4: measured BEFORE anything is written, so a save that is too big changes nothing (Google's limit is 500 KB in all)
+  var all = p.getProperties(), other = 0; Object.keys(all).forEach(function (k) { if (!/^companySettings_/.test(k)) other += k.length + String(all[k]).length; });
+  if (other + raw.length + 40 * (Math.ceil(raw.length / CHUNK) + 1) > 480000) throw new Error('Settings too large for the 500 KB quota');
   for (var i = 0; i < raw.length; i += CHUNK) parts.push(raw.substr(i, CHUNK));
   parts.forEach(function (s, j) { batch['companySettings_' + j] = s; });
   batch.companySettings_n = String(parts.length);
@@ -196,6 +199,9 @@ function styleHeader_(rng) { try { rng.setFontWeight('bold').setBackground('#166
 function headOf_(name) { return name === 'Loads' ? LOAD_ALL : name === 'Tickets' ? TICKET_HEADERS : name === 'Yards' ? YARD_ALL : TABS[name]; }
 // A new tab starts with 26 columns; make room on the RIGHT only (existing columns never move).
 function ensureCols_(sh, n) { var m = sh.getMaxColumns(); if (m < n) sh.insertColumnsAfter(m, n - m); }
+// v14.4: a tab has a fixed number of rows (1000 when new). Writing below the last one fails, so empty rows are
+// added at the BOTTOM first (in blocks of 500). Rows that are already there never move.
+function ensureRows_(sh, lastRow) { var m = sh.getMaxRows(); if (m < lastRow) sh.insertRowsAfter(m, Math.max(lastRow - m, 500)); }
 // Write the header names of NEW columns into an existing tab, once. Only empty header cells are written,
 // so nothing that is already there is ever changed.
 function extendHeader_(name, sh) {
@@ -251,7 +257,9 @@ function line_(name, o) {
 }
 function appendMany_(name, list) {
   if (!list.length) return;
-  var sh = tab_(name), r = Math.max(sh.getLastRow() + 1, 2), cols = TABS[name].length, rng = sh.getRange(r, 1, list.length, cols);
+  var sh = tab_(name), r = Math.max(sh.getLastRow() + 1, 2), cols = TABS[name].length;
+  ensureRows_(sh, r + list.length - 1);
+  var rng = sh.getRange(r, 1, list.length, cols);
   try { rng.setNumberFormat('@'); } catch (e) {}
   rng.setValues(list.map(function (o) { return line_(name, o); }));
 }
@@ -395,7 +403,7 @@ function syncPost_(p, d) {
     if (!inc.dispatch && cur.dispatch) inc.dispatch = cur.dispatch;    // customer-text settings are saved from Dispatch → Settings
     if (!inc.apiKey && cur.apiKey) inc.apiKey = cur.apiKey;            // a blank Maps key never erases the saved one
     mergeGuard_(inc, cur);                                             // an old cached Quote page cannot wipe v14 settings
-    writeSettings_(inc);
+    try { writeSettings_(inc); } catch (e) { return json_({ status: 'error', message: /quota|too large/i.test(String(e)) ? 'Too much to store: Google keeps at most about 500 KB of settings (the company logo counts too). Nothing was changed. Remove unused locations or choose a smaller logo.' : String(e) }); }
     var r2 = bumpRev_(); log_('sync', 'settings saved', 'rev ' + r2, '');
     return json_({ status: 'saved', rev: r2, v: SCRIPT_VERSION });
   }
@@ -640,7 +648,7 @@ function loadsPost_(d) {
       o.bookingData ? cap_(typeof o.bookingData === 'string' ? o.bookingData : JSON.stringify(o.bookingData), 4000) : '',
       n0(lg.emptyOutKm), n0(lg.emptyOutH), n0(lg.loadedKm), n0(lg.loadedH), n0(lg.emptyBackKm), n0(lg.emptyBackH), n0(lg.emptyFuelL), ''];
   }).filter(function (r) { return r; });
-  if (rows.length) { ensureCols_(sh, LOAD_ALL.length); sh.getRange(next, 1, rows.length, LOAD_ALL.length).setValues(rows); try { addPlaces_([{ address: d.address }], true); } catch (e) {} }
+  if (rows.length) { ensureCols_(sh, LOAD_ALL.length); ensureRows_(sh, next + rows.length - 1); sh.getRange(next, 1, rows.length, LOAD_ALL.length).setValues(rows); try { addPlaces_([{ address: d.address }], true); } catch (e) {} }
   log_('loads', 'booked', d.customerName || '', rows.length + ' option(s)' + (bid0 ? ' ' + bid0 : ''));
   return json_({ status: 'ok', notesSaved: true, v: SCRIPT_VERSION, duplicate: !rows.length && !!(d.options || []).length });
 }
@@ -723,6 +731,7 @@ function ticketsPost_(d) {
   }
   // edit: find the ticket by the number it had when the edit started (the number itself may have been changed)
   // save: a ticket number that already exists is updated, never added twice (a resent save cannot duplicate)
+  if ((d.action === 'edit' || d.action === 'save') && d.row && !Array.isArray(d.row)) return json_({ status: 'error', message: 'Bad ticket.' });
   if ((d.action === 'edit' || d.action === 'save') && d.row && d.row[0]) {
     var row = d.row.slice(0, 11); while (row.length < 11) row.push('');
     var find = function (key) { if (last < 2 || !key) return -1; var nn = sh.getRange(2, 1, last - 1, 1).getValues(); for (var j = 0; j < nn.length; j++) if (String(nn[j][0]) === String(key)) return j + 2; return -1; };
@@ -1399,7 +1408,7 @@ function yardRow_(o) {
     o.loadId || '', o.pendingTonnes === undefined ? '' : o.pendingTonnes, o.entryId || '', o.by || ''];
 }
 function yardAppend_(list) {
-  if (!list.length) return; var sh = sheet_('Yards'), r = Math.max(sh.getLastRow() + 1, 2);
+  if (!list.length) return; var sh = sheet_('Yards'), r = Math.max(sh.getLastRow() + 1, 2); ensureRows_(sh, r + list.length - 1);
   sh.getRange(r, 1, list.length, YARD_ALL.length).setValues(list.map(yardRow_));
 }
 function yardHasEntry_(rows, id) { return !!id && rows.some(function (r) { return String(r.entryId) === String(id); }); }
@@ -2106,6 +2115,7 @@ function testAll_() {
 // Run testTrucksMoney_ from the editor ON THE TEST COPY. It only deletes the rows it made itself (ids start with TEST-).
 function testTrucksMoney_() {
   var out = [], ok = function (c, m) { out.push((c ? 'OK  ' : 'FAIL ') + m); };
+  seedTemplates_();   // v14.4: on a copy where Trucks was never opened the PM-A / PM-B templates are made first (same as opening Trucks)
   var tag = 'TEST-' + Date.now().toString(36), w = { admin: true, office: true, name: 'testTrucksMoney_', roles: [] };
   append_('Units', { id: tag + '-U', type: 'truck', name: tag + ' truck', status: 'In service', trackHours: 'yes', currentOdo: 1000, currentHours: 100, updatedAt: nowIso_() });
   var units = rows_('Units');

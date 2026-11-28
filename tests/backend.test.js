@@ -135,8 +135,9 @@ group('4. Company settings: save, guards, conflicts, size', () => {
   // Script Properties total quota (500 KB)
   const huge = SETTINGS(); for (let i = 0; i < 2600; i++) huge.locations.push({ id: 'H' + i, name: 'Location number ' + i, address: i + ' Some Long Road Name, County of Somewhere, Alberta T0A 0A0', species: [{ name: 'Spruce', costPerTonne: 20, pricePerTonne: 40, tonnesPerCord: 1.5 }] });
   const sh = rt.sync({ action: 'saveSettings', settings: huge });
-  check(sh.status === 'saved' || /quota|too large/i.test(sh.message || ''), 'very large settings (' + Math.round(JSON.stringify(huge).length / 1024) + ' KB) either save or fail with a clear quota message: ' + (sh.status + ' ' + (sh.message || '')).slice(0, 120));
+  check(sh.status === 'saved' || /quota|too large|Too much to store/i.test(sh.message || ''), 'very large settings (' + Math.round(JSON.stringify(huge).length / 1024) + ' KB) either save or fail with a clear quota message: ' + (sh.status + ' ' + (sh.message || '')).slice(0, 120));
   const after = rt.get({ svc: 'sync', k: rt.key });
+  check(Object.keys(rt.state.props).filter(k => /^companySettings_\d+$/.test(k)).length === Number(rt.state.props.companySettings_n), 'refused save wrote no settings pieces');
   check(after.locations && after.locations.length >= 2, 'a failed oversized save leaves earlier settings readable', JSON.stringify(after).slice(0, 300) + ' chunks n=' + rt.state.props.companySettings_n + ' keys=' + Object.keys(rt.state.props).filter(k => /^companySettings_/.test(k)).length);
 });
 
@@ -669,21 +670,40 @@ group('25. Company directory (sign in by company name)', () => {
   eq(dir2.post({ svc: 'sync' }, { action: 'registerCompany', url: 'https://script.google.com/macros/s/XYZ/exec' }).status, 'taken', 'another company cannot take a registered name');
 });
 
-/* ---------- Sheets grid limit (needs confirming on a TEST copy) ---------- */
-group('26. [risk probe] tabs growing past 1000 rows with strict grid limits', () => {
-  const rt = company({ strictRows: true });
+group('26. Tabs keep working past row 1000 (Google refuses rows below the grid)', () => {
+  const rt = company();
   rt.sync({ action: 'saveSettings', settings: SETTINGS() });
   let firstFail = null;
-  for (let i = 0; i < 1100 && !firstFail; i++) {
-    const r = rt.tickets({ action: 'save', row: ['N' + i, 'L', 'C', 'S', 1, 2, 1, '', '', '', ''] });
-    if (r.status !== 'ok') firstFail = 'ticket #' + i + ': ' + r.status + ' ' + (r.message || '');
-  }
-  check(!firstFail, 'tickets (appendRow) keep working past row 1000', firstFail);
-  const logRows = rt.sheet('Log').getLastRow();
-  check(logRows > 1000, 'Log keeps growing past row 1000 under a strict grid (has ' + logRows + ' rows)', 'Log stopped at row ' + logRows + ' -> append_ uses getRange beyond the grid; log_() swallows the error');
+  for (let i = 0; i < 1100 && !firstFail; i++) { const r = rt.tickets({ action: 'save', row: ['N' + i, 'L', 'C', 'S', 1, 2, 1, '', '', '', ''] }); if (r.status !== 'ok') firstFail = 'ticket #' + i + ': ' + r.status; }
+  check(!firstFail, 'tickets keep working past row 1000', firstFail);
+  check(rt.sheet('Log').getLastRow() > 1000, 'Log keeps growing past row 1000 (has ' + rt.sheet('Log').getLastRow() + ')');
   let expFail = null;
   for (let i = 0; i < 1100 && !expFail; i++) { const r = rt.money({ action: 'saveExpense', expense: { id: 'E' + i, amount: 1, date: '2026-11-01' } }); if (r.status !== 'ok') expFail = 'expense #' + i + ': ' + r.message; }
-  check(!expFail, 'Expenses (append_ via getRange) keep working past row 1000', expFail);
+  check(!expFail, 'Expenses keep working past row 1000', expFail);
+  for (let i = 0; i < 1000; i++) book(rt, { bookingId: 'G' + i, customerName: 'C' + i });
+  eq(rt.get({ svc: 'loads', k: rt.key }).rows.length, 1000, '1000 bookings all on the Loads tab (rows 5..1004)');
+  for (let i = 0; i < 1000; i++) rt.yardsAdmin({ action: 'drop', drop: { id: 'YD' + i, yard: 'Home Yard', species: 'Birch', tonnes: 1, woodPrice: 10 } });
+  eq(rt.yardsAdmin({ action: 'stock' }).stock['Home Yard|Birch|Logs'].qty, 1000, '1000 v14 yard drops all saved');
+});
+
+group('28. DATA SAFETY: rows already in the sheet never change when the tab grows', () => {
+  const rt = company();
+  rt.sync({ action: 'saveSettings', settings: SETTINGS() });
+  for (let i = 0; i < 995; i++) book(rt, { bookingId: 'S' + i, customerName: 'Cust ' + i, phone: '0' + i });
+  for (let i = 0; i < 997; i++) rt.money({ action: 'saveExpense', expense: { id: 'X' + i, amount: i, date: '2026-11-01', note: 'n' + i } });
+  for (let i = 0; i < 990; i++) rt.yardsAdmin({ action: 'drop', drop: { id: 'Y' + i, yard: 'Home Yard', species: 'Birch', tonnes: 1 + i % 7, woodPrice: 10 } });
+  const snap = n => JSON.stringify(rt.sheet(n)._cells.slice(0, rt.sheet(n).getLastRow()));
+  const tabs = rt.ss().getSheets().map(s => s.getName()).filter(n => n !== 'Log');
+  const before = {}; tabs.forEach(n => before[n] = { cells: snap(n), rows: rt.sheet(n).getLastRow() });
+  const logBefore = JSON.stringify(rt.sheet('Log')._cells.slice(0, rt.sheet('Log').getLastRow()));
+  const ins0 = rt.state.rowsInserted || 0;
+  for (let i = 0; i < 30; i++) { book(rt, { bookingId: 'N' + i }); rt.money({ action: 'saveExpense', expense: { id: 'NX' + i, amount: 1 } }); rt.yardsAdmin({ action: 'drop', drop: { id: 'NY' + i, yard: 'Home Yard', species: 'Birch', tonnes: 1, woodPrice: 10 } }); }
+  check((rt.state.rowsInserted || 0) > ins0, 'tabs were grown (' + ((rt.state.rowsInserted || 0) - ins0) + ' empty rows added at the bottom)');
+  const changed = tabs.filter(n => JSON.stringify(rt.sheet(n)._cells.slice(0, before[n].rows)) !== before[n].cells);
+  eq(changed, [], 'every cell that was already in every tab is byte-for-byte the same');
+  check(JSON.stringify(rt.sheet('Log')._cells.slice(0, JSON.parse(logBefore).length)) === logBefore, 'every existing Log row is the same');
+  eq(rt.get({ svc: 'loads', k: rt.key }).rows.length, 1025, 'all 995 old + 30 new bookings readable');
+  eq(rt.call('checkStructure')[0], 'All checks passed', 'structure check still passes');
 });
 
 group('27. Upgrade from a v14 sheet (new v14.3 columns added on the right, nothing moves)', () => {

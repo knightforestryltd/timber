@@ -43,7 +43,7 @@ function createRuntime(opts = {}) {
       if (c + nc - 1 > this._maxCols) throw new Error('Exception: The coordinates of the range are outside the dimensions of the sheet. (' + this._name + ' cols ' + (c + nc - 1) + ' > ' + this._maxCols + ')');
       if (r + nr - 1 > this._maxRows) { // Sheets throws for rows beyond the grid too, except we grow to model appendRow-like growth; record it.
         warn('row range beyond max rows on ' + this._name + ' (' + (r + nr - 1) + ' > ' + this._maxRows + ')');
-        if (opts.strictRows) throw new Error('Exception: The coordinates of the range are outside the dimensions of the sheet. (' + this._name + ' rows)');
+        if (opts.strictRows !== false) throw new Error('Exception: The coordinates of the range are outside the dimensions of the sheet. (' + this._name + ' rows)');
         this._maxRows = r + nr - 1;
       }
       return new Range(this, r, c, nr, nc);
@@ -51,7 +51,7 @@ function createRuntime(opts = {}) {
     getDataRange() { return this.getRange(1, 1, Math.max(1, this.getLastRow()), Math.max(1, this.getLastColumn())); },
     appendRow(vals) { const r = this.getLastRow() + 1; if (vals.length > this._maxCols) this._maxCols = vals.length; if (r > this._maxRows) this._maxRows = r; new Range(this, r, 1, 1, vals.length).setValues([vals]); return this; },
     insertColumnsAfter(after, n) { this._cells.forEach(row => { if (row && row.length > after) row.splice(after, 0, ...Array(n).fill('')); }); this._maxCols += n; return this; },
-    insertRowsAfter(after, n) { this._cells.splice(after, 0, ...Array(n).fill(null).map(() => [])); this._maxRows += n; return this; },
+    insertRowsAfter(after, n) { if (after > this._maxRows) throw new Error('insertRowsAfter: row out of range'); const f = this._fmt[after - 1]; this._cells.splice(after, 0, ...Array(n).fill(null).map(() => [])); this._fmt.splice(after, 0, ...Array(n).fill(null).map(() => (f ? f.slice() : []))); this._maxRows += n; state.rowsInserted = (state.rowsInserted || 0) + n; return this; },   // new rows take the format of the row above, like Sheets
     deleteRow(r) { if (r > this._maxRows) throw new Error('deleteRow out of range'); this._cells.splice(r - 1, 1); this._fmt.splice(r - 1, 1); this._maxRows--; return this; },
     deleteRows(r, n) { if (r + n - 1 > this._maxRows) throw new Error('deleteRows: Those rows are out of bounds.'); if (n >= this._maxRows) throw new Error('You can\'t delete all the rows on the sheet.'); this._cells.splice(r - 1, n); this._fmt.splice(r - 1, n); this._maxRows -= n; return this; },
     setFrozenRows(n) { this._frozen = n; return this; }, getFrozenRows() { return this._frozen; },
