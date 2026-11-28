@@ -213,8 +213,31 @@ if (!('KF_COMPANY_URL' in window)) { try { document.write('<script src="kf-confi
     var n = document.getElementById('companyNameBanner'); if (n) n.textContent = name || 'Set up your company';
     var img = document.getElementById('companyLogo');
     if (img) { if (logo) { if (img.getAttribute('src') !== logo) img.src = logo; img.style.visibility = 'visible'; } else { img.removeAttribute('src'); img.style.visibility = 'hidden'; } }
+    try { appIcons(logo, name); } catch (e) {}
     return { name: name, logo: logo };
   };
+  // v14.4: the company's own logo (Billing → Settings) is also the browser-tab icon, the home-screen icon and the
+  // laptop "Install app" icon + name. No logo saved yet: the website's own icon. Nothing is stored; it is drawn on each page.
+  var iconsFor = null;
+  function headLink(rel) { var l = document.querySelector('link[rel="' + rel + '"]'); if (!l) { l = document.createElement('link'); l.rel = rel; document.head.appendChild(l); } return l; }
+  function appIcons(logo, name) {
+    var key = logo + '|' + name; if (iconsFor === key) return; iconsFor = key;
+    var apply = function (i192, i512) {
+      headLink('icon').href = i192; headLink('apple-touch-icon').href = i192;
+      var base = location.origin + '/', m = { name: name || 'Operations', short_name: (name || 'Operations').slice(0, 24), start_url: base, scope: base, display: 'standalone', background_color: '#f4f6f8', theme_color: '#1a365d',
+        icons: [{ src: i192.indexOf('data:') === 0 ? i192 : base + i192, sizes: '192x192', type: 'image/png' }, { src: i512.indexOf('data:') === 0 ? i512 : base + i512, sizes: '512x512', type: 'image/png' }] };
+      headLink('manifest').href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(m));
+    };
+    if (!logo) { apply('icon-192.png', 'icon-512.png'); return; }
+    var im = new Image();
+    im.onload = function () {
+      var draw = function (px) { var c = document.createElement('canvas'); c.width = c.height = px; var g = c.getContext('2d'), k = Math.min(px / im.width, px / im.height), w = im.width * k, h = im.height * k;
+        g.imageSmoothingQuality = 'high'; g.drawImage(im, (px - w) / 2, (px - h) / 2, w, h); return c.toDataURL('image/png'); };   // any shape of logo, centred on a square
+      apply(draw(192), draw(512));
+    };
+    im.onerror = function () { apply('icon-192.png', 'icon-512.png'); };
+    im.src = logo;
+  }
   document.addEventListener('DOMContentLoaded', function () {
     window.kfBrand();
     // company settings, name and logo: checked once each time a page is opened

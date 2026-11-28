@@ -15,7 +15,9 @@ Old v14 pages (still cached on a phone) work with the v14.4 script. Tested.
    (columns "not added yet" are fine; they are added the first time each tab is used).
 4. **Website.** Upload every file from `script_and_website-v14.4.zip`, then **delete `logo.jpg`** from the site (v14.4 has none).
    `app.apk` is unchanged.
-5. **Logo.** On an admin device: **Billing → Settings → logo → Save**. Every page now shows that logo.
+5. **Logo.** On an admin device: **Billing → Settings → logo → Save**. Every page now shows that logo in the header, as the
+   browser-tab icon and as the icon when the site is installed on a laptop or added to a phone home screen.
+   (A laptop that already installed the site keeps its old icon until it is installed again.)
    (Until then the header shows only the company name.)
 6. **Rollback if ever needed.** Deploy → Manage deployments → ✏ → choose the previous version → Deploy, and put the v14 website files back.
    v14 reads and writes the sheet normally after v14.4 has used it. Tested.

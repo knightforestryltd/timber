@@ -83,6 +83,36 @@ const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch:
     await p.goto(BASE + 'invoices.html'); await p.waitForTimeout(800); await p.click('text=Settings'); await p.waitForTimeout(600);
     check(!(await p.isVisible('text=Use the logo from this website')), 'Billing settings no longer offers the website\'s own logo file');
     check(!served.some(u => /logo\.jpg/.test(u)), 'no page asked the website for logo.jpg');
+  });
+
+  await agroup('C5. The company logo is the tab icon, home-screen icon and laptop install icon', async () => {
+    const c = await E.newContext(), p = await c.newPage(); E.watch(p, 'icons');
+    const cdp = await c.newCDPSession(p);
+    const iconState = async () => { await p.waitForTimeout(600); const m = await cdp.send('Page.getAppManifest'); const inst = await cdp.send('Page.getInstallabilityErrors');
+      const j = m.url && m.url.indexOf('data:') === 0 ? JSON.parse(decodeURIComponent(m.url.split(',').slice(1).join(','))) : null;
+      return { tab: await p.evaluate(() => document.querySelector('link[rel="icon"]').href), apple: await p.evaluate(() => document.querySelector('link[rel="apple-touch-icon"]').href), manifest: j, errs: (inst.installabilityErrors || []).map(e => e.errorId), merrs: m.errors || [] }; };
+    // a company with NO logo yet
+    seed.S('sync', { action: 'saveProfile', profile: { name: 'Test Forestry', email: 'office@example.test', logo: '' } });
+    await p.goto(BASE + 'index.html'); await p.waitForSelector('#kfSignIn'); await p.fill('#kfsPw', 'secret1'); await p.fill('#kfsName', 'Laptop'); await p.waitForTimeout(600); await p.click('#kfsAdmin');
+    await p.waitForFunction(() => !!localStorage.kfAdminToken); await p.goto(BASE + 'dispatch.html'); await p.waitForTimeout(1200);
+    let st = await iconState();
+    check(/icon-192\.png$/.test(st.tab), 'no logo yet: the tab shows the website icon');
+    eq([st.manifest && st.manifest.name, st.errs, st.merrs], ['Test Forestry', [], []], 'no logo yet: installs as "Test Forestry" with the website icon, Chrome finds no problem');
+    // the company saves its own (wide) logo in Billing
+    const wide = 'data:image/png;base64,' + fs.readFileSync(path.join(__dirname, 'fixtures', 'wide-logo.png')).toString('base64');
+    await p.goto(BASE + 'invoices.html'); await p.waitForTimeout(800); await p.click('text=Settings'); await p.waitForTimeout(600);
+    seed.S('sync', { action: 'saveProfile', profile: { name: 'Test Forestry', email: 'office@example.test', logo: wide } });
+    for (const f of ['index.html', 'dispatch.html', 'drivers.html', 'trucks.html', 'statistics.html']) {
+      await p.goto(BASE + f); await p.waitForTimeout(1500);
+      st = await iconState();
+      const icons = (st.manifest && st.manifest.icons) || [];
+      check(/^data:image\/png/.test(st.tab) && /^data:image\/png/.test(st.apple) && icons.length === 2 && icons.every(i => /^data:image\/png/.test(i.src)) && st.errs.length === 0,
+        f + ': tab icon, home-screen icon and install icons are the company logo; Chrome install check clean' + (st.errs.length ? ' ' + st.errs.join(',') : ''));
+    }
+    const size = await p.evaluate(src => new Promise(r => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.drawImage(i, 0, 0); const top = g.getImageData(256, 5, 1, 1).data[3], mid = g.getImageData(256, 256, 1, 1).data[3]; r({ w: i.width, h: i.height, top, mid }); }; i.src = src; }), st.manifest.icons[1].src);
+    eq(size, { w: 512, h: 512, top: 0, mid: 255 }, 'a wide logo is centred on a square 512 x 512 icon (clear above and below, not stretched)');
+    await p.screenshot({ path: path.join(SHOTS, 'company-logo-icons.png') });
+    await c.close();
     await c.close();
   });
 

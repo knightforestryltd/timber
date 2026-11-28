@@ -30,7 +30,7 @@ when the company password is created.
 
 | Where | What |
 |---|---|
-| **Billing → Settings** | Company name, GST number, address, phone, email, **logo** (the logo shows at the top of every page and on invoices) |
+| **Billing → Settings** | Company name, GST number, address, phone, email, **logo**. The logo is used at the top of every page, on invoices, as the browser-tab icon, and as the icon and name when someone installs the site on a laptop or adds it to a phone home screen. Until a logo is saved, the website's own icon is used |
 | **Quote → Settings → Pickup Locations** | Each location or yard with its address and species: cost, price, tonnes per cord. These species become the tick boxes on the Quote page |
 | **Quote → Settings** | Trucks (rate, fuel use, tonnes), GST %, fuel price, Google Maps key, home base. Then **Save to Company** |
 | **Trucks** | Each truck, trailer and piece of equipment (odometer, hours, plate, expiry dates) |
